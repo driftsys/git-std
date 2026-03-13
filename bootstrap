@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Bootstrap the development environment for git-std.
+# Installs Rust toolchain if missing and sets up git hooks.
+
+check_rust() {
+  if ! command -v rustup >/dev/null 2>&1; then
+    printf 'installing Rust toolchain via rustup...\n'
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    # shellcheck source=/dev/null
+    source "$HOME/.cargo/env"
+  else
+    printf 'Rust toolchain: %s\n' "$(rustc --version)"
+  fi
+}
+
+install_tools() {
+  if ! command -v dprint >/dev/null 2>&1; then
+    printf 'installing dprint...\n'
+    cargo install dprint
+  fi
+
+  if ! command -v just >/dev/null 2>&1; then
+    printf 'installing just...\n'
+    cargo install just
+  fi
+}
+
+setup_hooks() {
+  if command -v git-std >/dev/null 2>&1; then
+    printf 'installing git hooks via git-std...\n'
+    git std hooks install
+  else
+    printf 'note: git-std not found — skipping hooks install (run after first build)\n'
+  fi
+}
+
+main() {
+  printf '=== git-std bootstrap ===\n'
+  check_rust
+  install_tools
+  setup_hooks
+  printf '\nbootstrap complete. Run "just build" to build the project.\n'
+}
+
+main "$@"
