@@ -16,7 +16,32 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Interactive conventional commit builder.
-    Commit,
+    Commit {
+        /// Commit type (e.g. feat, fix, chore).
+        #[arg(long = "type")]
+        commit_type: Option<String>,
+        /// Commit scope.
+        #[arg(long)]
+        scope: Option<String>,
+        /// Commit description (subject line). Skips all prompts when combined with --type.
+        #[arg(short = 'm', long)]
+        message: Option<String>,
+        /// Breaking change description.
+        #[arg(long)]
+        breaking: Option<String>,
+        /// Print the formatted message without committing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Amend the previous commit instead of creating a new one.
+        #[arg(long)]
+        amend: bool,
+        /// GPG-sign the commit.
+        #[arg(short = 'S', long)]
+        sign: bool,
+        /// Stage all tracked modified files before committing.
+        #[arg(short = 'a', long)]
+        all: bool,
+    },
     /// Validate commit messages.
     Check {
         /// Commit message to validate (inline).
@@ -72,14 +97,33 @@ fn main() {
             };
             std::process::exit(code);
         }
-        Command::Commit => {
+        Command::Commit {
+            commit_type,
+            scope,
+            message,
+            breaking,
+            dry_run,
+            amend,
+            sign,
+            all,
+        } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
-            let code = commit::run_interactive(&project_config);
+            let opts = commit::CommitOptions {
+                commit_type,
+                scope,
+                message,
+                breaking,
+                dry_run,
+                amend,
+                sign,
+                all,
+            };
+            let code = commit::run_interactive(&project_config, &opts);
             std::process::exit(code);
         }
         other => {
             let name = match other {
-                Command::Commit => unreachable!(),
+                Command::Commit { .. } => unreachable!(),
                 Command::Check { .. } => unreachable!(),
                 Command::Bump => "bump",
                 Command::Changelog => "changelog",

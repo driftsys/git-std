@@ -4,6 +4,19 @@ use inquire::{
     validator::{ErrorMessage, Validation},
 };
 use standard_commit::ConventionalCommit;
+use std::path::Path;
+
+/// Options passed from CLI flags to the commit flow.
+pub struct CommitOptions {
+    pub commit_type: Option<String>,
+    pub scope: Option<String>,
+    pub message: Option<String>,
+    pub breaking: Option<String>,
+    pub dry_run: bool,
+    pub amend: bool,
+    pub sign: bool,
+    pub all: bool,
+}
 
 /// Raw prompt answers before assembly into a `ConventionalCommit`.
 struct PromptAnswers {
@@ -42,9 +55,9 @@ fn build_commit(answers: PromptAnswers) -> ConventionalCommit {
     }
 }
 
-/// Run the interactive commit flow: prompt, format, validate, commit.
-pub fn run_interactive(config: &ProjectConfig) -> i32 {
-    let answers = match prompt(config) {
+/// Run the commit flow: prompt (or use flags), format, validate, commit.
+pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
+    let answers = match gather_answers(config, opts) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("error: {e}");
@@ -60,22 +73,96 @@ pub fn run_interactive(config: &ProjectConfig) -> i32 {
         return 1;
     }
 
-    match create_commit(&message) {
-        Ok(()) => 0,
-        Err(e) => {
-            eprintln!("error: {e}");
-            1
+    if opts.dry_run {
+        println!("{message}");
+        return 0;
+    }
+
+    // Stage all tracked modified files if --all is set.
+    if opts.all
+        && let Err(e) = stage_tracked_modified(".")
+    {
+        eprintln!("error: {e}");
+        return 1;
+    }
+
+    if opts.sign {
+        match create_commit_signed(&message, opts.amend) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("error: {e}");
+                1
+            }
+        }
+    } else if opts.amend {
+        match amend_commit(".", &message) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("error: {e}");
+                1
+            }
+        }
+    } else {
+        match create_commit(".", &message) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("error: {e}");
+                1
+            }
         }
     }
 }
 
-fn prompt(config: &ProjectConfig) -> Result<PromptAnswers, Box<dyn std::error::Error>> {
-    let commit_type = prompt_type(&config.types)?;
-    let scope = prompt_scope(config)?;
-    let description = prompt_description()?;
-    let body = prompt_body()?;
-    let breaking = prompt_breaking()?;
-    let refs = prompt_refs()?;
+/// Gather answers from flags and/or interactive prompts.
+///
+/// When all required fields (`--type` and `--message`) are provided via flags,
+/// prompts are skipped entirely (non-interactive mode). When some flags are
+/// given, only the missing fields are prompted.
+fn gather_answers(
+    config: &ProjectConfig,
+    opts: &CommitOptions,
+) -> Result<PromptAnswers, Box<dyn std::error::Error>> {
+    let fully_non_interactive = opts.commit_type.is_some() && opts.message.is_some();
+
+    let commit_type = if let Some(t) = &opts.commit_type {
+        t.clone()
+    } else {
+        prompt_type(&config.types)?
+    };
+
+    let scope = if opts.scope.is_some() {
+        opts.scope.clone()
+    } else if fully_non_interactive {
+        None
+    } else {
+        prompt_scope(config)?
+    };
+
+    let description = if let Some(m) = &opts.message {
+        m.clone()
+    } else {
+        prompt_description()?
+    };
+
+    let body = if fully_non_interactive {
+        None
+    } else {
+        prompt_body()?
+    };
+
+    let breaking = if opts.breaking.is_some() {
+        opts.breaking.clone()
+    } else if fully_non_interactive {
+        None
+    } else {
+        prompt_breaking()?
+    };
+
+    let refs = if fully_non_interactive {
+        vec![]
+    } else {
+        prompt_refs()?
+    };
 
     Ok(PromptAnswers {
         commit_type,
@@ -169,8 +256,18 @@ fn prompt_refs() -> Result<Vec<String>, Box<dyn std::error::Error>> {
     Ok(refs)
 }
 
-fn create_commit(message: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let repo = git2::Repository::discover(".")?;
+/// Stage all tracked modified files (equivalent to `git add -u`).
+fn stage_tracked_modified(path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
+    let repo = git2::Repository::discover(path)?;
+    let mut index = repo.index()?;
+    index.update_all(["*"].iter(), None)?;
+    index.write()?;
+    Ok(())
+}
+
+/// Create a new commit using git2.
+fn create_commit(path: impl AsRef<Path>, message: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let repo = git2::Repository::discover(path)?;
     let sig = repo.signature()?;
     let mut index = repo.index()?;
     let tree_oid = index.write_tree()?;
@@ -186,6 +283,42 @@ fn create_commit(message: &str) -> Result<(), Box<dyn std::error::Error>> {
     repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)?;
 
     Ok(())
+}
+
+/// Amend the previous commit with a new message using git2.
+fn amend_commit(path: impl AsRef<Path>, message: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let repo = git2::Repository::discover(path)?;
+    let sig = repo.signature()?;
+    let mut index = repo.index()?;
+    let tree_oid = index.write_tree()?;
+    let tree = repo.find_tree(tree_oid)?;
+
+    let head = repo.head()?.peel_to_commit()?;
+    head.amend(
+        Some("HEAD"),
+        Some(&sig),
+        Some(&sig),
+        None,
+        Some(message),
+        Some(&tree),
+    )?;
+
+    Ok(())
+}
+
+/// Create a signed commit by shelling out to `git commit`.
+fn create_commit_signed(message: &str, amend: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let mut cmd = std::process::Command::new("git");
+    cmd.args(["commit", "-S", "-m", message]);
+    if amend {
+        cmd.arg("--amend");
+    }
+    let status = cmd.status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("git commit exited with status {status}").into())
+    }
 }
 
 #[cfg(test)]
@@ -319,32 +452,148 @@ mod tests {
         assert_eq!(message, "feat(auth): add OAuth2 PKCE flow");
     }
 
-    #[test]
-    fn create_commit_writes_to_repo() {
+    /// Helper: create a temp repo with one committed file.
+    fn init_test_repo() -> (tempfile::TempDir, git2::Repository) {
         let dir = tempfile::tempdir().unwrap();
         let repo = git2::Repository::init(dir.path()).unwrap();
 
-        // Configure a signature for the test repo.
         let mut config = repo.config().unwrap();
         config.set_str("user.name", "Test").unwrap();
         config.set_str("user.email", "test@test.com").unwrap();
 
-        // Create and stage a file.
         let file_path = dir.path().join("hello.txt");
         std::fs::write(&file_path, "hello").unwrap();
         let mut index = repo.index().unwrap();
         index.add_path(std::path::Path::new("hello.txt")).unwrap();
         index.write().unwrap();
 
-        // Commit from inside the temp dir.
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-        let result = create_commit("feat: initial commit");
-        std::env::set_current_dir(original_dir).unwrap();
+        create_commit(dir.path(), "feat: initial commit").unwrap();
 
+        (dir, repo)
+    }
+
+    #[test]
+    fn create_commit_writes_to_repo() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = git2::Repository::init(dir.path()).unwrap();
+
+        let mut config = repo.config().unwrap();
+        config.set_str("user.name", "Test").unwrap();
+        config.set_str("user.email", "test@test.com").unwrap();
+
+        let file_path = dir.path().join("hello.txt");
+        std::fs::write(&file_path, "hello").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("hello.txt")).unwrap();
+        index.write().unwrap();
+
+        let result = create_commit(dir.path(), "feat: initial commit");
         assert!(result.is_ok());
 
         let head = repo.head().unwrap().peel_to_commit().unwrap();
         assert_eq!(head.message().unwrap(), "feat: initial commit");
+    }
+
+    #[test]
+    fn amend_commit_updates_message() {
+        let (dir, _repo) = init_test_repo();
+
+        amend_commit(dir.path(), "fix: amended commit").unwrap();
+
+        let repo = git2::Repository::open(dir.path()).unwrap();
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        assert_eq!(head.message().unwrap(), "fix: amended commit");
+    }
+
+    #[test]
+    fn stage_tracked_modified_adds_changes() {
+        let (dir, _repo) = init_test_repo();
+
+        // Modify the tracked file (without staging).
+        std::fs::write(dir.path().join("hello.txt"), "modified").unwrap();
+
+        // stage_tracked_modified should pick it up.
+        stage_tracked_modified(dir.path()).unwrap();
+
+        // Re-open repo to get a fresh index reflecting the staged changes.
+        let repo = git2::Repository::open(dir.path()).unwrap();
+        let index = repo.index().unwrap();
+        let entry = index
+            .get_path(std::path::Path::new("hello.txt"), 0)
+            .unwrap();
+        let blob = repo.find_blob(entry.id).unwrap();
+        assert_eq!(std::str::from_utf8(blob.content()).unwrap(), "modified");
+    }
+
+    #[test]
+    fn gather_answers_fully_non_interactive() {
+        let config = ProjectConfig {
+            types: vec!["feat".into(), "fix".into()],
+            scopes: ScopesConfig::None,
+            strict: false,
+        };
+        let opts = CommitOptions {
+            commit_type: Some("feat".into()),
+            scope: Some("auth".into()),
+            message: Some("add login".into()),
+            breaking: Some("removed old flow".into()),
+            dry_run: false,
+            amend: false,
+            sign: false,
+            all: false,
+        };
+        let answers = gather_answers(&config, &opts).unwrap();
+        assert_eq!(answers.commit_type, "feat");
+        assert_eq!(answers.scope.as_deref(), Some("auth"));
+        assert_eq!(answers.description, "add login");
+        assert!(answers.body.is_none());
+        assert_eq!(answers.breaking.as_deref(), Some("removed old flow"));
+        assert!(answers.refs.is_empty());
+    }
+
+    #[test]
+    fn gather_answers_minimal_non_interactive() {
+        let config = ProjectConfig {
+            types: vec!["feat".into()],
+            scopes: ScopesConfig::None,
+            strict: false,
+        };
+        let opts = CommitOptions {
+            commit_type: Some("feat".into()),
+            scope: None,
+            message: Some("add login".into()),
+            breaking: None,
+            dry_run: false,
+            amend: false,
+            sign: false,
+            all: false,
+        };
+        let answers = gather_answers(&config, &opts).unwrap();
+        assert_eq!(answers.commit_type, "feat");
+        assert!(answers.scope.is_none());
+        assert_eq!(answers.description, "add login");
+        assert!(answers.breaking.is_none());
+    }
+
+    #[test]
+    fn dry_run_prints_message_without_committing() {
+        let config = ProjectConfig {
+            types: vec!["feat".into()],
+            scopes: ScopesConfig::None,
+            strict: false,
+        };
+        let opts = CommitOptions {
+            commit_type: Some("feat".into()),
+            scope: Some("auth".into()),
+            message: Some("add login".into()),
+            breaking: None,
+            dry_run: true,
+            amend: false,
+            sign: false,
+            all: false,
+        };
+        // dry_run returns 0 and doesn't try to open a repo.
+        let code = run_interactive(&config, &opts);
+        assert_eq!(code, 0);
     }
 }
