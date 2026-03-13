@@ -46,7 +46,7 @@ fn unknown_subcommand_exits_2() {
 
 #[test]
 fn stub_subcommands_are_recognized() {
-    for sub in ["bump", "changelog", "hooks", "self-update"] {
+    for sub in ["bump", "hooks", "self-update"] {
         Command::cargo_bin("git-std")
             .unwrap()
             .arg(sub)

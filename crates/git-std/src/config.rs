@@ -20,15 +20,36 @@ pub enum ScopesConfig {
     List(Vec<String>),
 }
 
+/// Changelog-specific configuration.
+#[derive(Debug, Clone, Default)]
+pub struct ChangelogConfig {
+    pub title: Option<String>,
+    pub sections: Option<Vec<(String, String)>>,
+    pub hidden: Option<Vec<String>>,
+    pub bug_url: Option<String>,
+}
+
 /// Project configuration loaded from `.git-std.toml`.
 #[derive(Debug, Default)]
 pub struct ProjectConfig {
     pub types: Vec<String>,
     pub scopes: ScopesConfig,
     pub strict: bool,
+    pub changelog: ChangelogConfig,
 }
 
 impl ProjectConfig {
+    /// Build a [`standard_changelog::ChangelogConfig`] from project settings.
+    pub fn to_changelog_config(&self) -> standard_changelog::ChangelogConfig {
+        let default = standard_changelog::ChangelogConfig::default();
+        standard_changelog::ChangelogConfig {
+            title: self.changelog.title.clone().unwrap_or(default.title),
+            sections: self.changelog.sections.clone().unwrap_or(default.sections),
+            hidden: self.changelog.hidden.clone().unwrap_or(default.hidden),
+            bug_url: self.changelog.bug_url.clone(),
+        }
+    }
+
     /// Build a `LintConfig` for `standard_commit::lint`.
     ///
     /// Strict mode is enabled if either the `--strict` CLI flag is passed
@@ -68,6 +89,7 @@ pub fn load(dir: &Path) -> ProjectConfig {
             types: default_types(),
             scopes: ScopesConfig::None,
             strict: false,
+            changelog: ChangelogConfig::default(),
         },
     }
 }
@@ -80,6 +102,7 @@ fn parse_config(content: &str) -> ProjectConfig {
                 types: default_types(),
                 scopes: ScopesConfig::None,
                 strict: false,
+                changelog: ChangelogConfig::default(),
             };
         }
     };
@@ -120,10 +143,55 @@ fn parse_config(content: &str) -> ProjectConfig {
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    let changelog = parse_changelog_config(&table);
+
     ProjectConfig {
         types,
         scopes,
         strict,
+        changelog,
+    }
+}
+
+fn parse_changelog_config(table: &toml::Table) -> ChangelogConfig {
+    let changelog_table = match table.get("changelog").and_then(|v| v.as_table()) {
+        Some(t) => t,
+        None => return ChangelogConfig::default(),
+    };
+
+    let title = changelog_table
+        .get("title")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let hidden = changelog_table
+        .get("hidden")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        });
+
+    let bug_url = changelog_table
+        .get("bug_url")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let sections = changelog_table
+        .get("sections")
+        .and_then(|v| v.as_table())
+        .map(|t| {
+            t.iter()
+                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                .collect()
+        });
+
+    ChangelogConfig {
+        title,
+        sections,
+        hidden,
+        bug_url,
     }
 }
 
@@ -229,6 +297,7 @@ mod tests {
             types: vec!["feat".into()],
             scopes: ScopesConfig::List(vec!["auth".into()]),
             strict: true,
+            ..Default::default()
         };
         // strict=true in config, flag=false → still strict
         let lint = config.to_lint_config(false);

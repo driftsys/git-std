@@ -366,6 +366,7 @@ dependencies = [
  "predicates",
  "serde",
  "serde_json",
+ "standard-changelog",
  "standard-commit",
  "tempfile",
  "toml",
@@ -966,9 +967,6 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 [[package]]
 name = "standard-changelog"
 version = "0.0.1"
-dependencies = [
- "standard-commit",
-]
 
 [[package]]
 name = "standard-commit"

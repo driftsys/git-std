@@ -2,6 +2,7 @@ use std::io::IsTerminal;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
+mod changelog;
 mod check;
 mod commit;
 mod config;
@@ -78,8 +79,18 @@ enum Command {
     },
     /// Version bump, changelog, commit, and tag.
     Bump,
-    /// Generate a changelog.
-    Changelog,
+    /// Generate a changelog (incremental by default, --full to regenerate).
+    Changelog {
+        /// Regenerate the entire changelog from the first commit.
+        #[arg(long)]
+        full: bool,
+        /// Print to stdout instead of writing to a file.
+        #[arg(long)]
+        stdout: bool,
+        /// Output file path.
+        #[arg(long, default_value = "CHANGELOG.md")]
+        output: String,
+    },
     /// Git hooks management.
     Hooks,
     /// Update git-std to the latest version.
@@ -153,12 +164,27 @@ fn main() {
             let code = commit::run_interactive(&project_config, &opts);
             std::process::exit(code);
         }
+        Command::Changelog {
+            full,
+            stdout,
+            output,
+        } => {
+            let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let changelog_config = project_config.to_changelog_config();
+            let opts = changelog::ChangelogOptions {
+                full,
+                stdout,
+                output,
+            };
+            let code = changelog::run(&changelog_config, &opts);
+            std::process::exit(code);
+        }
         other => {
             let name = match other {
                 Command::Commit { .. } => unreachable!(),
                 Command::Check { .. } => unreachable!(),
+                Command::Changelog { .. } => unreachable!(),
                 Command::Bump => "bump",
-                Command::Changelog => "changelog",
                 Command::Hooks => "hooks",
                 Command::SelfUpdate => "self-update",
             };
