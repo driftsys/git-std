@@ -1,0 +1,12 @@
+#:schema https://driftsys.github.io/schemas/project/v1.json
+
+name = "io.driftsys.git-std"
+version = "0.0.0"
+category = ["tool", "binary"]
+description = "Standard git workflow — commits, versioning, hooks"
+license = "MIT"
+keywords = ["git", "conventional-commits", "hooks", "versioning", "changelog"]
+authors = ["driftsys"]
+homepage = "https://github.com/driftsys/git-std"
+bugs = "https://github.com/driftsys/git-std/issues"
+repository = "https://github.com/driftsys/git-std"

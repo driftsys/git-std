@@ -1,0 +1,7 @@
+[book]
+title = "git-std"
+authors = ["driftsys"]
+src = "docs"
+
+[build]
+build-dir = "target/book"
