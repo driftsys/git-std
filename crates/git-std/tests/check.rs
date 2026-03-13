@@ -276,3 +276,147 @@ fn range_invalid_range_exits_2() {
         .assert()
         .code(2);
 }
+
+// ── .versionrc types (#13) + --strict (#14) ────────────────────
+
+#[test]
+fn strict_accepts_default_types_without_versionrc() {
+    let dir = tempfile::tempdir().unwrap();
+    // No .versionrc — should use default types
+    git_std()
+        .args(["check", "--strict", "feat: add login"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn strict_rejects_unknown_type_without_versionrc() {
+    let dir = tempfile::tempdir().unwrap();
+    git_std()
+        .args(["check", "--strict", "yolo: do things"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("not in the allowed list"));
+}
+
+#[test]
+fn strict_with_custom_types_accepts_custom() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(".versionrc"),
+        "[[types]]\ntype = \"feat\"\n\n[[types]]\ntype = \"fix\"\n\n[[types]]\ntype = \"custom\"\n",
+    )
+    .unwrap();
+
+    git_std()
+        .args(["check", "--strict", "custom: do something"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn strict_with_custom_types_rejects_unlisted() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(".versionrc"),
+        "[[types]]\ntype = \"feat\"\n\n[[types]]\ntype = \"fix\"\n",
+    )
+    .unwrap();
+
+    git_std()
+        .args(["check", "--strict", "docs: update readme"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("not in the allowed list"));
+}
+
+#[test]
+fn strict_with_scopes_requires_scope() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(".versionrc"),
+        "scopes = [\"auth\", \"api\"]\n",
+    )
+    .unwrap();
+
+    // No scope provided — should fail
+    git_std()
+        .args(["check", "--strict", "feat: add login"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("scope is required"));
+}
+
+#[test]
+fn strict_with_scopes_rejects_unknown_scope() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(".versionrc"),
+        "scopes = [\"auth\", \"api\"]\n",
+    )
+    .unwrap();
+
+    git_std()
+        .args(["check", "--strict", "feat(unknown): add login"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("not in the allowed list"));
+}
+
+#[test]
+fn strict_with_scopes_accepts_valid_scope() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(".versionrc"),
+        "scopes = [\"auth\", \"api\"]\n",
+    )
+    .unwrap();
+
+    git_std()
+        .args(["check", "--strict", "feat(auth): add login"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn without_strict_any_type_accepted() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(".versionrc"),
+        "[[types]]\ntype = \"feat\"\n",
+    )
+    .unwrap();
+
+    // Without --strict, custom types pass (only parse validation)
+    git_std()
+        .args(["check", "yolo: do things"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn strict_file_validates_against_config() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(".versionrc"),
+        "[[types]]\ntype = \"feat\"\n\n[[types]]\ntype = \"fix\"\n",
+    )
+    .unwrap();
+    let msg_path = dir.path().join("COMMIT_EDITMSG");
+    std::fs::write(&msg_path, "docs: update readme\n").unwrap();
+
+    git_std()
+        .args(["check", "--strict", "--file", msg_path.to_str().unwrap()])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("not in the allowed list"));
+}
