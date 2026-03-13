@@ -34,7 +34,10 @@ fn valid_breaking_bang() {
 #[test]
 fn valid_with_body() {
     git_std()
-        .args(["check", "fix(core): handle nil pointer\n\nAdded nil check before dereferencing the config pointer."])
+        .args([
+            "check",
+            "fix(core): handle nil pointer\n\nAdded nil check before dereferencing the config pointer.",
+        ])
         .assert()
         .success();
 }
@@ -104,4 +107,172 @@ fn diagnostic_shows_got_line() {
         .assert()
         .code(1)
         .stderr(contains("Got:"));
+}
+
+// ── check --file (#11) ─────────────────────────────────────────
+
+#[test]
+fn file_valid_message() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("COMMIT_EDITMSG");
+    std::fs::write(&path, "feat: add login\n").unwrap();
+
+    git_std()
+        .args(["check", "--file", path.to_str().unwrap()])
+        .assert()
+        .success();
+}
+
+#[test]
+fn file_strips_comment_lines() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("COMMIT_EDITMSG");
+    std::fs::write(
+        &path,
+        "feat: add login\n# Please enter the commit message\n# Lines starting with '#' will be ignored\n",
+    )
+    .unwrap();
+
+    git_std()
+        .args(["check", "--file", path.to_str().unwrap()])
+        .assert()
+        .success();
+}
+
+#[test]
+fn file_invalid_message() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("COMMIT_EDITMSG");
+    std::fs::write(&path, "bad message\n").unwrap();
+
+    git_std()
+        .args(["check", "--file", path.to_str().unwrap()])
+        .assert()
+        .code(1)
+        .stderr(contains("invalid"));
+}
+
+#[test]
+fn file_not_found_exits_2() {
+    git_std()
+        .args(["check", "--file", "/nonexistent/path"])
+        .assert()
+        .code(2)
+        .stderr(contains("cannot read"));
+}
+
+#[test]
+fn file_with_body_and_comments() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("COMMIT_EDITMSG");
+    std::fs::write(
+        &path,
+        "feat: add OAuth2 PKCE flow\n\nImplements the full PKCE authorization code flow.\n# On branch main\n# Changes to be committed:\n",
+    )
+    .unwrap();
+
+    git_std()
+        .args(["check", "--file", path.to_str().unwrap()])
+        .assert()
+        .success();
+}
+
+// ── check --range (#12) ────────────────────────────────────────
+
+fn make_test_repo(dir: &std::path::Path) -> git2::Repository {
+    let repo = git2::Repository::init(dir).unwrap();
+    let mut config = repo.config().unwrap();
+    config.set_str("user.name", "Test").unwrap();
+    config.set_str("user.email", "test@test.com").unwrap();
+    repo
+}
+
+fn create_commit(
+    repo: &git2::Repository,
+    dir: &std::path::Path,
+    message: &str,
+    content: &str,
+) -> git2::Oid {
+    let sig = repo.signature().unwrap();
+    let path = dir.join("file.txt");
+    std::fs::write(&path, content).unwrap();
+    let mut index = repo.index().unwrap();
+    index.add_path(std::path::Path::new("file.txt")).unwrap();
+    index.write().unwrap();
+    let tree_id = index.write_tree().unwrap();
+    let tree = repo.find_tree(tree_id).unwrap();
+
+    let parents: Vec<git2::Commit> = if let Ok(head) = repo.head() {
+        vec![head.peel_to_commit().unwrap()]
+    } else {
+        vec![]
+    };
+    let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+
+    repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parent_refs)
+        .unwrap()
+}
+
+#[test]
+fn range_all_valid_exits_0() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = make_test_repo(dir.path());
+
+    let initial = create_commit(&repo, dir.path(), "feat: initial commit", "hello");
+    create_commit(&repo, dir.path(), "fix: correct typo", "world");
+
+    let range = format!("{}..HEAD", &initial.to_string()[..7]);
+
+    git_std()
+        .args(["check", "--range", &range])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("\u{2713}"));
+}
+
+#[test]
+fn range_invalid_commit_exits_1() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = make_test_repo(dir.path());
+
+    let initial = create_commit(&repo, dir.path(), "feat: initial", "hello");
+    create_commit(&repo, dir.path(), "bad commit message", "world");
+
+    let range = format!("{}..HEAD", &initial.to_string()[..7]);
+
+    git_std()
+        .args(["check", "--range", &range])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("\u{2717}"));
+}
+
+#[test]
+fn range_mixed_reports_both() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = make_test_repo(dir.path());
+
+    let initial = create_commit(&repo, dir.path(), "feat: initial", "a");
+    create_commit(&repo, dir.path(), "fix: valid one", "b");
+    create_commit(&repo, dir.path(), "invalid message", "c");
+
+    let range = format!("{}..HEAD", &initial.to_string()[..7]);
+
+    git_std()
+        .args(["check", "--range", &range])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("\u{2713}"))
+        .stderr(contains("\u{2717}"));
+}
+
+#[test]
+fn range_invalid_range_exits_2() {
+    git_std()
+        .args(["check", "--range", "nonexistent..also-nonexistent"])
+        .assert()
+        .code(2);
 }
