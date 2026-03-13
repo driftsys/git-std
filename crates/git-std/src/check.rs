@@ -1,7 +1,22 @@
 use std::path::Path;
 
+use standard_commit::LintConfig;
+
 /// Run the `check` subcommand with an inline message. Returns the exit code.
-pub fn run(message: &str) -> i32 {
+pub fn run(message: &str, lint_config: Option<&LintConfig>) -> i32 {
+    if let Some(config) = lint_config {
+        let errors = standard_commit::lint(message, config);
+        if errors.is_empty() {
+            return 0;
+        }
+        for error in &errors {
+            eprintln!("\u{2717} {error}");
+        }
+        eprintln!("  Expected: <type>(<scope>): <description>");
+        eprintln!("  Got:      {}", first_line(message));
+        return 1;
+    }
+
     match standard_commit::parse(message) {
         Ok(_) => 0,
         Err(e) => {
@@ -12,7 +27,7 @@ pub fn run(message: &str) -> i32 {
 }
 
 /// Read a commit message from a file, strip comment lines, and validate.
-pub fn run_file(path: &Path) -> i32 {
+pub fn run_file(path: &Path, lint_config: Option<&LintConfig>) -> i32 {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
@@ -21,11 +36,11 @@ pub fn run_file(path: &Path) -> i32 {
         }
     };
     let message = strip_comments(&content);
-    run(&message)
+    run(&message, lint_config)
 }
 
 /// Validate all commits in a git revision range. Returns 0 if all valid, 1 if any invalid.
-pub fn run_range(range: &str) -> i32 {
+pub fn run_range(range: &str, lint_config: Option<&LintConfig>) -> i32 {
     let repo = match git2::Repository::discover(".") {
         Ok(r) => r,
         Err(e) => {
@@ -50,13 +65,32 @@ pub fn run_range(range: &str) -> i32 {
     let mut failures = 0;
     for (oid, message) in &commits {
         let short = &oid.to_string()[..7];
-        match standard_commit::parse(message) {
-            Ok(_) => eprintln!("\u{2713} {short} {}", first_line(message)),
-            Err(e) => {
+        let valid = if let Some(config) = lint_config {
+            let errors = standard_commit::lint(message, config);
+            if errors.is_empty() {
+                true
+            } else {
                 eprintln!("\u{2717} {short} {}", first_line(message));
-                eprintln!("  {e}");
-                failures += 1;
+                for error in &errors {
+                    eprintln!("  {error}");
+                }
+                false
             }
+        } else {
+            match standard_commit::parse(message) {
+                Ok(_) => true,
+                Err(e) => {
+                    eprintln!("\u{2717} {short} {}", first_line(message));
+                    eprintln!("  {e}");
+                    false
+                }
+            }
+        };
+
+        if valid {
+            eprintln!("\u{2713} {short} {}", first_line(message));
+        } else {
+            failures += 1;
         }
     }
 

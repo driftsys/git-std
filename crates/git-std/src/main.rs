@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 mod check;
+mod config;
 
 /// Standard git workflow — commits, versioning, hooks.
 #[derive(Parser)]
@@ -25,6 +26,9 @@ enum Command {
         /// Validate all commits in a git revision range.
         #[arg(long, short, conflicts_with = "message", conflicts_with = "file")]
         range: Option<String>,
+        /// Reject types/scopes not in `.git-std.toml` and require scope if scopes are defined.
+        #[arg(long)]
+        strict: bool,
     },
     /// Version bump, changelog, commit, and tag.
     Bump,
@@ -44,13 +48,23 @@ fn main() {
             message,
             file,
             range,
+            strict,
         } => {
+            let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let effective_strict = strict || project_config.strict;
+            let lint_config = project_config.to_lint_config(strict);
+            let lint_ref = if effective_strict {
+                Some(&lint_config)
+            } else {
+                None
+            };
+
             let code = if let Some(path) = file {
-                check::run_file(&path)
+                check::run_file(&path, lint_ref)
             } else if let Some(range) = range {
-                check::run_range(&range)
+                check::run_range(&range, lint_ref)
             } else if let Some(message) = message {
-                check::run(&message)
+                check::run(&message, lint_ref)
             } else {
                 eprintln!("error: provide a message, --file, or --range");
                 2
