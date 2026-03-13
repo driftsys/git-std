@@ -2,10 +2,7 @@ use std::io::IsTerminal;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
-mod bump;
-mod changelog;
-mod check;
-mod commit;
+mod cli;
 mod config;
 mod git;
 
@@ -77,7 +74,7 @@ enum Command {
         strict: bool,
         /// Output format.
         #[arg(long, default_value = "text")]
-        format: check::OutputFormat,
+        format: cli::check::OutputFormat,
     },
     /// Version bump, changelog, commit, and tag.
     Bump {
@@ -156,11 +153,11 @@ fn main() {
             };
 
             let code = if let Some(path) = file {
-                check::run_file(&path, lint_ref, format)
+                cli::check::run_file(&path, lint_ref, format)
             } else if let Some(range) = range {
-                check::run_range(&range, lint_ref, format)
+                cli::check::run_range(&range, lint_ref, format)
             } else if let Some(message) = message {
-                check::run(&message, lint_ref, format)
+                cli::check::run(&message, lint_ref, format)
             } else {
                 eprintln!("error: provide a message, --file, or --range");
                 2
@@ -178,7 +175,7 @@ fn main() {
             all,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
-            let opts = commit::CommitOptions {
+            let opts = cli::commit::CommitOptions {
                 commit_type,
                 scope,
                 message,
@@ -188,7 +185,7 @@ fn main() {
                 sign,
                 all,
             };
-            let code = commit::run_interactive(&project_config, &opts);
+            let code = cli::commit::run_interactive(&project_config, &opts);
             std::process::exit(code);
         }
         Command::Changelog {
@@ -198,12 +195,12 @@ fn main() {
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
             let changelog_config = project_config.to_changelog_config();
-            let opts = changelog::ChangelogOptions {
+            let opts = cli::changelog::ChangelogOptions {
                 full,
                 stdout,
                 output,
             };
-            let code = changelog::run(&changelog_config, &opts);
+            let code = cli::changelog::run(&changelog_config, &opts);
             std::process::exit(code);
         }
         Command::Bump {
@@ -217,7 +214,7 @@ fn main() {
             sign,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
-            let opts = bump::BumpOptions {
+            let opts = cli::bump::BumpOptions {
                 dry_run,
                 prerelease,
                 release_as,
@@ -227,7 +224,7 @@ fn main() {
                 skip_changelog,
                 sign,
             };
-            let code = bump::run(&project_config, &opts);
+            let code = cli::bump::run(&project_config, &opts);
             std::process::exit(code);
         }
         other => {
