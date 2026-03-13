@@ -37,7 +37,7 @@ The project is in early scaffold stage (v0.0.0). The full specification lives in
 
 **Key design decisions:**
 
-- Config is `.versionrc` (TOML). Hooks config is `.githooks/*.hooks` (plain text, one command per line).
+- Config is `.git-std.toml`. Hooks config is `.githooks/*.hooks` (plain text, one command per line).
 - Uses `git2` (libgit2) for git operations — no shelling out to `git`.
 - Uses `git_cliff_core` as a library for changelog rendering.
 - Target binary size: ~5–8 MB (`lto = true`, `strip = true`, `codegen-units = 1`).

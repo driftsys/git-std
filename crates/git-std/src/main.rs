@@ -26,7 +26,7 @@ enum Command {
         /// Validate all commits in a git revision range.
         #[arg(long, short, conflicts_with = "message", conflicts_with = "file")]
         range: Option<String>,
-        /// Reject types/scopes not in `.versionrc` and require scope if scopes are defined.
+        /// Reject types/scopes not in `.git-std.toml` and require scope if scopes are defined.
         #[arg(long)]
         strict: bool,
     },
@@ -51,8 +51,13 @@ fn main() {
             strict,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let effective_strict = strict || project_config.strict;
             let lint_config = project_config.to_lint_config(strict);
-            let lint_ref = if strict { Some(&lint_config) } else { None };
+            let lint_ref = if effective_strict {
+                Some(&lint_config)
+            } else {
+                None
+            };
 
             let code = if let Some(path) = file {
                 check::run_file(&path, lint_ref)

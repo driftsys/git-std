@@ -277,12 +277,12 @@ fn range_invalid_range_exits_2() {
         .code(2);
 }
 
-// ── .versionrc types (#13) + --strict (#14) ────────────────────
+// ── .git-std.toml types (#13) + --strict (#14) ──────────────────
 
 #[test]
-fn strict_accepts_default_types_without_versionrc() {
+fn strict_accepts_default_types_without_config() {
     let dir = tempfile::tempdir().unwrap();
-    // No .versionrc — should use default types
+    // No .git-std.toml — should use default types
     git_std()
         .args(["check", "--strict", "feat: add login"])
         .current_dir(dir.path())
@@ -291,7 +291,7 @@ fn strict_accepts_default_types_without_versionrc() {
 }
 
 #[test]
-fn strict_rejects_unknown_type_without_versionrc() {
+fn strict_rejects_unknown_type_without_config() {
     let dir = tempfile::tempdir().unwrap();
     git_std()
         .args(["check", "--strict", "yolo: do things"])
@@ -305,8 +305,8 @@ fn strict_rejects_unknown_type_without_versionrc() {
 fn strict_with_custom_types_accepts_custom() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
-        dir.path().join(".versionrc"),
-        "[[types]]\ntype = \"feat\"\n\n[[types]]\ntype = \"fix\"\n\n[[types]]\ntype = \"custom\"\n",
+        dir.path().join(".git-std.toml"),
+        "types = [\"feat\", \"fix\", \"custom\"]\n",
     )
     .unwrap();
 
@@ -321,8 +321,8 @@ fn strict_with_custom_types_accepts_custom() {
 fn strict_with_custom_types_rejects_unlisted() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
-        dir.path().join(".versionrc"),
-        "[[types]]\ntype = \"feat\"\n\n[[types]]\ntype = \"fix\"\n",
+        dir.path().join(".git-std.toml"),
+        "types = [\"feat\", \"fix\"]\n",
     )
     .unwrap();
 
@@ -338,7 +338,7 @@ fn strict_with_custom_types_rejects_unlisted() {
 fn strict_with_scopes_requires_scope() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
-        dir.path().join(".versionrc"),
+        dir.path().join(".git-std.toml"),
         "scopes = [\"auth\", \"api\"]\n",
     )
     .unwrap();
@@ -356,7 +356,7 @@ fn strict_with_scopes_requires_scope() {
 fn strict_with_scopes_rejects_unknown_scope() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
-        dir.path().join(".versionrc"),
+        dir.path().join(".git-std.toml"),
         "scopes = [\"auth\", \"api\"]\n",
     )
     .unwrap();
@@ -373,7 +373,7 @@ fn strict_with_scopes_rejects_unknown_scope() {
 fn strict_with_scopes_accepts_valid_scope() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
-        dir.path().join(".versionrc"),
+        dir.path().join(".git-std.toml"),
         "scopes = [\"auth\", \"api\"]\n",
     )
     .unwrap();
@@ -388,11 +388,7 @@ fn strict_with_scopes_accepts_valid_scope() {
 #[test]
 fn without_strict_any_type_accepted() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join(".versionrc"),
-        "[[types]]\ntype = \"feat\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join(".git-std.toml"), "types = [\"feat\"]\n").unwrap();
 
     // Without --strict, custom types pass (only parse validation)
     git_std()
@@ -406,8 +402,8 @@ fn without_strict_any_type_accepted() {
 fn strict_file_validates_against_config() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
-        dir.path().join(".versionrc"),
-        "[[types]]\ntype = \"feat\"\n\n[[types]]\ntype = \"fix\"\n",
+        dir.path().join(".git-std.toml"),
+        "types = [\"feat\", \"fix\"]\n",
     )
     .unwrap();
     let msg_path = dir.path().join("COMMIT_EDITMSG");

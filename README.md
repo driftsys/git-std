@@ -2,7 +2,7 @@
 
 From commit to release. One tool for [conventional commits][cc], [versioning][semver], [changelog][keep-changelog], and [git hooks][githooks] management.
 
-`git-std` replaces commitizen, commitlint, standard-version, husky, and lefthook with a single binary. Fast, low memory footprint, zero runtime dependencies. Works out of the box with sensible defaults, which can be overridden with a `.versionrc`.
+`git-std` replaces commitizen, commitlint, standard-version, husky, and lefthook with a single binary. Fast, low memory footprint, zero runtime dependencies. Works out of the box with sensible defaults, which can be overridden with a `.git-std.toml`.
 
 Invoked as `git std` via git's subcommand discovery.
 
@@ -59,7 +59,7 @@ git-std (binary)
 
 ## Configuration
 
-`git-std` reads `.versionrc` (TOML) for project-level configuration. Hook definitions live in `.githooks/*.hooks` (plain text, one command per line). The CLI reads the config and passes the relevant settings to each library crate's own config types.
+`git-std` reads `.git-std.toml` for project-level configuration. Hook definitions live in `.githooks/*.hooks` (plain text, one command per line). The CLI reads the config and passes the relevant settings to each library crate's own config types.
 
 ## Install
 
