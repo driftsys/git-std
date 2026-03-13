@@ -14,8 +14,9 @@ pub struct ChangelogEntry {
     pub hash: String,
     /// Whether this commit is a breaking change.
     pub is_breaking: bool,
-    /// Issue references from `Refs` and `Closes` footers.
-    pub refs: Vec<String>,
+    /// Issue references from footers, as `(token, value)` pairs
+    /// (e.g. `("closes", "#45")`, `("refs", "#46")`).
+    pub refs: Vec<(String, String)>,
 }
 
 /// A version release with grouped commits.
@@ -126,16 +127,30 @@ pub fn detect_host(remote_url: &str) -> RepoHost {
     RepoHost::Unknown
 }
 
-/// Replace `#N` issue references in text with links for known hosts.
-fn linkify_issue_numbers(text: &str, host: &RepoHost) -> String {
-    let base_url = match host {
-        RepoHost::GitHub { url } | RepoHost::GitLab { url } => Some(url.as_str()),
-        RepoHost::Unknown => None,
-    };
+/// Collected reference-style link definitions (label, url).
+type LinkDefs = Vec<(String, String)>;
 
-    let Some(base) = base_url else {
+/// Add a link definition if not already present.
+fn add_link_def(defs: &mut LinkDefs, label: &str, url: &str) {
+    if !defs.iter().any(|(l, _)| l == label) {
+        defs.push((label.to_string(), url.to_string()));
+    }
+}
+
+/// Issue URL for a given `#N` reference.
+fn issue_url(num: &str, host: &RepoHost) -> Option<String> {
+    match host {
+        RepoHost::GitHub { url } => Some(format!("{url}/issues/{num}")),
+        RepoHost::GitLab { url } => Some(format!("{url}/-/issues/{num}")),
+        RepoHost::Unknown => None,
+    }
+}
+
+/// Replace `#N` issue references in text with reference-style links.
+fn linkify_issue_numbers(text: &str, host: &RepoHost, defs: &mut LinkDefs) -> String {
+    if matches!(host, RepoHost::Unknown) {
         return text.to_string();
-    };
+    }
 
     let mut result = String::with_capacity(text.len());
     let mut chars = text.char_indices().peekable();
@@ -154,11 +169,11 @@ fn linkify_issue_numbers(text: &str, host: &RepoHost) -> String {
             }
             if end > start {
                 let num = &text[start..end];
-                let issue_path = match host {
-                    RepoHost::GitLab { .. } => format!("{base}/-/issues/{num}"),
-                    _ => format!("{base}/issues/{num}"),
-                };
-                result.push_str(&format!("[#{num}]({issue_path})"));
+                let label = format!("#{num}");
+                if let Some(url) = issue_url(num, host) {
+                    add_link_def(defs, &label, &url);
+                }
+                result.push_str(&format!("[{label}]"));
             } else {
                 result.push('#');
             }
@@ -170,56 +185,69 @@ fn linkify_issue_numbers(text: &str, host: &RepoHost) -> String {
     result
 }
 
-/// Link a single ref value. Handles `#N` (GitHub/GitLab), URLs, and
-/// external tracker refs via `bug_url` (e.g. `PROJ-123`).
-fn link_ref(r: &str, host: &RepoHost, bug_url: Option<&str>) -> String {
+/// Link a single ref value using reference-style links.
+fn link_ref(r: &str, host: &RepoHost, bug_url: Option<&str>, defs: &mut LinkDefs) -> String {
     let r = r.trim();
 
-    // Already a URL — wrap as markdown link.
+    // Already a URL — keep inline (ref-style doesn't help here).
     if r.starts_with("http://") || r.starts_with("https://") {
         return format!("[{r}]({r})");
     }
 
-    // #N — link to GitHub/GitLab issues.
+    // #N — reference-style link to GitHub/GitLab issues.
     if r.starts_with('#') && r[1..].chars().all(|c| c.is_ascii_digit()) && r.len() > 1 {
-        return linkify_issue_numbers(r, host);
+        let num = &r[1..];
+        if let Some(url) = issue_url(num, host) {
+            add_link_def(defs, r, &url);
+            return format!("[{r}]");
+        }
+        return r.to_string();
     }
 
     // External tracker ref (e.g. PROJ-123) — use bug_url template.
     if let Some(template) = bug_url {
         let url = template.replace("%s", r);
-        return format!("[{r}]({url})");
+        add_link_def(defs, r, &url);
+        return format!("[{r}]");
     }
 
     r.to_string()
 }
 
-/// Format a commit hash as a link (or plain text for Unknown hosts).
-fn commit_link(hash: &str, host: &RepoHost) -> String {
+/// Format a commit hash as a reference-style link.
+fn commit_link(hash: &str, host: &RepoHost, defs: &mut LinkDefs) -> String {
     match host {
-        RepoHost::GitHub { url } => format!("[{hash}]({url}/commit/{hash})"),
-        RepoHost::GitLab { url } => format!("[{hash}]({url}/-/commit/{hash})"),
+        RepoHost::GitHub { url } => {
+            add_link_def(defs, hash, &format!("{url}/commit/{hash}"));
+            format!("[{hash}]")
+        }
+        RepoHost::GitLab { url } => {
+            add_link_def(defs, hash, &format!("{url}/-/commit/{hash}"));
+            format!("[{hash}]")
+        }
         RepoHost::Unknown => hash.to_string(),
     }
 }
 
-/// Format a version heading with an optional compare link.
-fn version_heading(release: &VersionRelease, host: &RepoHost) -> String {
+/// Format a version heading with an optional compare link (reference-style).
+fn version_heading(release: &VersionRelease, host: &RepoHost, defs: &mut LinkDefs) -> String {
     let version_link = if let Some(prev) = &release.prev_tag {
         match host {
             RepoHost::GitHub { url } => {
-                format!(
-                    "[{tag}]({url}/compare/v{prev}...v{tag})",
-                    tag = release.tag,
-                    prev = prev,
-                )
+                add_link_def(
+                    defs,
+                    &release.tag,
+                    &format!("{url}/compare/v{prev}...v{tag}", tag = release.tag),
+                );
+                format!("[{tag}]", tag = release.tag)
             }
             RepoHost::GitLab { url } => {
-                format!(
-                    "[{tag}]({url}/-/compare/v{prev}...v{tag})",
-                    tag = release.tag,
-                    prev = prev,
-                )
+                add_link_def(
+                    defs,
+                    &release.tag,
+                    &format!("{url}/-/compare/v{prev}...v{tag}", tag = release.tag),
+                );
+                format!("[{tag}]", tag = release.tag)
             }
             RepoHost::Unknown => release.tag.clone(),
         }
@@ -230,6 +258,54 @@ fn version_heading(release: &VersionRelease, host: &RepoHost) -> String {
     format!("## {version_link} ({date})", date = release.date)
 }
 
+/// Wrap a changelog entry across multiple lines at word boundaries.
+///
+/// `prefix` is the first part (e.g. `- **scope:** description`).
+/// `segments` are trailing parts joined by `, ` (e.g. `(hash)`, `closes [#1]`).
+/// Lines beyond the first are indented with 2 spaces for list continuation.
+fn wrap_entry(prefix: &str, segments: &[String], max_width: usize) -> String {
+    // Build the full line, then wrap at word boundaries.
+    let mut full = prefix.to_string();
+    for (i, seg) in segments.iter().enumerate() {
+        let sep = if i == 0 { " " } else { ", " };
+        full.push_str(sep);
+        full.push_str(seg);
+    }
+
+    wrap_words(&full, "  ", max_width)
+}
+
+/// Greedy word-wrap: split `text` at spaces, fill lines up to `max_width`.
+/// Continuation lines are prefixed with `indent`.
+fn wrap_words(text: &str, indent: &str, max_width: usize) -> String {
+    let words: Vec<&str> = text.split(' ').collect();
+    let mut out = String::new();
+    let mut line = String::new();
+
+    for word in &words {
+        if line.is_empty() {
+            line.push_str(word);
+        } else {
+            let candidate_len = line.len() + 1 + word.len();
+            if candidate_len <= max_width {
+                line.push(' ');
+                line.push_str(word);
+            } else {
+                out.push_str(&line);
+                out.push('\n');
+                line = format!("{indent}{word}");
+            }
+        }
+    }
+
+    if !line.is_empty() {
+        out.push_str(&line);
+        out.push('\n');
+    }
+
+    out
+}
+
 /// Render a single version section.
 pub fn render_version(
     release: &VersionRelease,
@@ -237,12 +313,12 @@ pub fn render_version(
     host: &RepoHost,
 ) -> String {
     let mut out = String::new();
+    let mut defs: LinkDefs = Vec::new();
 
-    out.push_str(&version_heading(release, host));
+    out.push_str(&version_heading(release, host, &mut defs));
     out.push('\n');
 
     for (section_name, entries) in &release.groups {
-        // Skip empty groups
         if entries.is_empty() {
             continue;
         }
@@ -252,24 +328,35 @@ pub fn render_version(
         out.push('\n');
 
         for entry in entries {
-            let link = commit_link(&entry.hash, host);
-            let desc = linkify_issue_numbers(&entry.description, host);
-            let refs_str = if entry.refs.is_empty() {
-                String::new()
+            let link = commit_link(&entry.hash, host, &mut defs);
+            let desc = linkify_issue_numbers(&entry.description, host, &mut defs);
+            // Build segments: description, (hash), then ref groups.
+            let prefix = if let Some(scope) = &entry.scope {
+                format!("- **{scope}:** {desc}")
             } else {
-                let bug_url = config.bug_url.as_deref();
-                let linked: Vec<String> = entry
-                    .refs
-                    .iter()
-                    .map(|r| link_ref(r, host, bug_url))
-                    .collect();
-                format!(", closes {}", linked.join(", "))
+                format!("- {desc}")
             };
-            if let Some(scope) = &entry.scope {
-                out.push_str(&format!("- **{scope}:** {desc} ({link}){refs_str}\n",));
-            } else {
-                out.push_str(&format!("- {desc} ({link}){refs_str}\n"));
+
+            // Collect trailing segments: hash + ref groups.
+            let mut segments: Vec<String> = vec![format!("({link})")];
+
+            if !entry.refs.is_empty() {
+                let bug_url = config.bug_url.as_deref();
+                let mut prev_token = String::new();
+                for (token, value) in &entry.refs {
+                    let linked = link_ref(value, host, bug_url, &mut defs);
+                    if *token != prev_token {
+                        // New token group: "closes [#1]"
+                        segments.push(format!("{token} {linked}"));
+                    } else {
+                        // Same token continues: "[#2]"
+                        segments.push(linked);
+                    }
+                    prev_token.clone_from(token);
+                }
             }
+
+            out.push_str(&wrap_entry(&prefix, &segments, 80));
         }
     }
 
@@ -279,6 +366,14 @@ pub fn render_version(
         out.push('\n');
         for bc in &release.breaking_changes {
             out.push_str(&format!("- {bc}\n"));
+        }
+    }
+
+    // Append reference-style link definitions.
+    if !defs.is_empty() {
+        out.push('\n');
+        for (label, url) in &defs {
+            out.push_str(&format!("[{label}]: {url}\n"));
         }
     }
 
@@ -473,16 +568,16 @@ mod tests {
 
         let output = render_version(&release, &config, &host);
 
-        assert!(output.contains(
-            "## [0.2.0](https://github.com/owner/repo/compare/v0.1.0...v0.2.0) (2026-03-13)"
-        ));
-        assert!(output.contains("### Features"));
-        assert!(output.contains("- **auth:** add OAuth2 PKCE flow ([abc1234](https://github.com/owner/repo/commit/abc1234))"));
-        assert!(output.contains(
-            "- add basic login ([def5678](https://github.com/owner/repo/commit/def5678))"
-        ));
-        assert!(output.contains("### Bug Fixes"));
-        assert!(output.contains("- **build:** drop OpenSSL dependency ([9fe82f4](https://github.com/owner/repo/commit/9fe82f4))"));
+        // Reference-style links in body.
+        assert!(output.contains("## [0.2.0] (2026-03-13)"));
+        assert!(output.contains("- **auth:** add OAuth2 PKCE flow ([abc1234])"));
+        assert!(output.contains("- add basic login ([def5678])"));
+        assert!(output.contains("- **build:** drop OpenSSL dependency ([9fe82f4])"));
+        // Link definitions at the bottom.
+        assert!(output.contains("[0.2.0]: https://github.com/owner/repo/compare/v0.1.0...v0.2.0"));
+        assert!(output.contains("[abc1234]: https://github.com/owner/repo/commit/abc1234"));
+        assert!(output.contains("[def5678]: https://github.com/owner/repo/commit/def5678"));
+        assert!(output.contains("[9fe82f4]: https://github.com/owner/repo/commit/9fe82f4"));
     }
 
     #[test]
@@ -760,9 +855,17 @@ mod tests {
         let host = RepoHost::GitHub {
             url: "https://github.com/owner/repo".to_string(),
         };
+        let mut defs = Vec::new();
         assert_eq!(
-            linkify_issue_numbers("add feature (#42)", &host),
-            "add feature ([#42](https://github.com/owner/repo/issues/42))"
+            linkify_issue_numbers("add feature (#42)", &host, &mut defs),
+            "add feature ([#42])"
+        );
+        assert_eq!(
+            defs,
+            vec![(
+                "#42".to_string(),
+                "https://github.com/owner/repo/issues/42".to_string()
+            )]
         );
     }
 
@@ -771,16 +874,26 @@ mod tests {
         let host = RepoHost::GitLab {
             url: "https://gitlab.com/owner/repo".to_string(),
         };
+        let mut defs = Vec::new();
+        assert_eq!(linkify_issue_numbers("#10", &host, &mut defs), "[#10]");
         assert_eq!(
-            linkify_issue_numbers("#10", &host),
-            "[#10](https://gitlab.com/owner/repo/-/issues/10)"
+            defs,
+            vec![(
+                "#10".to_string(),
+                "https://gitlab.com/owner/repo/-/issues/10".to_string()
+            )]
         );
     }
 
     #[test]
     fn linkify_issue_numbers_unknown_no_links() {
         let host = RepoHost::Unknown;
-        assert_eq!(linkify_issue_numbers("fix (#7)", &host), "fix (#7)");
+        let mut defs = Vec::new();
+        assert_eq!(
+            linkify_issue_numbers("fix (#7)", &host, &mut defs),
+            "fix (#7)"
+        );
+        assert!(defs.is_empty());
     }
 
     #[test]
@@ -788,34 +901,56 @@ mod tests {
         let host = RepoHost::GitHub {
             url: "https://github.com/o/r".to_string(),
         };
+        let mut defs = Vec::new();
+        assert_eq!(link_ref("#42", &host, None, &mut defs), "[#42]");
         assert_eq!(
-            link_ref("#42", &host, None),
-            "[#42](https://github.com/o/r/issues/42)"
+            defs,
+            vec![(
+                "#42".to_string(),
+                "https://github.com/o/r/issues/42".to_string()
+            )]
         );
     }
 
     #[test]
     fn link_ref_bug_url_template() {
         let host = RepoHost::Unknown;
+        let mut defs = Vec::new();
         assert_eq!(
-            link_ref("PROJ-123", &host, Some("https://jira.co/browse/%s")),
-            "[PROJ-123](https://jira.co/browse/PROJ-123)"
+            link_ref(
+                "PROJ-123",
+                &host,
+                Some("https://jira.co/browse/%s"),
+                &mut defs
+            ),
+            "[PROJ-123]"
+        );
+        assert_eq!(
+            defs,
+            vec![(
+                "PROJ-123".to_string(),
+                "https://jira.co/browse/PROJ-123".to_string()
+            )]
         );
     }
 
     #[test]
     fn link_ref_full_url() {
         let host = RepoHost::Unknown;
+        let mut defs = Vec::new();
         assert_eq!(
-            link_ref("https://linear.app/team/ISS-99", &host, None),
+            link_ref("https://linear.app/team/ISS-99", &host, None, &mut defs),
             "[https://linear.app/team/ISS-99](https://linear.app/team/ISS-99)"
         );
+        assert!(defs.is_empty());
     }
 
     #[test]
     fn link_ref_plain_text_no_template() {
         let host = RepoHost::Unknown;
-        assert_eq!(link_ref("PROJ-123", &host, None), "PROJ-123");
+        let mut defs = Vec::new();
+        assert_eq!(link_ref("PROJ-123", &host, None, &mut defs), "PROJ-123");
+        assert!(defs.is_empty());
     }
 
     #[test]
@@ -831,7 +966,10 @@ mod tests {
                     description: "add auth".to_string(),
                     hash: "abc1234".to_string(),
                     is_breaking: false,
-                    refs: vec!["#45".to_string(), "#46".to_string()],
+                    refs: vec![
+                        ("closes".to_string(), "#45".to_string()),
+                        ("refs".to_string(), "#46".to_string()),
+                    ],
                 }],
             )],
             breaking_changes: vec![],
@@ -843,7 +981,90 @@ mod tests {
         };
 
         let output = render_version(&release, &config, &host);
-        assert!(output.contains("closes [#45](https://github.com/o/r/issues/45), [#46](https://github.com/o/r/issues/46)"));
+        assert!(output.contains(", closes [#45], refs [#46]"));
+        assert!(output.contains("[#45]: https://github.com/o/r/issues/45"));
+        assert!(output.contains("[#46]: https://github.com/o/r/issues/46"));
+    }
+
+    #[test]
+    fn render_entry_wraps_many_refs() {
+        let release = VersionRelease {
+            tag: "1.0.0".to_string(),
+            date: "2026-03-13".to_string(),
+            prev_tag: None,
+            groups: vec![(
+                "Features".to_string(),
+                vec![ChangelogEntry {
+                    scope: Some("commit".to_string()),
+                    description: "add flag mode with many options".to_string(),
+                    hash: "abc1234".to_string(),
+                    is_breaking: false,
+                    refs: (1..=20)
+                        .map(|n| ("closes".to_string(), format!("#{n}")))
+                        .collect(),
+                }],
+            )],
+            breaking_changes: vec![],
+        };
+
+        let config = ChangelogConfig::default();
+        let host = RepoHost::GitHub {
+            url: "https://github.com/owner/repo".to_string(),
+        };
+
+        let output = render_version(&release, &config, &host);
+        for line in output.lines() {
+            assert!(
+                line.len() <= 80,
+                "line exceeds 80 chars ({} chars): {line}",
+                line.len()
+            );
+        }
+        // All refs present.
+        for n in 1..=20 {
+            assert!(output.contains(&format!("[#{}]", n)));
+        }
+    }
+
+    #[test]
+    fn render_entry_wraps_mixed_tokens() {
+        let release = VersionRelease {
+            tag: "1.0.0".to_string(),
+            date: "2026-03-13".to_string(),
+            prev_tag: None,
+            groups: vec![(
+                "Features".to_string(),
+                vec![ChangelogEntry {
+                    scope: Some("auth".to_string()),
+                    description: "add OAuth flow".to_string(),
+                    hash: "abc1234".to_string(),
+                    is_breaking: false,
+                    refs: vec![
+                        ("closes".to_string(), "#1".to_string()),
+                        ("closes".to_string(), "#2".to_string()),
+                        ("closes".to_string(), "#3".to_string()),
+                        ("refs".to_string(), "#10".to_string()),
+                        ("refs".to_string(), "#11".to_string()),
+                    ],
+                }],
+            )],
+            breaking_changes: vec![],
+        };
+
+        let config = ChangelogConfig::default();
+        let host = RepoHost::Unknown;
+
+        let output = render_version(&release, &config, &host);
+        // Unknown host: refs are plain text (no links).
+        assert!(output.contains("closes #1, #2, #3"));
+        assert!(output.contains("refs #10, #11"));
+        for line in output.lines() {
+            assert!(
+                line.len() <= 80,
+                "line exceeds 80 chars ({} chars): {line}",
+                line.len()
+            );
+        }
     }
 
     #[test]
@@ -859,7 +1080,7 @@ mod tests {
                     description: "fix login".to_string(),
                     hash: "abc1234".to_string(),
                     is_breaking: false,
-                    refs: vec!["PROJ-42".to_string()],
+                    refs: vec![("closes".to_string(), "PROJ-42".to_string())],
                 }],
             )],
             breaking_changes: vec![],
@@ -870,7 +1091,8 @@ mod tests {
         let host = RepoHost::Unknown;
 
         let output = render_version(&release, &config, &host);
-        assert!(output.contains("closes [PROJ-42](https://jira.co/browse/PROJ-42)"));
+        assert!(output.contains(", closes [PROJ-42]"));
+        assert!(output.contains("[PROJ-42]: https://jira.co/browse/PROJ-42"));
     }
 
     #[test]
@@ -898,7 +1120,8 @@ mod tests {
         };
 
         let output = render_version(&release, &config, &host);
-        assert!(output.contains("[#42](https://github.com/o/r/issues/42)"));
+        assert!(output.contains("([#42])"));
+        assert!(output.contains("[#42]: https://github.com/o/r/issues/42"));
     }
 
     #[test]

@@ -76,6 +76,7 @@ fn run_incremental(
 
     if opts.stdout {
         let section = standard_changelog::render_version(&release, config, host);
+        println!("# {}\n", config.title);
         print!("{section}");
         return 0;
     }
@@ -280,16 +281,18 @@ fn build_release(
                     breaking_changes.push(footer.value.clone());
                 }
                 "Refs" | "Closes" | "Fixes" | "Resolves" => {
+                    let token = footer.token.to_lowercase();
                     // Split comma-separated refs (e.g. "Closes: #1, #2").
                     for r in footer.value.split(',') {
                         let r = r.trim();
                         if !r.is_empty() {
                             // Normalize bare numbers to #N.
-                            if r.chars().all(|c| c.is_ascii_digit()) {
-                                refs.push(format!("#{r}"));
+                            let value = if r.chars().all(|c| c.is_ascii_digit()) {
+                                format!("#{r}")
                             } else {
-                                refs.push(r.to_string());
-                            }
+                                r.to_string()
+                            };
+                            refs.push((token.clone(), value));
                         }
                     }
                 }
