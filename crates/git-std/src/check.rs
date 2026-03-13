@@ -1,8 +1,6 @@
-use git_std::commit;
-
 /// Run the `check` subcommand with an inline message. Returns the exit code.
 pub fn run(message: &str) -> i32 {
-    match commit::parse(message) {
+    match standard_commit::parse(message) {
         Ok(_) => 0,
         Err(e) => {
             eprintln!("\u{2717} invalid: {e}");

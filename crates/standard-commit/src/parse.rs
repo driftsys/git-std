@@ -45,6 +45,12 @@ impl std::fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 /// Parse a commit message string into a [`ConventionalCommit`].
+///
+/// Validates that the message conforms to the
+/// [Conventional Commits](https://www.conventionalcommits.org/) specification:
+/// `<type>[(<scope>)][!]: <description>`, with optional body and footers.
+///
+/// The type must be lowercase ASCII (`[a-z]+`).
 pub fn parse(message: &str) -> Result<ConventionalCommit, ParseError> {
     let message = message.trim();
     if message.is_empty() {
@@ -97,9 +103,7 @@ mod tests {
 
     #[test]
     fn missing_space_after_colon() {
-        // git-conventional is lenient about this — just verify it parses or errors
         let result = parse("feat:no space");
-        // Either parse succeeds with description "no space" or fails — both acceptable
         if let Ok(commit) = result {
             assert_eq!(commit.r#type, "feat");
         }
@@ -138,5 +142,10 @@ mod tests {
         assert_eq!(commit.r#type, "refactor");
         assert_eq!(commit.scope.as_deref(), Some("runtime"));
         assert!(commit.is_breaking);
+    }
+
+    #[test]
+    fn uppercase_type_rejected() {
+        assert!(parse("FEAT: add login").is_err());
     }
 }
