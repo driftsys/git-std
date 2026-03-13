@@ -327,25 +327,25 @@ dependencies = [
 
 [[package]]
 name = "standard-changelog"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "standard-commit",
 ]
 
 [[package]]
 name = "standard-commit"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "git-conventional",
 ]
 
 [[package]]
 name = "standard-githooks"
-version = "0.0.0"
+version = "0.0.1"
 
 [[package]]
 name = "standard-version"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "standard-commit",
 ]

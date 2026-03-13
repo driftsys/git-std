@@ -1,6 +1,6 @@
 [package]
 name = "standard-version"
-version = "0.0.0"
+version = "0.0.1"
 edition = "2024"
 description = "Semantic and calendar version bump calculation"
 license = "MIT"
@@ -9,4 +9,4 @@ keywords = ["semver", "calver", "version", "bump", "git"]
 categories = ["development-tools"]
 
 [dependencies]
-standard-commit = { path = "../standard-commit" }
+standard-commit = { version = "0.0.1", path = "../standard-commit" }
