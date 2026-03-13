@@ -14,6 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"] }
+inquire = "0.9"
 git2 = { version = "0.20", default-features = false }
 standard-commit = { path = "../standard-commit" }
 toml = "0.8"

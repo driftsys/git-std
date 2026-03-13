@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 mod check;
+mod commit;
 mod config;
 
 /// Standard git workflow — commits, versioning, hooks.
@@ -71,9 +72,14 @@ fn main() {
             };
             std::process::exit(code);
         }
+        Command::Commit => {
+            let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let code = commit::run_interactive(&project_config);
+            std::process::exit(code);
+        }
         other => {
             let name = match other {
-                Command::Commit => "commit",
+                Command::Commit => unreachable!(),
                 Command::Check { .. } => unreachable!(),
                 Command::Bump => "bump",
                 Command::Changelog => "changelog",
