@@ -364,10 +364,12 @@ dependencies = [
  "git2",
  "inquire",
  "predicates",
+ "semver",
  "serde",
  "serde_json",
  "standard-changelog",
  "standard-commit",
+ "standard-version",
  "tempfile",
  "toml",
  "yansi",
@@ -983,6 +985,7 @@ version = "0.0.1"
 name = "standard-version"
 version = "0.0.1"
 dependencies = [
+ "semver",
  "standard-commit",
 ]
 

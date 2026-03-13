@@ -20,6 +20,24 @@ pub enum ScopesConfig {
     List(Vec<String>),
 }
 
+/// Versioning configuration.
+#[derive(Debug, Clone)]
+pub struct VersioningConfig {
+    /// Tag prefix (default `"v"`).
+    pub tag_prefix: String,
+    /// Default pre-release tag (default `"rc"`).
+    pub prerelease_tag: String,
+}
+
+impl Default for VersioningConfig {
+    fn default() -> Self {
+        Self {
+            tag_prefix: "v".to_string(),
+            prerelease_tag: "rc".to_string(),
+        }
+    }
+}
+
 /// Changelog-specific configuration.
 #[derive(Debug, Clone, Default)]
 pub struct ChangelogConfig {
@@ -36,6 +54,7 @@ pub struct ProjectConfig {
     pub scopes: ScopesConfig,
     pub strict: bool,
     pub changelog: ChangelogConfig,
+    pub versioning: VersioningConfig,
 }
 
 impl ProjectConfig {
@@ -90,6 +109,7 @@ pub fn load(dir: &Path) -> ProjectConfig {
             scopes: ScopesConfig::None,
             strict: false,
             changelog: ChangelogConfig::default(),
+            versioning: VersioningConfig::default(),
         },
     }
 }
@@ -103,6 +123,7 @@ fn parse_config(content: &str) -> ProjectConfig {
                 scopes: ScopesConfig::None,
                 strict: false,
                 changelog: ChangelogConfig::default(),
+                versioning: VersioningConfig::default(),
             };
         }
     };
@@ -144,12 +165,40 @@ fn parse_config(content: &str) -> ProjectConfig {
         .unwrap_or(false);
 
     let changelog = parse_changelog_config(&table);
+    let versioning = parse_versioning_config(&table);
 
     ProjectConfig {
         types,
         scopes,
         strict,
         changelog,
+        versioning,
+    }
+}
+
+fn parse_versioning_config(table: &toml::Table) -> VersioningConfig {
+    let versioning_table = match table.get("versioning").and_then(|v| v.as_table()) {
+        Some(t) => t,
+        None => return VersioningConfig::default(),
+    };
+
+    let defaults = VersioningConfig::default();
+
+    let tag_prefix = versioning_table
+        .get("tag_prefix")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .unwrap_or(defaults.tag_prefix);
+
+    let prerelease_tag = versioning_table
+        .get("prerelease_tag")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .unwrap_or(defaults.prerelease_tag);
+
+    VersioningConfig {
+        tag_prefix,
+        prerelease_tag,
     }
 }
 

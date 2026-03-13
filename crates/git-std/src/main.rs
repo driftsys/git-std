@@ -2,6 +2,7 @@ use std::io::IsTerminal;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
+mod bump;
 mod changelog;
 mod check;
 mod commit;
@@ -78,7 +79,32 @@ enum Command {
         format: check::OutputFormat,
     },
     /// Version bump, changelog, commit, and tag.
-    Bump,
+    Bump {
+        /// Print the full plan without writing anything.
+        #[arg(long)]
+        dry_run: bool,
+        /// Bump as pre-release (e.g. `2.0.0-rc.1`). Uses default tag from config if no value given.
+        #[arg(long, num_args = 0..=1, default_missing_value = "")]
+        prerelease: Option<String>,
+        /// Force a specific version, skip calculation.
+        #[arg(long)]
+        release_as: Option<String>,
+        /// Use current version for initial changelog (no bump).
+        #[arg(long)]
+        first_release: bool,
+        /// Skip tag creation.
+        #[arg(long)]
+        no_tag: bool,
+        /// Update files only, no commit or tag.
+        #[arg(long)]
+        no_commit: bool,
+        /// Skip changelog generation.
+        #[arg(long)]
+        skip_changelog: bool,
+        /// GPG-sign the release commit and annotated tag.
+        #[arg(short = 'S', long)]
+        sign: bool,
+    },
     /// Generate a changelog (incremental by default, --full to regenerate).
     Changelog {
         /// Regenerate the entire changelog from the first commit.
@@ -179,12 +205,36 @@ fn main() {
             let code = changelog::run(&changelog_config, &opts);
             std::process::exit(code);
         }
+        Command::Bump {
+            dry_run,
+            prerelease,
+            release_as,
+            first_release,
+            no_tag,
+            no_commit,
+            skip_changelog,
+            sign,
+        } => {
+            let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let opts = bump::BumpOptions {
+                dry_run,
+                prerelease,
+                release_as,
+                first_release,
+                no_tag,
+                no_commit,
+                skip_changelog,
+                sign,
+            };
+            let code = bump::run(&project_config, &opts);
+            std::process::exit(code);
+        }
         other => {
             let name = match other {
                 Command::Commit { .. } => unreachable!(),
                 Command::Check { .. } => unreachable!(),
                 Command::Changelog { .. } => unreachable!(),
-                Command::Bump => "bump",
+                Command::Bump { .. } => unreachable!(),
                 Command::Hooks => "hooks",
                 Command::SelfUpdate => "self-update",
             };

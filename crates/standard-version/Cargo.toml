@@ -9,4 +9,5 @@ keywords = ["semver", "calver", "version", "bump", "git"]
 categories = ["development-tools"]
 
 [dependencies]
+semver = "1"
 standard-commit = { version = "0.0.1", path = "../standard-commit" }
