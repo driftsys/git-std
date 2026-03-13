@@ -1,7 +1,36 @@
 //! Changelog generation from conventional commits.
 //!
 //! Groups parsed commits by type, renders markdown sections, and manages
-//! `CHANGELOG.md` files. Does not run git operations or produce terminal output.
+//! `CHANGELOG.md` files. Pure library — no I/O, no git operations, no
+//! terminal output.
+//!
+//! # Main entry points
+//!
+//! - [`build_release`] — parse raw commits into a [`VersionRelease`]
+//! - [`render`] — render multiple releases into a full `CHANGELOG.md`
+//! - [`render_version`] — render a single version section
+//! - [`prepend_release`] — splice a new release into an existing changelog
+//!
+//! # Example
+//!
+//! ```
+//! use standard_changelog::{build_release, render, ChangelogConfig, RepoHost};
+//!
+//! let commits = vec![
+//!     ("abc1234", "feat(auth): add OAuth2 PKCE flow"),
+//!     ("def5678", "fix: handle expired tokens"),
+//! ];
+//!
+//! let config = ChangelogConfig::default();
+//! let mut release = build_release(&commits, "1.0.0", None, &config).unwrap();
+//! release.date = "2026-03-14".to_string();
+//!
+//! let host = RepoHost::Unknown;
+//! let changelog = render(&[release], &config, &host);
+//! assert!(changelog.contains("## 1.0.0 (2026-03-14)"));
+//! assert!(changelog.contains("### Features"));
+//! assert!(changelog.contains("### Bug Fixes"));
+//! ```
 
 /// A commit entry ready for changelog rendering.
 #[derive(Debug, Clone)]
@@ -89,8 +118,21 @@ impl Default for ChangelogConfig {
 
 /// Parse a git remote URL to detect the repo host.
 ///
-/// Supports SSH and HTTPS URLs for GitHub and GitLab. Returns
-/// [`RepoHost::Unknown`] for unrecognised hosts.
+/// Supports SSH (`git@github.com:owner/repo.git`) and HTTPS
+/// (`https://github.com/owner/repo`) URLs for GitHub and GitLab.
+/// Returns [`RepoHost::Unknown`] for unrecognised hosts.
+///
+/// # Examples
+///
+/// ```
+/// use standard_changelog::{detect_host, RepoHost};
+///
+/// let host = detect_host("git@github.com:owner/repo.git");
+/// assert!(matches!(host, RepoHost::GitHub { .. }));
+///
+/// let host = detect_host("https://example.com/repo.git");
+/// assert_eq!(host, RepoHost::Unknown);
+/// ```
 pub fn detect_host(remote_url: &str) -> RepoHost {
     let url = remote_url.trim();
 
@@ -306,7 +348,15 @@ fn wrap_words(text: &str, indent: &str, max_width: usize) -> String {
     out
 }
 
-/// Render a single version section.
+/// Render a single version section as markdown.
+///
+/// Produces a `## <version> (<date>)` heading followed by grouped entries
+/// and optional `### BREAKING CHANGES`. Uses reference-style links for
+/// commit hashes and issue numbers when `host` is known, with link
+/// definitions appended at the bottom of the section.
+///
+/// Lines are word-wrapped at 80 characters with 2-space continuation
+/// indents for markdown list items.
 pub fn render_version(
     release: &VersionRelease,
     config: &ChangelogConfig,
@@ -380,10 +430,38 @@ pub fn render_version(
     out
 }
 
-/// Prepend a release section to an existing changelog, replacing any prior
-/// "Unreleased" block. If the file has no title line, one is added.
+/// Prepend a release section to an existing changelog.
 ///
-/// Returns the updated changelog content.
+/// Replaces any prior `## Unreleased` block and adds a `# <title>`
+/// heading if one is missing. Previous version sections are preserved.
+///
+/// Returns the updated changelog content as a string, ready to write
+/// to `CHANGELOG.md`.
+///
+/// # Example
+///
+/// ```
+/// use standard_changelog::*;
+///
+/// let existing = "# Changelog\n\n## 0.1.0 (2026-01-01)\n\n### Features\n\n- init (aaa1111)\n";
+/// let release = VersionRelease {
+///     tag: "0.2.0".to_string(),
+///     date: "2026-03-14".to_string(),
+///     prev_tag: Some("0.1.0".to_string()),
+///     groups: vec![("Bug Fixes".to_string(), vec![ChangelogEntry {
+///         scope: None,
+///         description: "fix crash".to_string(),
+///         hash: "bbb2222".to_string(),
+///         is_breaking: false,
+///         refs: vec![],
+///     }])],
+///     breaking_changes: vec![],
+/// };
+///
+/// let updated = prepend_release(existing, &release, &ChangelogConfig::default(), &RepoHost::Unknown);
+/// assert!(updated.contains("## 0.2.0"));
+/// assert!(updated.contains("## 0.1.0"));
+/// ```
 pub fn prepend_release(
     existing: &str,
     release: &VersionRelease,
@@ -432,6 +510,10 @@ fn strip_unreleased_section(content: &str) -> String {
 }
 
 /// Render a full changelog from multiple releases.
+///
+/// Produces a complete `CHANGELOG.md` starting with `# <title>`, followed
+/// by each release rendered via [`render_version`]. Releases with no
+/// visible groups are skipped.
 pub fn render(releases: &[VersionRelease], config: &ChangelogConfig, host: &RepoHost) -> String {
     let mut out = String::new();
 
@@ -487,6 +569,10 @@ pub fn days_to_date(mut days: i64) -> (i64, i64, i64) {
 }
 
 /// Format a Unix timestamp (seconds since epoch) as `YYYY-MM-DD`.
+///
+/// ```
+/// assert_eq!(standard_changelog::format_date(1_710_374_400), "2024-03-14");
+/// ```
 pub fn format_date(unix_secs: i64) -> String {
     let days = unix_secs / 86400;
     let (year, month, day) = days_to_date(days);
@@ -497,9 +583,26 @@ pub fn format_date(unix_secs: i64) -> String {
 ///
 /// Each entry in `commits` is a `(short_hash, full_message)` pair. Messages
 /// are parsed with [`standard_commit::parse`]; non-conventional messages are
-/// silently skipped.
+/// silently skipped. Commits whose type appears in [`ChangelogConfig::hidden`]
+/// are excluded.
 ///
 /// Returns `None` when no visible groups or breaking changes are produced.
+///
+/// # Example
+///
+/// ```
+/// use standard_changelog::{build_release, ChangelogConfig};
+///
+/// let commits = vec![
+///     ("abc1234", "feat: add login"),
+///     ("def5678", "fix: handle timeout"),
+///     ("ghi9012", "chore: update deps"),  // hidden by default
+/// ];
+///
+/// let config = ChangelogConfig::default();
+/// let release = build_release(&commits, "1.0.0", None, &config).unwrap();
+/// assert_eq!(release.groups.len(), 2); // Features + Bug Fixes
+/// ```
 pub fn build_release(
     commits: &[(&str, &str)],
     version: &str,

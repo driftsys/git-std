@@ -1,7 +1,32 @@
-//! Semantic and calendar version bump calculation.
+//! Semantic version bump calculation from conventional commits.
 //!
 //! Pure library — computes the next version from a list of parsed conventional
 //! commits and bump rules. No I/O, no git operations.
+//!
+//! # Main entry points
+//!
+//! - [`determine_bump`] — analyse commits and return the bump level
+//! - [`apply_bump`] — apply a bump level to a semver version
+//! - [`apply_prerelease`] — bump with a pre-release tag (e.g. `rc.0`)
+//! - [`replace_version_in_toml`] — update the version in a `Cargo.toml` string
+//!
+//! # Example
+//!
+//! ```
+//! use standard_version::{determine_bump, apply_bump, BumpLevel};
+//!
+//! let commits = vec![
+//!     standard_commit::parse("feat: add login").unwrap(),
+//!     standard_commit::parse("fix: handle timeout").unwrap(),
+//! ];
+//!
+//! let level = determine_bump(&commits).unwrap();
+//! assert_eq!(level, BumpLevel::Minor);
+//!
+//! let current = semver::Version::new(1, 2, 3);
+//! let next = apply_bump(&current, level);
+//! assert_eq!(next, semver::Version::new(1, 3, 0));
+//! ```
 
 use standard_commit::ConventionalCommit;
 
@@ -17,7 +42,16 @@ pub enum BumpLevel {
 }
 
 /// Analyse a list of conventional commits and return the highest applicable
-/// bump level. Returns `None` when no bump-worthy commits exist.
+/// bump level.
+///
+/// Bump rules follow the [Conventional Commits](https://www.conventionalcommits.org/)
+/// specification:
+/// - `feat` → [`BumpLevel::Minor`]
+/// - `fix` or `perf` → [`BumpLevel::Patch`]
+/// - `BREAKING CHANGE` footer or `!` suffix → [`BumpLevel::Major`]
+///
+/// Returns `None` when no bump-worthy commits exist (e.g. only `chore`,
+/// `docs`, `refactor`).
 pub fn determine_bump(commits: &[ConventionalCommit]) -> Option<BumpLevel> {
     let mut level: Option<BumpLevel> = None;
 
@@ -108,7 +142,11 @@ pub fn apply_prerelease(current: &semver::Version, level: BumpLevel, tag: &str) 
     next
 }
 
-/// Summary of analysed commits, used for display output.
+/// Summary of analysed commits for display purposes.
+///
+/// Counts commits by category. A single commit may increment both
+/// `breaking_count` and its type count (e.g. a breaking `feat` increments
+/// both `feat_count` and `breaking_count`).
 #[derive(Debug, Default)]
 pub struct BumpSummary {
     /// Count of `feat` commits.
@@ -148,6 +186,27 @@ pub fn summarise(commits: &[ConventionalCommit]) -> BumpSummary {
 /// Scans for the first `version = "..."` line under `[package]` and rewrites
 /// just the value. Lines in other sections (e.g. `[dependencies]`) are left
 /// untouched.
+///
+/// # Errors
+///
+/// Returns an error if no `version` field is found under `[package]`.
+///
+/// # Example
+///
+/// ```
+/// let toml = r#"[package]
+/// name = "my-crate"
+/// version = "0.1.0"
+///
+/// [dependencies]
+/// serde = { version = "1.0" }
+/// "#;
+///
+/// let updated = standard_version::replace_version_in_toml(toml, "2.0.0").unwrap();
+/// assert!(updated.contains(r#"version = "2.0.0""#));
+/// // dependency version unchanged
+/// assert!(updated.contains(r#"serde = { version = "1.0" }"#));
+/// ```
 pub fn replace_version_in_toml(
     content: &str,
     new_version: &str,
