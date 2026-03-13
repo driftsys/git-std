@@ -1,5 +1,7 @@
 use clap::{Parser, Subcommand};
 
+mod check;
+
 /// Standard git workflow — commits, versioning, hooks.
 #[derive(Parser)]
 #[command(name = "git-std", version, about)]
@@ -14,7 +16,10 @@ enum Command {
     /// Interactive conventional commit builder.
     Commit,
     /// Validate commit messages.
-    Check,
+    Check {
+        /// Commit message to validate.
+        message: String,
+    },
     /// Version bump, changelog, commit, and tag.
     Bump,
     /// Generate a changelog.
@@ -28,15 +33,21 @@ enum Command {
 fn main() {
     let cli = Cli::parse();
 
-    let name = match cli.command {
-        Command::Commit => "commit",
-        Command::Check => "check",
-        Command::Bump => "bump",
-        Command::Changelog => "changelog",
-        Command::Hooks => "hooks",
-        Command::SelfUpdate => "self-update",
-    };
-
-    eprintln!("git-std {name}: not yet implemented");
-    std::process::exit(1);
+    match cli.command {
+        Command::Check { message } => {
+            std::process::exit(check::run(&message));
+        }
+        other => {
+            let name = match other {
+                Command::Commit => "commit",
+                Command::Check { .. } => unreachable!(),
+                Command::Bump => "bump",
+                Command::Changelog => "changelog",
+                Command::Hooks => "hooks",
+                Command::SelfUpdate => "self-update",
+            };
+            eprintln!("git-std {name}: not yet implemented");
+            std::process::exit(1);
+        }
+    }
 }
