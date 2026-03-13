@@ -9,4 +9,3 @@ keywords = ["changelog", "conventional-commits", "release", "git"]
 categories = ["development-tools"]
 
 [dependencies]
-standard-commit = { version = "0.0.1", path = "../standard-commit" }

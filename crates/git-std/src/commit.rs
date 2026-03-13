@@ -531,6 +531,7 @@ mod tests {
             types: vec!["feat".into(), "fix".into()],
             scopes: ScopesConfig::None,
             strict: false,
+            ..Default::default()
         };
         let opts = CommitOptions {
             commit_type: Some("feat".into()),
@@ -557,6 +558,7 @@ mod tests {
             types: vec!["feat".into()],
             scopes: ScopesConfig::None,
             strict: false,
+            ..Default::default()
         };
         let opts = CommitOptions {
             commit_type: Some("feat".into()),
@@ -581,6 +583,7 @@ mod tests {
             types: vec!["feat".into()],
             scopes: ScopesConfig::None,
             strict: false,
+            ..Default::default()
         };
         let opts = CommitOptions {
             commit_type: Some("feat".into()),
