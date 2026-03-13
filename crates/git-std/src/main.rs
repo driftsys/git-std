@@ -7,6 +7,7 @@ mod changelog;
 mod check;
 mod commit;
 mod config;
+mod git;
 
 /// Standard git workflow — commits, versioning, hooks.
 #[derive(Parser)]

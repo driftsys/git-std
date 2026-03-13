@@ -469,6 +469,130 @@ fn filter_release(release: &VersionRelease, _config: &ChangelogConfig) -> Versio
     }
 }
 
+/// Convert days since Unix epoch to (year, month, day).
+///
+/// Uses the algorithm from <http://howardhinnant.github.io/date_algorithms.html>.
+pub fn days_to_date(mut days: i64) -> (i64, i64, i64) {
+    days += 719_468;
+    let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
+    let doe = days - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y, m, d)
+}
+
+/// Format a Unix timestamp (seconds since epoch) as `YYYY-MM-DD`.
+pub fn format_date(unix_secs: i64) -> String {
+    let days = unix_secs / 86400;
+    let (year, month, day) = days_to_date(days);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
+/// Build a [`VersionRelease`] from raw commit data.
+///
+/// Each entry in `commits` is a `(short_hash, full_message)` pair. Messages
+/// are parsed with [`standard_commit::parse`]; non-conventional messages are
+/// silently skipped.
+///
+/// Returns `None` when no visible groups or breaking changes are produced.
+pub fn build_release(
+    commits: &[(&str, &str)],
+    version: &str,
+    prev_tag: Option<&str>,
+    config: &ChangelogConfig,
+) -> Option<VersionRelease> {
+    use std::collections::{HashMap, HashSet};
+
+    let section_map: HashMap<&str, &str> = config
+        .sections
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+
+    let hidden_set: HashSet<&str> = config.hidden.iter().map(|s| s.as_str()).collect();
+
+    let mut groups_map: HashMap<String, Vec<ChangelogEntry>> = HashMap::new();
+    let mut breaking_changes = Vec::new();
+
+    for (short_hash, message) in commits {
+        let parsed = match standard_commit::parse(message) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        if hidden_set.contains(parsed.r#type.as_str()) {
+            continue;
+        }
+
+        let section_title = match section_map.get(parsed.r#type.as_str()) {
+            Some(title) => (*title).to_string(),
+            None => continue,
+        };
+
+        let mut refs = Vec::new();
+        for footer in &parsed.footers {
+            match footer.token.as_str() {
+                "BREAKING CHANGE" | "BREAKING-CHANGE" => {
+                    breaking_changes.push(footer.value.clone());
+                }
+                "Refs" | "Closes" | "Fixes" | "Resolves" => {
+                    let token = footer.token.to_lowercase();
+                    for r in footer.value.split(',') {
+                        let r = r.trim();
+                        if !r.is_empty() {
+                            let value = if r.chars().all(|c| c.is_ascii_digit()) {
+                                format!("#{r}")
+                            } else {
+                                r.to_string()
+                            };
+                            refs.push((token.clone(), value));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let entry = ChangelogEntry {
+            scope: parsed.scope,
+            description: parsed.description,
+            hash: (*short_hash).to_string(),
+            is_breaking: parsed.is_breaking,
+            refs,
+        };
+
+        groups_map.entry(section_title).or_default().push(entry);
+    }
+
+    // Order groups by section config order.
+    let sections: Vec<(&str, &str)> = section_map.iter().map(|(k, v)| (*k, *v)).collect();
+    let groups: Vec<(String, Vec<ChangelogEntry>)> = sections
+        .iter()
+        .filter_map(|(_, title)| {
+            groups_map
+                .remove(*title)
+                .map(|entries| (title.to_string(), entries))
+        })
+        .collect();
+
+    if groups.is_empty() && breaking_changes.is_empty() {
+        return None;
+    }
+
+    Some(VersionRelease {
+        tag: version.to_string(),
+        date: String::new(),
+        prev_tag: prev_tag.map(|t| t.strip_prefix('v').unwrap_or(t).to_string()),
+        groups,
+        breaking_changes,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1165,5 +1289,95 @@ mod tests {
             ]
         );
         assert!(config.bug_url.is_none());
+    }
+
+    #[test]
+    fn days_to_date_epoch() {
+        assert_eq!(days_to_date(0), (1970, 1, 1));
+    }
+
+    #[test]
+    fn days_to_date_known_date() {
+        // 2026-03-13 is day 20525
+        assert_eq!(days_to_date(20525), (2026, 3, 13));
+    }
+
+    #[test]
+    fn format_date_epoch() {
+        assert_eq!(format_date(0), "1970-01-01");
+    }
+
+    #[test]
+    fn format_date_known_timestamp() {
+        // 2024-01-01 00:00:00 UTC = 1704067200
+        assert_eq!(format_date(1704067200), "2024-01-01");
+    }
+
+    #[test]
+    fn build_release_basic() {
+        let config = ChangelogConfig::default();
+        let commits = vec![
+            ("abc1234", "feat: add feature\n"),
+            ("def5678", "fix: fix bug\n"),
+        ];
+        let release = build_release(&commits, "1.0.0", None, &config).unwrap();
+        assert_eq!(release.tag, "1.0.0");
+        assert_eq!(release.groups.len(), 2);
+    }
+
+    #[test]
+    fn build_release_skips_hidden() {
+        let config = ChangelogConfig::default();
+        let commits = vec![("abc1234", "chore: cleanup\n")];
+        assert!(build_release(&commits, "1.0.0", None, &config).is_none());
+    }
+
+    #[test]
+    fn build_release_extracts_breaking_changes() {
+        let config = ChangelogConfig::default();
+        let commits = vec![(
+            "abc1234",
+            "feat: new api\n\nBREAKING CHANGE: removed old endpoints",
+        )];
+        let release = build_release(&commits, "2.0.0", Some("v1.0.0"), &config).unwrap();
+        assert_eq!(release.breaking_changes, vec!["removed old endpoints"]);
+        assert_eq!(release.prev_tag, Some("1.0.0".to_string()));
+    }
+
+    #[test]
+    fn build_release_extracts_refs() {
+        let config = ChangelogConfig::default();
+        let commits = vec![("abc1234", "feat: add auth\n\nCloses: #45, #46\nRefs: 99")];
+        let release = build_release(&commits, "1.0.0", None, &config).unwrap();
+        let entries = &release.groups[0].1;
+        assert_eq!(entries[0].refs.len(), 3);
+        assert_eq!(
+            entries[0].refs[0],
+            ("closes".to_string(), "#45".to_string())
+        );
+        assert_eq!(
+            entries[0].refs[1],
+            ("closes".to_string(), "#46".to_string())
+        );
+        assert_eq!(entries[0].refs[2], ("refs".to_string(), "#99".to_string()));
+    }
+
+    #[test]
+    fn build_release_skips_non_conventional() {
+        let config = ChangelogConfig::default();
+        let commits = vec![
+            ("abc1234", "not a conventional commit"),
+            ("def5678", "feat: valid one\n"),
+        ];
+        let release = build_release(&commits, "1.0.0", None, &config).unwrap();
+        assert_eq!(release.groups.len(), 1);
+        assert_eq!(release.groups[0].1.len(), 1);
+    }
+
+    #[test]
+    fn build_release_none_when_empty() {
+        let config = ChangelogConfig::default();
+        let commits: Vec<(&str, &str)> = vec![];
+        assert!(build_release(&commits, "1.0.0", None, &config).is_none());
     }
 }
