@@ -1,13 +1,8 @@
-[package]
-name = "git-std"
-version = "0.0.0"
-edition = "2024"
-description = "Standard git workflow — commits, versioning, hooks"
-license = "MIT"
-repository = "https://github.com/driftsys/git-std"
-keywords = ["git", "conventional-commits", "hooks", "versioning", "changelog"]
-categories = ["command-line-utilities", "development-tools"]
+[workspace]
+members = ["crates/git-std"]
+resolver = "3"
 
-[[bin]]
-name = "git-std"
-path = "src/main.rs"
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
