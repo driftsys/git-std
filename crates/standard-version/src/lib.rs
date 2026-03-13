@@ -142,6 +142,57 @@ pub fn summarise(commits: &[ConventionalCommit]) -> BumpSummary {
     summary
 }
 
+/// Replace the `version` value in a TOML string's `[package]` section while
+/// preserving formatting.
+///
+/// Scans for the first `version = "..."` line under `[package]` and rewrites
+/// just the value. Lines in other sections (e.g. `[dependencies]`) are left
+/// untouched.
+pub fn replace_version_in_toml(
+    content: &str,
+    new_version: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut in_package = false;
+    let mut result = String::new();
+    let mut replaced = false;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed == "[package]" {
+            in_package = true;
+        } else if trimmed.starts_with('[') {
+            in_package = false;
+        }
+
+        if in_package
+            && !replaced
+            && trimmed.starts_with("version")
+            && let Some(eq_pos) = line.find('=')
+        {
+            let prefix = &line[..=eq_pos];
+            result.push_str(prefix);
+            result.push_str(&format!(" \"{new_version}\""));
+            result.push('\n');
+            replaced = true;
+            continue;
+        }
+
+        result.push_str(line);
+        result.push('\n');
+    }
+
+    if !replaced {
+        return Err("could not find version field in [package] section".into());
+    }
+
+    // Remove trailing extra newline if the original didn't end with one.
+    if !content.ends_with('\n') && result.ends_with('\n') {
+        result.pop();
+    }
+
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,5 +364,34 @@ mod tests {
     fn bump_level_ordering() {
         assert!(BumpLevel::Major > BumpLevel::Minor);
         assert!(BumpLevel::Minor > BumpLevel::Patch);
+    }
+
+    #[test]
+    fn replace_version_in_toml_basic() {
+        let input = r#"[package]
+name = "my-crate"
+version = "0.1.0"
+edition = "2021"
+"#;
+        let result = replace_version_in_toml(input, "1.0.0").unwrap();
+        assert!(result.contains("version = \"1.0.0\""));
+        assert!(result.contains("name = \"my-crate\""));
+        assert!(result.contains("edition = \"2021\""));
+    }
+
+    #[test]
+    fn replace_version_only_in_package_section() {
+        let input = r#"[package]
+name = "my-crate"
+version = "0.1.0"
+
+[dependencies]
+foo = { version = "1.0" }
+"#;
+        let result = replace_version_in_toml(input, "2.0.0").unwrap();
+        assert!(result.contains("[package]"));
+        assert!(result.contains("version = \"2.0.0\""));
+        // Dependency version should be unchanged.
+        assert!(result.contains("foo = { version = \"1.0\" }"));
     }
 }
