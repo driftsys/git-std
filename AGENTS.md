@@ -55,7 +55,7 @@ The project is in early scaffold stage (v0.0.0). The full specification lives in
 ## Conventions
 
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/) — imperative mood, types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`. Keep the subject line concise; body is optional and must not exceed 10 lines.
-- **Code style:** `rustfmt` + `clippy` with zero warnings. `dprint` for Markdown formatting. Always run `just fmt` before committing to ensure Rust and Markdown files are properly formatted.
+- **Code style:** `rustfmt` + `clippy` with zero warnings. `dprint` for Markdown formatting. Always run `just fmt` before committing to ensure Rust and Markdown files are properly formatted. Target zero IDE warnings — add project-specific words to `.vscode/settings.json` under `cSpell.words` to fix spellcheck warnings.
 - **Branches:** descriptive kebab-case from `main`, optionally prefixed with issue number (e.g., `42-fix-tag-detection`).
 - **Comments:** doc comments on all public API items, brief comments on tricky internals. Skip comments where the code is self-explanatory.
 - **Versioning:** [Semantic Versioning](https://semver.org/). Releases are cut with a `chore(release): <version>` commit and an annotated `v<version>` tag.

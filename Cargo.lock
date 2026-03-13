@@ -155,12 +155,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "git-conventional"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e309a81911009e578fdd9bdac9839c6a2675c197ced418e21ecd6cefc05cd41"
+dependencies = [
+ "unicase",
+ "winnow",
+]
+
+[[package]]
 name = "git-std"
 version = "0.0.0"
 dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "standard-commit",
 ]
 
 [[package]]
@@ -315,6 +326,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "standard-changelog"
+version = "0.0.1"
+dependencies = [
+ "standard-commit",
+]
+
+[[package]]
+name = "standard-commit"
+version = "0.0.1"
+dependencies = [
+ "git-conventional",
+]
+
+[[package]]
+name = "standard-githooks"
+version = "0.0.1"
+
+[[package]]
+name = "standard-version"
+version = "0.0.1"
+dependencies = [
+ "standard-commit",
+]
+
+[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -336,6 +372,12 @@ name = "termtree"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f50febec83f5ee1df3015341d8bd429f2d1cc62bcba7ea2076759d315084683"
+
+[[package]]
+name = "unicase"
+version = "2.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbc4bc3a9f746d862c45cb89d705aa10f187bb96c76001afab07a0d35ce60142"
 
 [[package]]
 name = "unicode-ident"
@@ -371,4 +413,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
  "windows-link",
+]
+
+[[package]]
+name = "winnow"
+version = "0.7.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
+dependencies = [
+ "memchr",
 ]

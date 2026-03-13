@@ -1,0 +1,11 @@
+[package]
+name = "standard-githooks"
+version = "0.0.1"
+edition = "2024"
+description = "Git hooks file format parsing, shim generation, and execution model"
+license = "MIT"
+repository = "https://github.com/driftsys/git-std"
+keywords = ["git", "hooks", "pre-commit", "commit-msg"]
+categories = ["development-tools"]
+
+[dependencies]

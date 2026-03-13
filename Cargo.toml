@@ -1,5 +1,11 @@
 [workspace]
-members = ["crates/git-std"]
+members = [
+    "crates/standard-commit",
+    "crates/standard-version",
+    "crates/standard-githooks",
+    "crates/standard-changelog",
+    "crates/git-std",
+]
 resolver = "3"
 
 [profile.release]

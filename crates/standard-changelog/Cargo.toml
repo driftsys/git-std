@@ -1,0 +1,12 @@
+[package]
+name = "standard-changelog"
+version = "0.0.1"
+edition = "2024"
+description = "Changelog generation from conventional commits"
+license = "MIT"
+repository = "https://github.com/driftsys/git-std"
+keywords = ["changelog", "conventional-commits", "release", "git"]
+categories = ["development-tools"]
+
+[dependencies]
+standard-commit = { version = "0.0.1", path = "../standard-commit" }

@@ -1,0 +1,12 @@
+[package]
+name = "standard-commit"
+version = "0.0.1"
+edition = "2024"
+description = "Conventional commit parsing, validation, and formatting"
+license = "MIT"
+repository = "https://github.com/driftsys/git-std"
+keywords = ["conventional-commits", "commit", "lint", "git", "validation"]
+categories = ["development-tools", "parser-implementations"]
+
+[dependencies]
+git-conventional = "1.0.0"
