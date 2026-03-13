@@ -1,4 +1,6 @@
-use clap::{Parser, Subcommand};
+use std::io::IsTerminal;
+
+use clap::{Parser, Subcommand, ValueEnum};
 
 mod check;
 mod commit;
@@ -8,8 +10,23 @@ mod config;
 #[derive(Parser)]
 #[command(name = "git-std", version, about)]
 struct Cli {
+    /// When to use coloured output.
+    #[arg(long, global = true, default_value = "auto")]
+    color: ColorWhen,
+
     #[command(subcommand)]
     command: Command,
+}
+
+/// When to enable coloured output.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ColorWhen {
+    /// Colour if stdout is a TTY.
+    Auto,
+    /// Always use colour.
+    Always,
+    /// Never use colour.
+    Never,
 }
 
 /// Available subcommands.
@@ -30,6 +47,9 @@ enum Command {
         /// Reject types/scopes not in `.git-std.toml` and require scope if scopes are defined.
         #[arg(long)]
         strict: bool,
+        /// Output format.
+        #[arg(long, default_value = "text")]
+        format: check::OutputFormat,
     },
     /// Version bump, changelog, commit, and tag.
     Bump,
@@ -44,12 +64,24 @@ enum Command {
 fn main() {
     let cli = Cli::parse();
 
+    // Configure yansi colour output based on --color flag.
+    match cli.color {
+        ColorWhen::Always => yansi::enable(),
+        ColorWhen::Never => yansi::disable(),
+        ColorWhen::Auto => {
+            if !std::io::stdout().is_terminal() {
+                yansi::disable();
+            }
+        }
+    }
+
     match cli.command {
         Command::Check {
             message,
             file,
             range,
             strict,
+            format,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
             let effective_strict = strict || project_config.strict;
@@ -61,11 +93,11 @@ fn main() {
             };
 
             let code = if let Some(path) = file {
-                check::run_file(&path, lint_ref)
+                check::run_file(&path, lint_ref, format)
             } else if let Some(range) = range {
-                check::run_range(&range, lint_ref)
+                check::run_range(&range, lint_ref, format)
             } else if let Some(message) = message {
-                check::run(&message, lint_ref)
+                check::run(&message, lint_ref, format)
             } else {
                 eprintln!("error: provide a message, --file, or --range");
                 2

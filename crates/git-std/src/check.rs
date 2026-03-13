@@ -1,16 +1,49 @@
 use std::path::Path;
 
+use clap::ValueEnum;
+use serde::Serialize;
+use yansi::Paint;
+
 use standard_commit::LintConfig;
 
+/// Output format for the check subcommand.
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+pub enum OutputFormat {
+    /// Human-readable text (default).
+    Text,
+    /// Machine-readable JSON.
+    Json,
+}
+
+/// JSON output schema for a single commit check.
+#[derive(Serialize)]
+struct CheckResult {
+    valid: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    r#type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scope: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    breaking: Option<bool>,
+    errors: Vec<String>,
+}
+
 /// Run the `check` subcommand with an inline message. Returns the exit code.
-pub fn run(message: &str, lint_config: Option<&LintConfig>) -> i32 {
+pub fn run(message: &str, lint_config: Option<&LintConfig>, format: OutputFormat) -> i32 {
+    if format == OutputFormat::Json {
+        return run_json(message, lint_config);
+    }
+
     if let Some(config) = lint_config {
         let errors = standard_commit::lint(message, config);
         if errors.is_empty() {
+            eprintln!("{} {}", "\u{2713}".green(), "valid".green());
             return 0;
         }
         for error in &errors {
-            eprintln!("\u{2717} {error}");
+            eprintln!("{} {}", "\u{2717}".red(), error.to_string().red());
         }
         eprintln!("  Expected: <type>(<scope>): <description>");
         eprintln!("  Got:      {}", first_line(message));
@@ -18,7 +51,10 @@ pub fn run(message: &str, lint_config: Option<&LintConfig>) -> i32 {
     }
 
     match standard_commit::parse(message) {
-        Ok(_) => 0,
+        Ok(_) => {
+            eprintln!("{} {}", "\u{2713}".green(), "valid".green());
+            0
+        }
         Err(e) => {
             print_diagnostic(message, &e);
             1
@@ -26,8 +62,65 @@ pub fn run(message: &str, lint_config: Option<&LintConfig>) -> i32 {
     }
 }
 
+/// Run check with JSON output.
+fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
+    let result = if let Some(config) = lint_config {
+        let errors = standard_commit::lint(message, config);
+        if errors.is_empty() {
+            build_valid_result(message)
+        } else {
+            CheckResult {
+                valid: false,
+                r#type: None,
+                scope: None,
+                description: None,
+                breaking: None,
+                errors: errors.iter().map(|e| e.to_string()).collect(),
+            }
+        }
+    } else {
+        match standard_commit::parse(message) {
+            Ok(_) => build_valid_result(message),
+            Err(e) => CheckResult {
+                valid: false,
+                r#type: None,
+                scope: None,
+                description: None,
+                breaking: None,
+                errors: vec![e.to_string()],
+            },
+        }
+    };
+
+    let code = if result.valid { 0 } else { 1 };
+    println!("{}", serde_json::to_string(&result).unwrap());
+    code
+}
+
+/// Build a valid CheckResult by parsing the commit message.
+fn build_valid_result(message: &str) -> CheckResult {
+    match standard_commit::parse(message) {
+        Ok(commit) => CheckResult {
+            valid: true,
+            r#type: Some(commit.r#type),
+            scope: commit.scope,
+            description: Some(commit.description),
+            breaking: Some(commit.is_breaking),
+            errors: vec![],
+        },
+        Err(_) => CheckResult {
+            valid: true,
+            r#type: None,
+            scope: None,
+            description: None,
+            breaking: None,
+            errors: vec![],
+        },
+    }
+}
+
 /// Read a commit message from a file, strip comment lines, and validate.
-pub fn run_file(path: &Path, lint_config: Option<&LintConfig>) -> i32 {
+pub fn run_file(path: &Path, lint_config: Option<&LintConfig>, format: OutputFormat) -> i32 {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
@@ -36,11 +129,11 @@ pub fn run_file(path: &Path, lint_config: Option<&LintConfig>) -> i32 {
         }
     };
     let message = strip_comments(&content);
-    run(&message, lint_config)
+    run(&message, lint_config, format)
 }
 
 /// Validate all commits in a git revision range. Returns 0 if all valid, 1 if any invalid.
-pub fn run_range(range: &str, lint_config: Option<&LintConfig>) -> i32 {
+pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFormat) -> i32 {
     let repo = match git2::Repository::discover(".") {
         Ok(r) => r,
         Err(e) => {
@@ -62,6 +155,10 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>) -> i32 {
         return 2;
     }
 
+    if format == OutputFormat::Json {
+        return run_range_json(&commits, lint_config);
+    }
+
     let mut failures = 0;
     for (oid, message) in &commits {
         let short = &oid.to_string()[..7];
@@ -70,9 +167,14 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>) -> i32 {
             if errors.is_empty() {
                 true
             } else {
-                eprintln!("\u{2717} {short} {}", first_line(message));
+                eprintln!(
+                    "{} {} {}",
+                    "\u{2717}".red(),
+                    short,
+                    first_line(message).red()
+                );
                 for error in &errors {
-                    eprintln!("  {error}");
+                    eprintln!("  {}", error.to_string().red());
                 }
                 false
             }
@@ -80,21 +182,75 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>) -> i32 {
             match standard_commit::parse(message) {
                 Ok(_) => true,
                 Err(e) => {
-                    eprintln!("\u{2717} {short} {}", first_line(message));
-                    eprintln!("  {e}");
+                    eprintln!(
+                        "{} {} {}",
+                        "\u{2717}".red(),
+                        short,
+                        first_line(message).red()
+                    );
+                    eprintln!("  {}", e.to_string().red());
                     false
                 }
             }
         };
 
         if valid {
-            eprintln!("\u{2713} {short} {}", first_line(message));
+            eprintln!(
+                "{} {} {}",
+                "\u{2713}".green(),
+                short,
+                first_line(message).green()
+            );
         } else {
             failures += 1;
         }
     }
 
     if failures > 0 { 1 } else { 0 }
+}
+
+/// Run range check with JSON output — outputs a JSON array.
+fn run_range_json(commits: &[(git2::Oid, String)], lint_config: Option<&LintConfig>) -> i32 {
+    let mut results = Vec::new();
+    let mut any_invalid = false;
+
+    for (_oid, message) in commits {
+        let result = if let Some(config) = lint_config {
+            let errors = standard_commit::lint(message, config);
+            if errors.is_empty() {
+                build_valid_result(message)
+            } else {
+                CheckResult {
+                    valid: false,
+                    r#type: None,
+                    scope: None,
+                    description: None,
+                    breaking: None,
+                    errors: errors.iter().map(|e| e.to_string()).collect(),
+                }
+            }
+        } else {
+            match standard_commit::parse(message) {
+                Ok(_) => build_valid_result(message),
+                Err(e) => CheckResult {
+                    valid: false,
+                    r#type: None,
+                    scope: None,
+                    description: None,
+                    breaking: None,
+                    errors: vec![e.to_string()],
+                },
+            }
+        };
+
+        if !result.valid {
+            any_invalid = true;
+        }
+        results.push(result);
+    }
+
+    println!("{}", serde_json::to_string(&results).unwrap());
+    if any_invalid { 1 } else { 0 }
 }
 
 /// Strip lines starting with `#` (git comment convention).
@@ -125,7 +281,7 @@ fn walk_range(
 }
 
 fn print_diagnostic(message: &str, error: &standard_commit::ParseError) {
-    eprintln!("\u{2717} invalid: {error}");
+    eprintln!("{} {}", "\u{2717}".red(), format!("invalid: {error}").red());
     eprintln!("  Expected: <type>(<scope>): <description>");
     eprintln!("  Got:      {}", first_line(message));
 }

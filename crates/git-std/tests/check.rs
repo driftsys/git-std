@@ -416,3 +416,105 @@ fn strict_file_validates_against_config() {
         .code(1)
         .stderr(contains("not in the allowed list"));
 }
+
+// ── --format json (#20) ─────────────────────────────────────────
+
+#[test]
+fn json_valid_simple() {
+    let output = git_std()
+        .args(["check", "--format", "json", "feat: add login"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(v["valid"], true);
+    assert_eq!(v["type"], "feat");
+    assert_eq!(v["scope"], serde_json::Value::Null);
+    assert_eq!(v["description"], "add login");
+    assert_eq!(v["breaking"], false);
+    assert!(v["errors"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn json_valid_scoped_breaking() {
+    let output = git_std()
+        .args([
+            "check",
+            "--format",
+            "json",
+            "refactor(runtime)!: drop Python 2 support",
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(v["valid"], true);
+    assert_eq!(v["type"], "refactor");
+    assert_eq!(v["scope"], "runtime");
+    assert_eq!(v["breaking"], true);
+}
+
+#[test]
+fn json_invalid_message() {
+    let output = git_std()
+        .args(["check", "--format", "json", "bad message"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(v["valid"], false);
+    assert!(!v["errors"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn json_invalid_strict() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = git_std()
+        .args(["check", "--strict", "--format", "json", "yolo: do things"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(v["valid"], false);
+    assert!(
+        v["errors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e.as_str().unwrap().contains("not in the allowed list"))
+    );
+}
+
+// ── --color never (#21) ─────────────────────────────────────────
+
+#[test]
+fn color_never_no_ansi_codes_valid() {
+    let output = git_std()
+        .args(["--color", "never", "check", "feat: add login"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // ANSI escape sequences start with ESC (0x1B)
+    assert!(
+        !stderr.contains('\x1b'),
+        "stderr should not contain ANSI escape codes with --color never"
+    );
+    assert!(stderr.contains("\u{2713}"));
+}
+
+#[test]
+fn color_never_no_ansi_codes_invalid() {
+    let output = git_std()
+        .args(["--color", "never", "check", "bad message"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains('\x1b'),
+        "stderr should not contain ANSI escape codes with --color never"
+    );
+    assert!(stderr.contains("\u{2717}"));
+}
