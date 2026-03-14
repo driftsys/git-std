@@ -11,6 +11,7 @@ lint:
     cargo clippy -- -D warnings
     cargo fmt -- --check
     dprint check
+    npx markdownlint-cli '**/*.md' --ignore node_modules
 
 # Audit dependencies
 audit:

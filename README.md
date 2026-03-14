@@ -1,8 +1,15 @@
 # git-std
 
-From commit to release. One tool for [conventional commits][cc], [versioning][semver], [changelog][keep-changelog], and [git hooks][githooks] management.
+From commit to release. One tool for
+[conventional commits][cc], [versioning][semver],
+[changelog][keep-changelog], and [git hooks][githooks]
+management.
 
-`git-std` replaces commitizen, commitlint, standard-version, husky, and lefthook with a single binary. Fast, low memory footprint, zero runtime dependencies. Works out of the box with sensible defaults, which can be overridden with a `.git-std.toml`.
+`git-std` replaces commitizen, commitlint, standard-version,
+husky, and lefthook with a single binary. Fast, low memory
+footprint, zero runtime dependencies. Works out of the box
+with sensible defaults, which can be overridden with a
+`.git-std.toml`.
 
 Invoked as `git std` via git's subcommand discovery.
 
@@ -14,7 +21,10 @@ Invoked as `git std` via git's subcommand discovery.
 curl -fsSL https://raw.githubusercontent.com/driftsys/git-std/main/install.sh | bash
 ```
 
-The script detects your OS and architecture, downloads the matching binary from the latest GitHub release, and installs it to `~/.local/bin/git-std`. Set `GIT_STD_INSTALL_DIR` to override the install location.
+The script detects your OS and architecture, downloads the
+matching binary from the latest GitHub release, and installs
+it to `~/.local/bin/git-std`. Set `GIT_STD_INSTALL_DIR` to
+override the install location.
 
 **From source:**
 
@@ -113,7 +123,8 @@ git std check --strict "feat(auth): add login"
 
 ### `git std bump`
 
-Calculate the next version from conventional commits, update version files, generate changelog, commit, and tag.
+Calculate the next version from conventional commits, update
+version files, generate changelog, commit, and tag.
 
 ```bash
 # Preview what would happen
@@ -161,7 +172,9 @@ git std hooks run pre-commit
 
 ## Configuration
 
-`git-std` reads `.git-std.toml` from the project root. All fields are optional — sensible defaults apply when the file is absent.
+`git-std` reads `.git-std.toml` from the project root. All
+fields are optional — sensible defaults apply when the file
+is absent.
 
 ```toml
 # Versioning scheme: "semver" (default), "calver", or "patch"
@@ -194,11 +207,15 @@ refactor = "Refactoring"
 docs = "Documentation"
 ```
 
-Hook definitions live in `.githooks/*.hooks` files (plain text, one command per line). See the [specification](docs/SPEC.md) for the full hooks file format.
+Hook definitions live in `.githooks/*.hooks` files (plain
+text, one command per line). See the
+[specification](docs/SPEC.md) for the full hooks file
+format.
 
 ## Git hooks
 
-Create `.githooks/<hook-name>.hooks` files and run `git std hooks install` to activate them.
+Create `.githooks/<hook-name>.hooks` files and run
+`git std hooks install` to activate them.
 
 **Example `.githooks/commit-msg.hooks`:**
 
@@ -217,9 +234,12 @@ cargo clippy --workspace -- -D warnings *.rs
 cargo test --workspace --lib *.rs
 ```
 
-**Prefixes:** `!` = fail fast (abort on failure), `?` = advisory (warn only), none = hook default mode.
+**Prefixes:** `!` = fail fast (abort on failure),
+`?` = advisory (warn only), none = hook default mode.
 
-**Globs** at the end of a line restrict the command to matching staged files. No match means the command is skipped.
+**Globs** at the end of a line restrict the command to
+matching staged files. No match means the command is
+skipped.
 
 ## CI integration
 
@@ -256,7 +276,11 @@ lint:commits:
 
 ## Workspace crates
 
-`git-std` is built on four independent library crates, each published separately on [crates.io](https://crates.io). The libraries implement domain logic only — no CLI, no git operations, no terminal output. `git-std` is the orchestrator that wires them together with I/O, config, and CLI dispatch.
+`git-std` is built on four independent library crates, each
+published separately on [crates.io][crates-io]. The libraries
+implement domain logic only — no CLI, no git operations, no
+terminal output. `git-std` is the orchestrator that wires
+them together with I/O, config, and CLI dispatch.
 
 ```text
 git-std (binary)
@@ -283,4 +307,5 @@ MIT
 [semver]: https://semver.org/spec/v2.0.0.html
 [calver]: https://calver.org/
 [keep-changelog]: https://keepachangelog.com/en/1.1.0/
+[crates-io]: https://crates.io
 [githooks]: https://git-scm.com/docs/githooks

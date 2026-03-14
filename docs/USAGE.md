@@ -12,7 +12,8 @@ git std <command> [options]
 
 ### `git std check`
 
-Validate commit messages against the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
+Validate commit messages against the
+[Conventional Commits][conv-commits] specification.
 
 **Input modes:**
 
@@ -50,7 +51,9 @@ git std check --file "$1"
 
 ### `git std commit`
 
-Interactive conventional commit builder. Prompts for type, scope, description, body, and breaking change, then runs `git commit`.
+Interactive conventional commit builder. Prompts for type,
+scope, description, body, and breaking change, then runs
+`git commit`.
 
 **Flags:**
 
@@ -69,7 +72,8 @@ Interactive conventional commit builder. Prompts for type, scope, description, b
 
 ### `git std bump`
 
-Calculate the next version from conventional commits, update version files, generate changelog, commit, and tag.
+Calculate the next version from conventional commits,
+update version files, generate changelog, commit, and tag.
 
 **Flags:**
 
@@ -125,7 +129,9 @@ Fetch the latest release and replace the current binary.
 
 ## Configuration
 
-`git-std` reads `.git-std.toml` in the project root. All fields are optional — sensible defaults are used when the file is absent or a field is omitted.
+`git-std` reads `.git-std.toml` in the project root. All
+fields are optional — sensible defaults are used when the
+file is absent or a field is omitted.
 
 ### Full schema
 
@@ -136,7 +142,7 @@ types = ["feat", "fix", "docs", "style",
          "refactor", "perf", "test",
          "chore", "ci", "build"]
 scopes = ["auth", "api", "ci", "deps"]         # "auto" | string[] | omit
-strict = true                                  # enforce types/scopes without --strict flag
+strict = true                         # enforce types/scopes
 
 # ── Versioning ────────────────────────────────────────────────────
 [versioning]
@@ -167,15 +173,20 @@ docs = "Documentation"
 | `scopes` | `"auto"` or string[] | None              | Scope discovery or explicit allowlist                   |
 | `strict` | bool                 | `false`           | Enforce types/scopes validation without `--strict` flag |
 
-Default types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`.
+Default types: `feat`, `fix`, `docs`, `style`, `refactor`,
+`perf`, `test`, `chore`, `ci`, `build`.
 
 **Scopes behavior:**
 
 - **Not set** (default) — no scope validation, any scope accepted
-- **`scopes = "auto"`** — discover scopes from workspace layout (`crates/*`, `packages/*`, `modules/*`)
+- **`scopes = "auto"`** — discover scopes from workspace
+  layout (`crates/*`, `packages/*`, `modules/*`)
 - **`scopes = ["auth", "api"]`** — explicit allowlist
 
-When scopes is set (either `"auto"` or an array) and `--strict` is used, a scope is required and must be in the resolved list. For `git std commit`, the resolved scopes populate the interactive scope prompt.
+When scopes is set (either `"auto"` or an array) and
+`--strict` is used, a scope is required and must be in the
+resolved list. For `git std commit`, the resolved scopes
+populate the interactive scope prompt.
 
 #### `[versioning]`
 
@@ -198,9 +209,14 @@ When scopes is set (either `"auto"` or an array) and `--strict` is used, a scope
 | `PATCH` | Auto-incrementing patch counter, resets each period       | `0`, `1`, `2`    |
 | `DP`    | Day of week (1=Mon–7=Sun) concatenated with patch counter | `30`, `31`, `32` |
 
-Common formats: `YYYY.MM.PATCH` (monthly releases), `YYYY.0M.PATCH` (zero-padded month), `YY.WW.DP` (weekly with day-of-week), `YYYY.MM.DD.PATCH` (daily releases).
+Common formats: `YYYY.MM.PATCH` (monthly releases),
+`YYYY.0M.PATCH` (zero-padded month), `YY.WW.DP` (weekly
+with day-of-week), `YYYY.MM.DD.PATCH` (daily releases).
 
-Bump rules are inferred from the scheme — not configurable. For semver: `BREAKING CHANGE` or `!` triggers major, `feat` triggers minor, everything else triggers patch.
+Bump rules are inferred from the scheme — not
+configurable. For semver: `BREAKING CHANGE` or `!` triggers
+major, `feat` triggers minor, everything else triggers
+patch.
 
 #### `[changelog]`
 
@@ -210,7 +226,8 @@ Bump rules are inferred from the scheme — not configurable. For semver: `BREAK
 
 #### `[changelog.sections]`
 
-Maps commit types to changelog section headings. Types not listed here use the type name as the heading.
+Maps commit types to changelog section headings. Types not
+listed here use the type name as the heading.
 
 | Key        | Default           |
 | ---------- | ----------------- |
@@ -224,17 +241,18 @@ Maps commit types to changelog section headings. Types not listed here use the t
 
 These are not configurable — git-std resolves them automatically:
 
-| Concern          | Resolution                                     |
-| ---------------- | ---------------------------------------------- |
-| Bump rules       | Inferred from `scheme`                         |
-| Version files    | Auto-detected (Cargo.toml)                     |
-| URLs             | Inferred from `git remote get-url origin`      |
-| Changelog output | Always `CHANGELOG.md`                          |
-| Release commit   | Always `chore(release): <version>`             |
+| Concern          | Resolution                                |
+| ---------------- | ----------------------------------------- |
+| Bump rules       | Inferred from `scheme`                    |
+| Version files    | Auto-detected (Cargo.toml)                |
+| URLs             | Inferred from `git remote get-url origin` |
+| Changelog output | Always `CHANGELOG.md`                     |
+| Release commit   | Always `chore(release): <version>`        |
 
 ### Minimal examples
 
-**No config needed** — git-std works with zero configuration using conventional defaults.
+**No config needed** — git-std works with zero
+configuration using conventional defaults.
 
 **Types and scopes only:**
 
@@ -296,3 +314,5 @@ git std hooks install
 ```
 
 Every commit message will be validated automatically.
+
+[conv-commits]: https://www.conventionalcommits.org/en/v1.0.0/
