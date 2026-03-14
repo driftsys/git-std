@@ -108,27 +108,19 @@ pub fn format_commit_date(commit: &git2::Commit) -> String {
     standard_changelog::format_date(secs)
 }
 
-/// Stage all modified and new files in the working directory.
+/// Stage the given relative paths in the repository index.
 pub fn stage_files(
     repo: &git2::Repository,
-    workdir: &std::path::Path,
+    paths: &[&str],
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let workdir = repo.workdir().ok_or("bare repository not supported")?;
     let mut index = repo.index()?;
 
-    let cargo_toml = workdir.join("Cargo.toml");
-    if cargo_toml.exists() {
-        index.add_path(std::path::Path::new("Cargo.toml"))?;
-    }
-
-    let changelog = workdir.join("CHANGELOG.md");
-    if changelog.exists() {
-        index.add_path(std::path::Path::new("CHANGELOG.md"))?;
-    }
-
-    // Also stage Cargo.lock if it was updated.
-    let cargo_lock = workdir.join("Cargo.lock");
-    if cargo_lock.exists() {
-        index.add_path(std::path::Path::new("Cargo.lock"))?;
+    for rel_path in paths {
+        let full = workdir.join(rel_path);
+        if full.exists() {
+            index.add_path(std::path::Path::new(rel_path))?;
+        }
     }
 
     index.write()?;
@@ -188,15 +180,53 @@ pub fn create_signed_tag(name: &str, message: &str) -> Result<(), Box<dyn std::e
     }
 }
 
-/// Find the relative path to the project's Cargo.toml.
+/// Find the relative path to the project's `Cargo.toml` containing a
+/// `[package]` section. If the root `Cargo.toml` is a workspace manifest,
+/// looks for the binary crate listed in `[workspace] members`.
 pub fn find_cargo_toml(repo: &git2::Repository) -> Option<String> {
     let workdir = repo.workdir()?;
-    let path = workdir.join("Cargo.toml");
-    if path.exists() {
-        Some("Cargo.toml".to_string())
-    } else {
-        None
+    let root = workdir.join("Cargo.toml");
+    if !root.exists() {
+        return None;
     }
+
+    let content = std::fs::read_to_string(&root).ok()?;
+    let doc: toml::Table = content.parse().ok()?;
+
+    // If root has [package], use it directly.
+    if doc.contains_key("package") {
+        return Some("Cargo.toml".to_string());
+    }
+
+    // Workspace manifest — find a member with a binary (has [[bin]] or
+    // name matches the repo directory).
+    let members = doc
+        .get("workspace")
+        .and_then(|w| w.as_table())
+        .and_then(|w| w.get("members"))
+        .and_then(|m| m.as_array())?;
+
+    for member in members {
+        let member_str = member.as_str()?;
+        let member_toml = workdir.join(member_str).join("Cargo.toml");
+        let Ok(member_content) = std::fs::read_to_string(&member_toml) else {
+            continue;
+        };
+        let Ok(member_doc) = member_content.parse::<toml::Table>() else {
+            continue;
+        };
+        let is_bin = member_doc.contains_key("bin")
+            || member_doc
+                .get("package")
+                .and_then(|p| p.as_table())
+                .is_some()
+                && workdir.join(member_str).join("src/main.rs").exists();
+        if is_bin {
+            return Some(format!("{member_str}/Cargo.toml"));
+        }
+    }
+
+    None
 }
 
 /// Update the `version` field in a Cargo.toml file.

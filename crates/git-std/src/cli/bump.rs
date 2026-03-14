@@ -241,15 +241,18 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     // Step 9: Create commit.
     if !opts.no_commit {
-        let workdir = match repo.workdir() {
-            Some(w) => w,
-            None => {
-                eprintln!("error: bare repository not supported");
-                return 1;
-            }
-        };
+        // Collect paths to stage.
+        let mut paths_to_stage: Vec<&str> = Vec::new();
+        let cargo_toml_path = git::find_cargo_toml(&repo);
+        if let Some(ref p) = cargo_toml_path {
+            paths_to_stage.push(p);
+        }
+        if !opts.skip_changelog {
+            paths_to_stage.push("CHANGELOG.md");
+        }
+        paths_to_stage.push("Cargo.lock");
 
-        if let Err(e) = git::stage_files(&repo, workdir) {
+        if let Err(e) = git::stage_files(&repo, &paths_to_stage) {
             eprintln!("error: cannot stage files: {e}");
             return 1;
         }
