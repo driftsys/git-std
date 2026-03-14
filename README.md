@@ -83,7 +83,7 @@ git std commit --dry-run
 | `--breaking`      | Add a `BREAKING CHANGE` footer         |
 | `--dry-run`       | Print the message without committing   |
 | `--amend`         | Amend the previous commit              |
-| `-S` / `--sign`   | GPG-sign the commit                    |
+| `--sign` / `-S`   | GPG-sign the commit                    |
 | `-a` / `--all`    | Stage all tracked modified files first |
 
 ### `git std check`
@@ -135,7 +135,7 @@ Generate or update the changelog from commit history.
 
 ```bash
 # Preview unreleased changes
-git std changelog --unreleased --stdout
+git std changelog --stdout
 
 # Regenerate the full changelog
 git std changelog --full

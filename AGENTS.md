@@ -24,7 +24,19 @@ just fmt                     # Format Rust + Markdown
 
 ## Architecture
 
-The project is in early scaffold stage (v0.0.0). The full specification lives in `docs/SPEC.md`.
+The full specification lives in `docs/SPEC.md`.
+
+**Workspace structure — five crates:**
+
+| Crate                | Role                                                  |
+| -------------------- | ----------------------------------------------------- |
+| `git-std`            | CLI binary — orchestrates I/O, git, config, dispatch  |
+| `standard-commit`    | Conventional commit parsing, linting, formatting      |
+| `standard-version`   | Semantic version bump calculation, TOML rewriting     |
+| `standard-changelog` | Changelog generation from conventional commits        |
+| `standard-githooks`  | Hook file format parsing, shim generation             |
+
+Library crates are pure — no git2, no I/O, no terminal output.
 
 **Four subcommands**, each a separate concern:
 
@@ -38,10 +50,11 @@ The project is in early scaffold stage (v0.0.0). The full specification lives in
 **Key design decisions:**
 
 - Config is `.git-std.toml`. Hooks config is `.githooks/*.hooks` (plain text, one command per line).
-- Uses `git2` (libgit2) for git operations — no shelling out to `git`.
-- Uses `git_cliff_core` as a library for changelog rendering.
+- Uses `git2` (libgit2) for git operations — no shelling out to `git` (except for GPG signing).
 - Target binary size: ~5–8 MB (`lto = true`, `strip = true`, `codegen-units = 1`).
 - Static linking with `musl` on Linux.
+
+**Key dependencies:** `clap` (CLI), `inquire` (prompts), `git2` (git ops), `semver` (version parsing), `toml` (config), `yansi` (colours).
 
 ## Workflow
 

@@ -62,7 +62,7 @@ Interactive conventional commit builder. Prompts for type, scope, description, b
 | `--breaking`      | Add `BREAKING CHANGE` footer     |
 | `--dry-run`       | Print message without committing |
 | `--amend`         | Pass `--amend` to `git commit`   |
-| `--sign` / `-s`   | GPG-sign the commit              |
+| `--sign` / `-S`   | GPG-sign the commit              |
 | `--all` / `-a`    | Stage tracked changes            |
 
 **Exit codes:** `0` = committed, `1` = validation/git error, `2` = usage error.
@@ -92,12 +92,11 @@ Generate or update the changelog from git history.
 
 **Flags:**
 
-| Flag              | Description                     |
-| ----------------- | ------------------------------- |
-| `--range <range>` | Specific tag range              |
-| `--unreleased`    | Unreleased changes only         |
-| `--full`          | Regenerate entire changelog     |
-| `--stdout`        | Print to stdout instead of file |
+| Flag              | Description                           |
+| ----------------- | ------------------------------------- |
+| `--full`          | Regenerate entire changelog           |
+| `--stdout`        | Print to stdout instead of file       |
+| `--output <file>` | Write to file (default: CHANGELOG.md) |
 
 ### `git std hooks`
 
@@ -228,7 +227,7 @@ These are not configurable — git-std resolves them automatically:
 | Concern          | Resolution                                     |
 | ---------------- | ---------------------------------------------- |
 | Bump rules       | Inferred from `scheme`                         |
-| Version files    | Auto-detected (Cargo.toml, package.json, etc.) |
+| Version files    | Auto-detected (Cargo.toml)                     |
 | URLs             | Inferred from `git remote get-url origin`      |
 | Changelog output | Always `CHANGELOG.md`                          |
 | Release commit   | Always `chore(release): <version>`             |
