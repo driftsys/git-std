@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "Changelog generation from conventional commits"
 license = "MIT"
+readme = "README.md"
 repository = "https://github.com/driftsys/git-std"
 keywords = ["changelog", "conventional-commits", "release", "git"]
 categories = ["development-tools"]

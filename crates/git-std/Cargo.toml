@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "Standard git workflow — commits, versioning, hooks"
 license = "MIT"
+readme = "README.md"
 repository = "https://github.com/driftsys/git-std"
 keywords = ["git", "conventional-commits", "hooks", "versioning", "changelog"]
 categories = ["command-line-utilities", "development-tools"]
