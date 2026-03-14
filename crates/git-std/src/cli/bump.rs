@@ -185,6 +185,14 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
             return 1;
         }
         updated_files.push((path.clone(), cur_ver.to_string(), new_version.to_string()));
+
+        // Sync Cargo.lock with the new version.
+        let status = std::process::Command::new("cargo")
+            .args(["update", "--workspace"])
+            .status();
+        if let Err(e) = status {
+            eprintln!("warning: failed to update Cargo.lock: {e}");
+        }
     }
 
     // Step 8: Generate/update changelog.
