@@ -909,16 +909,12 @@ fn hooks_full_install_cycle() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let perms = std::fs::metadata(&pre_commit_shim)
-            .unwrap()
-            .permissions();
+        let perms = std::fs::metadata(&pre_commit_shim).unwrap().permissions();
         assert!(
             perms.mode() & 0o111 != 0,
             "pre-commit shim should be executable"
         );
-        let perms = std::fs::metadata(&commit_msg_shim)
-            .unwrap()
-            .permissions();
+        let perms = std::fs::metadata(&commit_msg_shim).unwrap().permissions();
         assert!(
             perms.mode() & 0o111 != 0,
             "commit-msg shim should be executable"
@@ -928,7 +924,10 @@ fn hooks_full_install_cycle() {
     // The shims call `git std hooks run ...` which invokes `git-std` as a
     // git subcommand. For this to work, the `git-std` binary must be on
     // PATH. Locate the cargo-built binary and prepend its directory.
-    let bin_path = Command::cargo_bin("git-std").unwrap().get_program().to_owned();
+    let bin_path = Command::cargo_bin("git-std")
+        .unwrap()
+        .get_program()
+        .to_owned();
     let bin_dir = Path::new(&bin_path).parent().unwrap();
     let path_env = format!(
         "{}:{}",
