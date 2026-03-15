@@ -4,10 +4,12 @@
 //! and generate shim scripts. Does not execute commands, run git operations,
 //! or produce terminal output.
 
-pub mod glob;
+mod glob;
 mod parse;
-pub mod run;
-pub mod shim;
+mod run;
+mod shim;
 
 pub use glob::matches_any;
 pub use parse::{HookCommand, Prefix, parse};
+pub use run::{HookMode, default_mode, substitute_msg};
+pub use shim::generate_shim;

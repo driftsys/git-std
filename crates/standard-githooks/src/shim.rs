@@ -7,7 +7,7 @@
 /// # Example
 ///
 /// ```
-/// use standard_githooks::shim::generate_shim;
+/// use standard_githooks::generate_shim;
 ///
 /// let shim = generate_shim("pre-commit");
 /// assert_eq!(shim, "#!/bin/bash\nexec git std hooks run pre-commit -- \"$@\"\n");

@@ -1,11 +1,10 @@
-use std::path::Path;
 use std::process::Command;
 
 use yansi::Paint;
 
-use standard_githooks::Prefix;
-use standard_githooks::run::{HookMode, default_mode, substitute_msg};
-use standard_githooks::shim::generate_shim;
+use standard_githooks::{
+    HookCommand, HookMode, Prefix, default_mode, generate_shim, substitute_msg,
+};
 
 /// The result of executing a single hook command.
 struct CommandResult {
@@ -15,24 +14,109 @@ struct CommandResult {
     advisory: bool,
 }
 
+/// Read and parse the `.githooks/<hook>.hooks` file.
+///
+/// Returns `Ok(commands)` on success, or `Err(exit_code)` if the file
+/// cannot be read.
+fn read_and_parse_hooks(hook_name: &str) -> Result<Vec<HookCommand>, i32> {
+    let hooks_file = format!(".githooks/{hook_name}.hooks");
+    let content = match std::fs::read_to_string(&hooks_file) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("error: cannot read {hooks_file}: {e}");
+            return Err(2);
+        }
+    };
+    Ok(standard_githooks::parse(&content))
+}
+
+/// Fetch the file list for glob filtering.
+///
+/// For `pre-commit`, returns staged files; for other hooks, returns all
+/// tracked files. Only called when at least one command has a glob pattern.
+fn fetch_file_list(hook: &str) -> Option<Vec<String>> {
+    let output = if hook == "pre-commit" {
+        Command::new("git")
+            .args(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
+            .output()
+    } else {
+        Command::new("git").args(["ls-files"]).output()
+    };
+    match output {
+        Ok(o) => Some(
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .map(String::from)
+                .collect(),
+        ),
+        Err(_) => None,
+    }
+}
+
+/// Format a command's display text, appending the glob pattern if present.
+fn format_display(command_text: &str, glob: Option<&str>) -> String {
+    match glob {
+        Some(g) => format!("{command_text} ({g})"),
+        None => command_text.to_string(),
+    }
+}
+
+/// Execute a single hook command and print its result line.
+///
+/// Returns the [`CommandResult`] and whether the command failed (non-advisory).
+fn execute_and_print(cmd: &HookCommand, msg_path: &str) -> (CommandResult, bool) {
+    let command_text = substitute_msg(&cmd.command, msg_path);
+    let is_advisory = cmd.prefix == Prefix::Advisory;
+
+    // Execute via sh -c
+    let status = Command::new("sh").arg("-c").arg(&command_text).status();
+
+    let exit_code = match status {
+        Ok(s) => s.code(),
+        Err(_) => Some(127),
+    };
+
+    let success = exit_code == Some(0);
+    let display = format_display(&command_text, cmd.glob.as_deref());
+
+    // Print the result line
+    if success {
+        eprintln!("  {} {}", "\u{2713}".green(), display);
+    } else if is_advisory {
+        let info = match exit_code {
+            Some(code) => format!("(advisory, exit {code})"),
+            None => "(advisory, killed)".to_string(),
+        };
+        eprintln!("  {} {} {}", "\u{26a0}".yellow(), display, info.yellow());
+    } else {
+        let info = match exit_code {
+            Some(code) => format!("(exit {code})"),
+            None => "(killed)".to_string(),
+        };
+        eprintln!("  {} {} {}", "\u{2717}".red(), display, info.red());
+    }
+
+    let failed = !success && !is_advisory;
+
+    (
+        CommandResult {
+            exit_code,
+            advisory: is_advisory,
+        },
+        failed,
+    )
+}
+
 /// Run the `hooks run <hook>` subcommand. Returns the process exit code.
 ///
 /// Reads `.githooks/<hook>.hooks`, parses commands, executes them
 /// according to the hook's default mode and per-command prefix
 /// overrides, and prints a summary.
 pub fn run(hook: &str, args: &[String]) -> i32 {
-    let hooks_file = format!(".githooks/{hook}.hooks");
-    let path = Path::new(&hooks_file);
-
-    let content = match std::fs::read_to_string(path) {
+    let commands = match read_and_parse_hooks(hook) {
         Ok(c) => c,
-        Err(e) => {
-            eprintln!("error: cannot read {hooks_file}: {e}");
-            return 2;
-        }
+        Err(code) => return code,
     };
-
-    let commands = standard_githooks::parse(&content);
     if commands.is_empty() {
         return 0;
     }
@@ -44,22 +128,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
 
     // Collect file list for glob filtering (lazy — only fetched if needed).
     let file_list: Option<Vec<String>> = if commands.iter().any(|c| c.glob.is_some()) {
-        let output = if hook == "pre-commit" {
-            Command::new("git")
-                .args(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
-                .output()
-        } else {
-            Command::new("git").args(["ls-files"]).output()
-        };
-        match output {
-            Ok(o) => Some(
-                String::from_utf8_lossy(&o.stdout)
-                    .lines()
-                    .map(String::from)
-                    .collect(),
-            ),
-            Err(_) => None,
-        }
+        fetch_file_list(hook)
     } else {
         None
     };
@@ -78,59 +147,22 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
             }
         }
 
-        // Apply {msg} substitution
-        let command_text = substitute_msg(&cmd.command, msg_path);
-
         // Determine the effective mode for this command
         let effective_mode = match cmd.prefix {
             Prefix::FailFast => HookMode::FailFast,
             Prefix::Advisory => HookMode::Collect, // advisory always runs
             Prefix::Default => mode,
         };
-        let is_advisory = cmd.prefix == Prefix::Advisory;
 
-        // Execute via sh -c
-        let status = Command::new("sh").arg("-c").arg(&command_text).status();
-
-        let exit_code = match status {
-            Ok(s) => s.code(),
-            Err(_) => Some(127),
-        };
-
-        let success = exit_code == Some(0);
-
-        // Build display text (show glob if present)
-        let display = if let Some(ref glob) = cmd.glob {
-            format!("{command_text} ({glob})")
-        } else {
-            command_text.clone()
-        };
-
-        // Print the result line
-        if success {
-            eprintln!("  {} {}", "\u{2713}".green(), display);
-        } else if is_advisory {
-            let info = match exit_code {
-                Some(code) => format!("(advisory, exit {code})"),
-                None => "(advisory, killed)".to_string(),
-            };
-            eprintln!("  {} {} {}", "\u{26a0}".yellow(), display, info.yellow());
-        } else {
-            let info = match exit_code {
-                Some(code) => format!("(exit {code})"),
-                None => "(killed)".to_string(),
-            };
-            eprintln!("  {} {} {}", "\u{2717}".red(), display, info.red());
+        let (result, failed) = execute_and_print(cmd, msg_path);
+        if failed {
             has_failure = true;
         }
 
-        results.push(CommandResult {
-            exit_code,
-            advisory: is_advisory,
-        });
+        results.push(result);
 
         // In fail-fast mode, abort on first non-advisory failure
-        if !success && !is_advisory && effective_mode == HookMode::FailFast {
+        if failed && effective_mode == HookMode::FailFast {
             // Print remaining commands as skipped
             let remaining = commands.len() - results.len();
             if remaining > 0 {
@@ -184,7 +216,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
 
 /// Scan `.githooks/` for `*.hooks` files and return sorted hook names.
 fn discover_hooks() -> Vec<String> {
-    let hooks_dir = Path::new(".githooks");
+    let hooks_dir = std::path::Path::new(".githooks");
     let entries = match std::fs::read_dir(hooks_dir) {
         Ok(e) => e,
         Err(_) => return Vec::new(),
@@ -227,7 +259,7 @@ pub fn install() -> i32 {
     }
 
     // 2. Ensure .githooks/ exists
-    let hooks_dir = Path::new(".githooks");
+    let hooks_dir = std::path::Path::new(".githooks");
     if !hooks_dir.exists()
         && let Err(e) = std::fs::create_dir_all(hooks_dir)
     {
@@ -294,16 +326,11 @@ pub fn list() -> i32 {
             println!();
         }
 
-        let hooks_file = format!(".githooks/{hook_name}.hooks");
-        let content = match std::fs::read_to_string(&hooks_file) {
+        let commands = match read_and_parse_hooks(hook_name) {
             Ok(c) => c,
-            Err(e) => {
-                eprintln!("error: cannot read {hooks_file}: {e}");
-                return 2;
-            }
+            Err(code) => return code,
         };
 
-        let commands = standard_githooks::parse(&content);
         let mode = default_mode(hook_name);
         let mode_label = match mode {
             HookMode::Collect => "collect",

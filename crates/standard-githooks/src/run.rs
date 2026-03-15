@@ -21,7 +21,7 @@ pub enum HookMode {
 /// # Example
 ///
 /// ```
-/// use standard_githooks::run::{HookMode, default_mode};
+/// use standard_githooks::{HookMode, default_mode};
 ///
 /// assert_eq!(default_mode("pre-commit"), HookMode::Collect);
 /// assert_eq!(default_mode("pre-push"), HookMode::FailFast);
@@ -44,7 +44,7 @@ pub fn default_mode(hook_name: &str) -> HookMode {
 /// # Example
 ///
 /// ```
-/// use standard_githooks::run::substitute_msg;
+/// use standard_githooks::substitute_msg;
 ///
 /// let result = substitute_msg("git std check --file {msg}", ".git/COMMIT_EDITMSG");
 /// assert_eq!(result, "git std check --file .git/COMMIT_EDITMSG");
