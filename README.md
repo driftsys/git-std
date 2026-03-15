@@ -49,12 +49,12 @@ published separately on [crates.io][crates-io]. The libraries
 implement domain logic only — no CLI, no git operations, no
 terminal output.
 
-| Crate | Description |
-| ----- | ----------- |
-| [standard-commit] | Conventional commit parsing, linting, formatting |
-| [standard-version] | Semantic version bump calculation |
-| [standard-changelog] | Changelog generation from conventional commits |
-| [standard-githooks] | Hook file format parsing, shim generation |
+| Crate                | Description                                      |
+| -------------------- | ------------------------------------------------ |
+| [standard-commit]    | Conventional commit parsing, linting, formatting |
+| [standard-version]   | Semantic version bump calculation                |
+| [standard-changelog] | Changelog generation from conventional commits   |
+| [standard-githooks]  | Hook file format parsing, shim generation        |
 
 ## License
 

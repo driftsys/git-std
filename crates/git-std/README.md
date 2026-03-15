@@ -36,13 +36,13 @@ git push --follow-tags
 
 ## Subcommands
 
-| Command             | Purpose                           |
-| ------------------- | --------------------------------- |
-| `git std commit`    | Interactive conventional commit   |
-| `git std check`     | Commit message validation         |
-| `git std bump`      | Version bump + changelog + tag    |
-| `git std changelog` | Generate or update the changelog  |
-| `git std hooks`     | Git hooks management              |
+| Command             | Purpose                          |
+| ------------------- | -------------------------------- |
+| `git std commit`    | Interactive conventional commit  |
+| `git std check`     | Commit message validation        |
+| `git std bump`      | Version bump + changelog + tag   |
+| `git std changelog` | Generate or update the changelog |
+| `git std hooks`     | Git hooks management             |
 
 ## Configuration
 

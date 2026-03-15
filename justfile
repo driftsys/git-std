@@ -32,6 +32,7 @@ verify:
 fmt:
     cargo fmt
     dprint fmt
+    npx markdownlint-cli '**/*.md' --ignore node_modules --fix
 
 # Generate and open rustdoc
 doc:
