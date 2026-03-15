@@ -116,9 +116,25 @@ enum Command {
         output: String,
     },
     /// Git hooks management.
-    Hooks,
+    Hooks {
+        #[command(subcommand)]
+        subcommand: HooksCommand,
+    },
     /// Update git-std to the latest version.
     SelfUpdate,
+}
+
+/// Hooks subcommands.
+#[derive(Subcommand)]
+enum HooksCommand {
+    /// Execute all commands in a hook file.
+    Run {
+        /// Hook name (e.g. pre-commit, commit-msg, pre-push).
+        hook: String,
+        /// Arguments passed through to hook commands (after `--`).
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
 }
 
 fn main() {
@@ -227,13 +243,19 @@ fn main() {
             let code = cli::bump::run(&project_config, &opts);
             std::process::exit(code);
         }
+        Command::Hooks { subcommand } => {
+            let code = match subcommand {
+                HooksCommand::Run { hook, args } => cli::hooks::run(&hook, &args),
+            };
+            std::process::exit(code);
+        }
         other => {
             let name = match other {
                 Command::Commit { .. } => unreachable!(),
                 Command::Check { .. } => unreachable!(),
                 Command::Changelog { .. } => unreachable!(),
                 Command::Bump { .. } => unreachable!(),
-                Command::Hooks => "hooks",
+                Command::Hooks { .. } => unreachable!(),
                 Command::SelfUpdate => "self-update",
             };
             eprintln!("git-std {name}: not yet implemented");

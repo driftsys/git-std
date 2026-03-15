@@ -48,7 +48,7 @@ fn unknown_subcommand_exits_2() {
 
 #[test]
 fn stub_subcommands_are_recognized() {
-    for sub in ["hooks", "self-update"] {
+    for sub in ["self-update"] {
         Command::cargo_bin("git-std")
             .unwrap()
             .arg(sub)
@@ -56,6 +56,15 @@ fn stub_subcommands_are_recognized() {
             .code(1)
             .stderr(predicates::str::contains("not yet implemented"));
     }
+}
+
+#[test]
+fn hooks_requires_subcommand() {
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .arg("hooks")
+        .assert()
+        .code(2);
 }
 
 #[test]
