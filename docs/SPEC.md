@@ -95,15 +95,17 @@ list of built-in version files.
 
 **Workspace crates:**
 
-| Crate                | Role                                                 |
-| -------------------- | ---------------------------------------------------- |
-| `git-std`            | CLI binary — orchestrates I/O, git, config, dispatch |
-| `standard-commit`    | Conventional commit parsing, linting, formatting     |
-| `standard-version`   | Semantic version bump calculation, TOML rewriting    |
-| `standard-changelog` | Changelog generation from conventional commits       |
-| `standard-githooks`  | Hook file format parsing, shim generation            |
+| Crate                | Role                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `git-std`            | CLI binary — orchestrates I/O, git, config, dispatch                                 |
+| `standard-commit`    | Conventional commit parsing, linting, formatting                                     |
+| `standard-version`   | Semantic version bump calculation, version file detection and update (with file I/O) |
+| `standard-changelog` | Changelog generation from conventional commits                                       |
+| `standard-githooks`  | Hook file format parsing, shim generation                                            |
 
-Library crates are pure — no git2, no I/O, no terminal output.
+Library crates are pure — no git2, no I/O, no terminal
+output — except `standard-version`, which performs file
+I/O for version file detection and updates.
 
 **Key dependencies:**
 
