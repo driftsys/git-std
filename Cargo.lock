@@ -1005,8 +1005,11 @@ dependencies = [
 name = "standard-version"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "semver",
+ "serde_json",
  "standard-commit",
+ "tempfile",
 ]
 
 [[package]]

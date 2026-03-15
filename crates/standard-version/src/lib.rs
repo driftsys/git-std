@@ -3,8 +3,9 @@
 //! Computes the next version from a list of parsed conventional commits and
 //! bump rules. Also provides the [`VersionFile`] trait for ecosystem-specific
 //! version file detection and updating, with built-in support for
-//! `Cargo.toml` via [`CargoVersionFile`] and `pyproject.toml` via
-//! [`PyprojectVersionFile`].
+//! `Cargo.toml` via [`CargoVersionFile`], `pyproject.toml` via
+//! [`PyprojectVersionFile`], `package.json` via [`JsonVersionFile`],
+//! and `deno.json`/`deno.jsonc` via [`DenoVersionFile`].
 //!
 //! # Main entry points
 //!
@@ -33,10 +34,12 @@
 //! ```
 
 pub mod cargo;
+pub mod json;
 pub mod pyproject;
 pub mod version_file;
 
 pub use cargo::CargoVersionFile;
+pub use json::{DenoVersionFile, JsonVersionFile};
 pub use pyproject::PyprojectVersionFile;
 pub use version_file::{
     CustomVersionFile, UpdateResult, VersionFile, VersionFileError, update_version_files,
