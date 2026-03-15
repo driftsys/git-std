@@ -10,3 +10,4 @@ keywords = ["git", "hooks", "pre-commit", "commit-msg"]
 categories = ["development-tools"]
 
 [dependencies]
+globset = "0.4"
