@@ -10,7 +10,9 @@ keywords = ["semver", "calver", "version", "bump", "git"]
 categories = ["development-tools"]
 
 [dependencies]
+regex = "1"
 semver = "1"
+serde_json = "1"
 standard-commit = { version = "0.1.0", path = "../standard-commit" }
 
 [dev-dependencies]

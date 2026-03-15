@@ -9,6 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::cargo::CargoVersionFile;
+use crate::json::{DenoVersionFile, JsonVersionFile};
 use crate::pyproject::PyprojectVersionFile;
 
 // ---------------------------------------------------------------------------
@@ -113,8 +114,9 @@ pub struct CustomVersionFile {
 
 /// Discover and update version files at `root`.
 ///
-/// Iterates all built-in version file engines ([`CargoVersionFile`] and
-/// [`PyprojectVersionFile`]) and, for each file that is detected, replaces the
+/// Iterates all built-in version file engines ([`CargoVersionFile`],
+/// [`PyprojectVersionFile`], [`JsonVersionFile`], [`DenoVersionFile`])
+/// and, for each file that is detected, replaces the
 /// version string with `new_version`. Updated content is written back to
 /// disk.
 ///
@@ -130,8 +132,12 @@ pub fn update_version_files(
     new_version: &str,
     _custom_files: &[CustomVersionFile],
 ) -> Result<Vec<UpdateResult>, VersionFileError> {
-    let engines: Vec<Box<dyn VersionFile>> =
-        vec![Box::new(CargoVersionFile), Box::new(PyprojectVersionFile)];
+    let engines: Vec<Box<dyn VersionFile>> = vec![
+        Box::new(CargoVersionFile),
+        Box::new(PyprojectVersionFile),
+        Box::new(JsonVersionFile),
+        Box::new(DenoVersionFile),
+    ];
 
     let mut results = Vec::new();
 
