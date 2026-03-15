@@ -9,8 +9,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::cargo::CargoVersionFile;
+use crate::gradle::GradleVersionFile;
 use crate::json::{DenoVersionFile, JsonVersionFile};
+use crate::pubspec::PubspecVersionFile;
 use crate::pyproject::PyprojectVersionFile;
+use crate::version_plain::PlainVersionFile;
 
 // ---------------------------------------------------------------------------
 // Error
@@ -70,6 +73,14 @@ pub trait VersionFile {
 
     /// Return updated file content with `new_version` replacing the old value.
     fn write_version(&self, content: &str, new_version: &str) -> Result<String, VersionFileError>;
+
+    /// Compare old and new file content and return optional extra information
+    /// about side-effects (e.g. `VERSION_CODE` increment in gradle).
+    ///
+    /// The default implementation returns `None`.
+    fn extra_info(&self, _old_content: &str, _new_content: &str) -> Option<String> {
+        None
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -115,10 +126,10 @@ pub struct CustomVersionFile {
 /// Discover and update version files at `root`.
 ///
 /// Iterates all built-in version file engines ([`CargoVersionFile`],
-/// [`PyprojectVersionFile`], [`JsonVersionFile`], [`DenoVersionFile`])
-/// and, for each file that is detected, replaces the
-/// version string with `new_version`. Updated content is written back to
-/// disk.
+/// [`PyprojectVersionFile`], [`JsonVersionFile`], [`DenoVersionFile`],
+/// [`PubspecVersionFile`], [`GradleVersionFile`], [`PlainVersionFile`])
+/// and, for each file that is detected, replaces the version string with
+/// `new_version`. Updated content is written back to disk.
 ///
 /// `_custom_files` is accepted for forward compatibility (story #103) but
 /// is not yet processed.
@@ -137,6 +148,9 @@ pub fn update_version_files(
         Box::new(PyprojectVersionFile),
         Box::new(JsonVersionFile),
         Box::new(DenoVersionFile),
+        Box::new(PubspecVersionFile),
+        Box::new(GradleVersionFile),
+        Box::new(PlainVersionFile),
     ];
 
     let mut results = Vec::new();
@@ -160,6 +174,7 @@ pub fn update_version_files(
             };
 
             let updated = engine.write_version(&content, new_version)?;
+            let extra = engine.extra_info(&content, &updated);
             fs::write(&path, &updated).map_err(VersionFileError::WriteFailed)?;
 
             results.push(UpdateResult {
@@ -167,7 +182,7 @@ pub fn update_version_files(
                 name: engine.name().to_string(),
                 old_version,
                 new_version: new_version.to_string(),
-                extra: None,
+                extra,
             });
         }
     }
@@ -253,6 +268,79 @@ requires-python = ">=3.8"
 
         let on_disk = fs::read_to_string(&pyproject).unwrap();
         assert!(on_disk.contains("version = \"2.0.0\""));
+    }
+
+    #[test]
+    fn update_version_files_updates_pubspec_yaml() {
+        let dir = tempfile::tempdir().unwrap();
+        let pubspec = dir.path().join("pubspec.yaml");
+        fs::write(
+            &pubspec,
+            "name: my_app\nversion: 1.0.0\ndescription: test\n",
+        )
+        .unwrap();
+
+        let results = update_version_files(dir.path(), "2.0.0", &[]).unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].old_version, "1.0.0");
+        assert_eq!(results[0].new_version, "2.0.0");
+        assert_eq!(results[0].name, "pubspec.yaml");
+
+        let on_disk = fs::read_to_string(&pubspec).unwrap();
+        assert!(on_disk.contains("version: 2.0.0"));
+    }
+
+    #[test]
+    fn update_version_files_updates_gradle_properties() {
+        let dir = tempfile::tempdir().unwrap();
+        let gradle = dir.path().join("gradle.properties");
+        fs::write(&gradle, "VERSION_NAME=1.0.0\nVERSION_CODE=10\n").unwrap();
+
+        let results = update_version_files(dir.path(), "2.0.0", &[]).unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].old_version, "1.0.0");
+        assert_eq!(results[0].name, "gradle.properties");
+        assert_eq!(
+            results[0].extra,
+            Some("VERSION_CODE: 10 \u{2192} 11".to_string()),
+        );
+
+        let on_disk = fs::read_to_string(&gradle).unwrap();
+        assert!(on_disk.contains("VERSION_NAME=2.0.0"));
+        assert!(on_disk.contains("VERSION_CODE=11"));
+    }
+
+    #[test]
+    fn update_version_files_updates_version_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let version = dir.path().join("VERSION");
+        fs::write(&version, "1.0.0\n").unwrap();
+
+        let results = update_version_files(dir.path(), "2.0.0", &[]).unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].old_version, "1.0.0");
+        assert_eq!(results[0].name, "VERSION");
+
+        let on_disk = fs::read_to_string(&version).unwrap();
+        assert_eq!(on_disk, "2.0.0\n");
+    }
+
+    #[test]
+    fn update_version_files_updates_multiple_files() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("Cargo.toml"),
+            "[package]\nname = \"x\"\nversion = \"1.0.0\"\n",
+        )
+        .unwrap();
+        fs::write(dir.path().join("pubspec.yaml"), "name: x\nversion: 1.0.0\n").unwrap();
+        fs::write(dir.path().join("VERSION"), "1.0.0\n").unwrap();
+
+        let results = update_version_files(dir.path(), "2.0.0", &[]).unwrap();
+        assert_eq!(results.len(), 3);
     }
 
     #[test]
