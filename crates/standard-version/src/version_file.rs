@@ -13,6 +13,7 @@ use crate::gradle::GradleVersionFile;
 use crate::json::{DenoVersionFile, JsonVersionFile};
 use crate::pubspec::PubspecVersionFile;
 use crate::pyproject::PyprojectVersionFile;
+use crate::regex_engine::RegexVersionFile;
 use crate::version_plain::PlainVersionFile;
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,8 @@ pub enum VersionFileError {
     WriteFailed(std::io::Error),
     /// Reading the file from disk failed.
     ReadFailed(std::io::Error),
+    /// A user-supplied regex pattern is invalid or has no capture groups.
+    InvalidRegex(String),
 }
 
 impl fmt::Display for VersionFileError {
@@ -39,6 +42,7 @@ impl fmt::Display for VersionFileError {
             Self::NoVersionField => write!(f, "no version field found"),
             Self::WriteFailed(e) => write!(f, "write failed: {e}"),
             Self::ReadFailed(e) => write!(f, "read failed: {e}"),
+            Self::InvalidRegex(msg) => write!(f, "invalid regex: {msg}"),
         }
     }
 }
@@ -103,14 +107,13 @@ pub struct UpdateResult {
 }
 
 // ---------------------------------------------------------------------------
-// CustomVersionFile (placeholder for story #103)
+// CustomVersionFile
 // ---------------------------------------------------------------------------
 
 /// A user-defined version file matched by path and regex.
 ///
-/// The regex engine itself will be implemented in story #103. This struct
-/// is defined now so that the public API signature of
-/// [`update_version_files`] is stable.
+/// Processed by [`RegexVersionFile`](crate::regex_engine::RegexVersionFile)
+/// during [`update_version_files`].
 #[derive(Debug, Clone)]
 pub struct CustomVersionFile {
     /// Path to the file, relative to the repository root.
@@ -129,19 +132,19 @@ pub struct CustomVersionFile {
 /// [`PyprojectVersionFile`], [`JsonVersionFile`], [`DenoVersionFile`],
 /// [`PubspecVersionFile`], [`GradleVersionFile`], [`PlainVersionFile`])
 /// and, for each file that is detected, replaces the version string with
-/// `new_version`. Updated content is written back to disk.
+/// `new_version`. Then processes any user-defined `custom_files` using the
+/// [`RegexVersionFile`] engine.
 ///
-/// `_custom_files` is accepted for forward compatibility (story #103) but
-/// is not yet processed.
+/// Updated content is written back to disk.
 ///
 /// # Errors
 ///
 /// Returns a [`VersionFileError`] if a detected file cannot be read or
-/// written.
+/// written, or if a custom file has an invalid regex pattern.
 pub fn update_version_files(
     root: &Path,
     new_version: &str,
-    _custom_files: &[CustomVersionFile],
+    custom_files: &[CustomVersionFile],
 ) -> Result<Vec<UpdateResult>, VersionFileError> {
     let engines: Vec<Box<dyn VersionFile>> = vec![
         Box::new(CargoVersionFile),
@@ -185,6 +188,32 @@ pub fn update_version_files(
                 extra,
             });
         }
+    }
+
+    // Process custom version files via the regex engine.
+    for custom in custom_files {
+        let engine = RegexVersionFile::new(custom)?;
+        let path = root.join(engine.path());
+        if !path.exists() {
+            continue;
+        }
+        let content = fs::read_to_string(&path).map_err(VersionFileError::ReadFailed)?;
+        if !engine.detect(&content) {
+            continue;
+        }
+        let old_version = match engine.read_version(&content) {
+            Some(v) => v,
+            None => continue,
+        };
+        let updated = engine.write_version(&content, new_version)?;
+        fs::write(&path, &updated).map_err(VersionFileError::WriteFailed)?;
+        results.push(UpdateResult {
+            path,
+            name: engine.name(),
+            old_version,
+            new_version: new_version.to_string(),
+            extra: None,
+        });
     }
 
     Ok(results)
