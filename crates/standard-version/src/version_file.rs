@@ -9,6 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::cargo::CargoVersionFile;
+use crate::pyproject::PyprojectVersionFile;
 
 // ---------------------------------------------------------------------------
 // Error
@@ -112,8 +113,8 @@ pub struct CustomVersionFile {
 
 /// Discover and update version files at `root`.
 ///
-/// Iterates all built-in version file engines (currently only
-/// [`CargoVersionFile`]) and, for each file that is detected, replaces the
+/// Iterates all built-in version file engines ([`CargoVersionFile`] and
+/// [`PyprojectVersionFile`]) and, for each file that is detected, replaces the
 /// version string with `new_version`. Updated content is written back to
 /// disk.
 ///
@@ -129,7 +130,8 @@ pub fn update_version_files(
     new_version: &str,
     _custom_files: &[CustomVersionFile],
 ) -> Result<Vec<UpdateResult>, VersionFileError> {
-    let engines: Vec<Box<dyn VersionFile>> = vec![Box::new(CargoVersionFile)];
+    let engines: Vec<Box<dyn VersionFile>> =
+        vec![Box::new(CargoVersionFile), Box::new(PyprojectVersionFile)];
 
     let mut results = Vec::new();
 
@@ -219,6 +221,32 @@ edition = "2024"
 
         let results = update_version_files(dir.path(), "1.0.0", &[]).unwrap();
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn update_version_files_updates_pyproject_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let pyproject = dir.path().join("pyproject.toml");
+        fs::write(
+            &pyproject,
+            r#"[project]
+name = "example"
+version = "0.1.0"
+requires-python = ">=3.8"
+"#,
+        )
+        .unwrap();
+
+        let results = update_version_files(dir.path(), "2.0.0", &[]).unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].old_version, "0.1.0");
+        assert_eq!(results[0].new_version, "2.0.0");
+        assert_eq!(results[0].name, "pyproject.toml");
+        assert_eq!(results[0].path, pyproject);
+
+        let on_disk = fs::read_to_string(&pyproject).unwrap();
+        assert!(on_disk.contains("version = \"2.0.0\""));
     }
 
     #[test]
