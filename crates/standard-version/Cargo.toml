@@ -12,3 +12,6 @@ categories = ["development-tools"]
 [dependencies]
 semver = "1"
 standard-commit = { version = "0.1.0", path = "../standard-commit" }
+
+[dev-dependencies]
+tempfile = "3"

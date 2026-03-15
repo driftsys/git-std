@@ -1,7 +1,9 @@
 //! Semantic version bump calculation from conventional commits.
 //!
-//! Pure library — computes the next version from a list of parsed conventional
-//! commits and bump rules. No I/O, no git operations.
+//! Computes the next version from a list of parsed conventional commits and
+//! bump rules. Also provides the [`VersionFile`] trait for ecosystem-specific
+//! version file detection and updating, with built-in support for
+//! `Cargo.toml` via [`CargoVersionFile`].
 //!
 //! # Main entry points
 //!
@@ -9,6 +11,7 @@
 //! - [`apply_bump`] — apply a bump level to a semver version
 //! - [`apply_prerelease`] — bump with a pre-release tag (e.g. `rc.0`)
 //! - [`replace_version_in_toml`] — update the version in a `Cargo.toml` string
+//! - [`update_version_files`] — discover and update version files at a repo root
 //!
 //! # Example
 //!
@@ -27,6 +30,14 @@
 //! let next = apply_bump(&current, level);
 //! assert_eq!(next, semver::Version::new(1, 3, 0));
 //! ```
+
+pub mod cargo;
+pub mod version_file;
+
+pub use cargo::CargoVersionFile;
+pub use version_file::{
+    CustomVersionFile, UpdateResult, VersionFile, VersionFileError, update_version_files,
+};
 
 use standard_commit::ConventionalCommit;
 
@@ -211,45 +222,9 @@ pub fn replace_version_in_toml(
     content: &str,
     new_version: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let mut in_package = false;
-    let mut result = String::new();
-    let mut replaced = false;
-
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed == "[package]" {
-            in_package = true;
-        } else if trimmed.starts_with('[') {
-            in_package = false;
-        }
-
-        if in_package
-            && !replaced
-            && trimmed.starts_with("version")
-            && let Some(eq_pos) = line.find('=')
-        {
-            let prefix = &line[..=eq_pos];
-            result.push_str(prefix);
-            result.push_str(&format!(" \"{new_version}\""));
-            result.push('\n');
-            replaced = true;
-            continue;
-        }
-
-        result.push_str(line);
-        result.push('\n');
-    }
-
-    if !replaced {
-        return Err("could not find version field in [package] section".into());
-    }
-
-    // Remove trailing extra newline if the original didn't end with one.
-    if !content.ends_with('\n') && result.ends_with('\n') {
-        result.pop();
-    }
-
-    Ok(result)
+    CargoVersionFile
+        .write_version(content, new_version)
+        .map_err(|e| e.to_string().into())
 }
 
 #[cfg(test)]
