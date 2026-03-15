@@ -5,7 +5,9 @@
 //! version file detection and updating, with built-in support for
 //! `Cargo.toml` via [`CargoVersionFile`], `pyproject.toml` via
 //! [`PyprojectVersionFile`], `package.json` via [`JsonVersionFile`],
-//! and `deno.json`/`deno.jsonc` via [`DenoVersionFile`].
+//! `deno.json`/`deno.jsonc` via [`DenoVersionFile`], `pubspec.yaml` via
+//! [`PubspecVersionFile`], `gradle.properties` via [`GradleVersionFile`],
+//! and plain `VERSION` files via [`PlainVersionFile`].
 //!
 //! # Main entry points
 //!
@@ -34,16 +36,22 @@
 //! ```
 
 pub mod cargo;
+pub mod gradle;
 pub mod json;
+pub mod pubspec;
 pub mod pyproject;
 pub mod version_file;
+pub mod version_plain;
 
 pub use cargo::CargoVersionFile;
+pub use gradle::GradleVersionFile;
 pub use json::{DenoVersionFile, JsonVersionFile};
+pub use pubspec::PubspecVersionFile;
 pub use pyproject::PyprojectVersionFile;
 pub use version_file::{
     CustomVersionFile, UpdateResult, VersionFile, VersionFileError, update_version_files,
 };
+pub use version_plain::PlainVersionFile;
 
 use standard_commit::ConventionalCommit;
 
