@@ -1,4 +1,5 @@
 use standard_changelog::VersionRelease;
+use standard_version::UpdateResult;
 use yansi::Paint;
 
 use crate::config::ProjectConfig;
@@ -144,10 +145,7 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     if opts.dry_run {
         eprintln!();
 
-        let cargo_toml = git::find_cargo_toml(&repo);
-        if let Some(ref path) = cargo_toml {
-            eprintln!("  Would update: {:<20} {} → {}", path, cur_ver, new_version);
-        }
+        eprintln!("  Would update: version files detected at repo root");
 
         if !opts.skip_changelog {
             eprintln!(
@@ -168,25 +166,27 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     }
 
     // --- Actual execution ---
-    let mut updated_files: Vec<(String, String, String)> = Vec::new();
+    let workdir = match repo.workdir() {
+        Some(w) => w,
+        None => {
+            eprintln!("error: bare repository not supported");
+            return 1;
+        }
+    };
 
-    // Step 7: Update Cargo.toml version.
-    if let Some(ref path) = git::find_cargo_toml(&repo) {
-        let workdir = match repo.workdir() {
-            Some(w) => w,
-            None => {
-                eprintln!("error: bare repository not supported");
+    // Step 7: Update all detected version files.
+    let version_results: Vec<UpdateResult> =
+        match standard_version::update_version_files(workdir, &new_version.to_string(), &[]) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("error: cannot update version files: {e}");
                 return 1;
             }
         };
-        let full_path = workdir.join(path);
-        if let Err(e) = git::update_cargo_toml_version(&full_path, &new_version.to_string()) {
-            eprintln!("error: cannot update {path}: {e}");
-            return 1;
-        }
-        updated_files.push((path.clone(), cur_ver.to_string(), new_version.to_string()));
 
-        // Sync Cargo.lock with the new version.
+    // Sync Cargo.lock only when a Cargo.toml was actually updated.
+    let cargo_updated = version_results.iter().any(|r| r.name == "Cargo.toml");
+    if cargo_updated {
         let status = std::process::Command::new("cargo")
             .args(["update", "--workspace"])
             .status();
@@ -199,13 +199,6 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     if !opts.skip_changelog {
         let changelog_config = config.to_changelog_config();
         let host = git::detect_host_from_repo(&repo);
-        let workdir = match repo.workdir() {
-            Some(w) => w,
-            None => {
-                eprintln!("error: bare repository not supported");
-                return 1;
-            }
-        };
         let changelog_path = workdir.join("CHANGELOG.md");
 
         let release = build_version_release(
@@ -230,11 +223,15 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     }
 
     // Print updated files.
-    if !updated_files.is_empty() {
+    if !version_results.is_empty() {
         eprintln!();
         eprintln!("  Updated:");
-        for (file, old, new) in &updated_files {
-            eprintln!("    {:<20} {} → {}", file, old, new);
+        for r in &version_results {
+            let rel = r.path.strip_prefix(workdir).unwrap_or(&r.path).display();
+            eprintln!("    {:<20} {} → {}", rel, r.old_version, r.new_version);
+            if let Some(ref extra) = r.extra {
+                eprintln!("    {:<20} {extra}", "");
+            }
         }
     }
 
@@ -249,16 +246,23 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     // Step 9: Create commit.
     if !opts.no_commit {
-        // Collect paths to stage.
-        let mut paths_to_stage: Vec<&str> = Vec::new();
-        let cargo_toml_path = git::find_cargo_toml(&repo);
-        if let Some(ref p) = cargo_toml_path {
-            paths_to_stage.push(p);
-        }
+        // Collect paths to stage: all updated version files + changelog + Cargo.lock.
+        let rel_paths: Vec<String> = version_results
+            .iter()
+            .filter_map(|r| {
+                r.path
+                    .strip_prefix(workdir)
+                    .ok()
+                    .map(|p| p.to_string_lossy().into_owned())
+            })
+            .collect();
+        let mut paths_to_stage: Vec<&str> = rel_paths.iter().map(|s| s.as_str()).collect();
         if !opts.skip_changelog {
             paths_to_stage.push("CHANGELOG.md");
         }
-        paths_to_stage.push("Cargo.lock");
+        if cargo_updated {
+            paths_to_stage.push("Cargo.lock");
+        }
 
         if let Err(e) = git::stage_files(&repo, &paths_to_stage) {
             eprintln!("error: cannot stage files: {e}");
