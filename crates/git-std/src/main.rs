@@ -127,6 +127,8 @@ enum Command {
 /// Hooks subcommands.
 #[derive(Subcommand)]
 enum HooksCommand {
+    /// Set up hooks directory, shims, and core.hooksPath.
+    Install,
     /// Execute all commands in a hook file.
     Run {
         /// Hook name (e.g. pre-commit, commit-msg, pre-push).
@@ -135,6 +137,8 @@ enum HooksCommand {
         #[arg(last = true)]
         args: Vec<String>,
     },
+    /// Display all configured hooks and their commands.
+    List,
 }
 
 fn main() {
@@ -245,7 +249,9 @@ fn main() {
         }
         Command::Hooks { subcommand } => {
             let code = match subcommand {
+                HooksCommand::Install => cli::hooks::install(),
                 HooksCommand::Run { hook, args } => cli::hooks::run(&hook, &args),
+                HooksCommand::List => cli::hooks::list(),
             };
             std::process::exit(code);
         }

@@ -434,3 +434,260 @@ fn bump_first_release() {
     let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
     assert!(cargo.contains("version = \"0.0.0\""));
 }
+
+// --- Hooks install integration tests ---
+
+/// Helper: initialise a git repo for hooks tests.
+fn init_hooks_repo(dir: &Path) {
+    let repo = git2::Repository::init(dir).unwrap();
+    let mut config = repo.config().unwrap();
+    config.set_str("user.name", "Test").unwrap();
+    config.set_str("user.email", "test@test.com").unwrap();
+}
+
+#[test]
+fn hooks_install_creates_shims() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Create .githooks/ with a hooks file.
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(
+        hooks_dir.join("pre-commit.hooks"),
+        "dprint check\ncargo test\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "install"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("core.hooksPath"))
+        .stderr(predicate::str::contains(".githooks/pre-commit"));
+
+    // Verify shim exists.
+    let shim_path = hooks_dir.join("pre-commit");
+    assert!(shim_path.exists(), "shim should exist");
+
+    // Verify shim content.
+    let content = std::fs::read_to_string(&shim_path).unwrap();
+    assert_eq!(
+        content,
+        "#!/bin/bash\nexec git std hooks run pre-commit \"$@\"\n"
+    );
+
+    // Verify executable permissions on Unix.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = std::fs::metadata(&shim_path).unwrap().permissions();
+        assert!(perms.mode() & 0o111 != 0, "shim should be executable");
+    }
+}
+
+#[test]
+fn hooks_install_multiple_hooks() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "dprint check\n").unwrap();
+    std::fs::write(hooks_dir.join("pre-push.hooks"), "!cargo test\n").unwrap();
+    std::fs::write(
+        hooks_dir.join("commit-msg.hooks"),
+        "!git std check --file {msg}\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "install"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // All three shims should exist.
+    assert!(hooks_dir.join("pre-commit").exists());
+    assert!(hooks_dir.join("pre-push").exists());
+    assert!(hooks_dir.join("commit-msg").exists());
+}
+
+#[test]
+fn hooks_install_is_idempotent() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "cargo test\n").unwrap();
+
+    // Run install twice.
+    for _ in 0..2 {
+        Command::cargo_bin("git-std")
+            .unwrap()
+            .args(["hooks", "install"])
+            .current_dir(dir.path())
+            .assert()
+            .success();
+    }
+
+    let content = std::fs::read_to_string(hooks_dir.join("pre-commit")).unwrap();
+    assert_eq!(
+        content,
+        "#!/bin/bash\nexec git std hooks run pre-commit \"$@\"\n"
+    );
+}
+
+#[test]
+fn hooks_install_preserves_non_hooks_files() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "cargo test\n").unwrap();
+    std::fs::write(hooks_dir.join("custom-script.sh"), "#!/bin/bash\necho hi\n").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "install"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // custom-script.sh should be untouched.
+    let custom = std::fs::read_to_string(hooks_dir.join("custom-script.sh")).unwrap();
+    assert_eq!(custom, "#!/bin/bash\necho hi\n");
+}
+
+// --- Hooks list integration tests ---
+
+#[test]
+fn hooks_list_shows_configured_hooks() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(
+        hooks_dir.join("pre-commit.hooks"),
+        "dprint check\ncargo clippy --workspace -- -D warnings *.rs\n? detekt --input modules/ *.kt\n",
+    )
+    .unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "list"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    assert!(
+        stdout.contains("pre-commit (collect mode):"),
+        "should show hook name and mode, got: {stdout}"
+    );
+    assert!(stdout.contains("dprint check"), "should list commands");
+    assert!(stdout.contains("*.rs"), "should show glob pattern");
+    assert!(stdout.contains("?"), "should show advisory prefix");
+}
+
+#[test]
+fn hooks_list_fail_fast_mode() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(
+        hooks_dir.join("pre-push.hooks"),
+        "!cargo build --workspace\n!cargo test --workspace\n",
+    )
+    .unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "list"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    assert!(
+        stdout.contains("pre-push (fail-fast mode):"),
+        "should show fail-fast mode"
+    );
+    assert!(
+        stdout.contains("! cargo build --workspace"),
+        "should show fail-fast prefix"
+    );
+}
+
+#[test]
+fn hooks_list_commit_msg() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(
+        hooks_dir.join("commit-msg.hooks"),
+        "! git std check --file {msg}\n",
+    )
+    .unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "list"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    assert!(
+        stdout.contains("commit-msg (fail-fast mode):"),
+        "should show commit-msg with fail-fast mode"
+    );
+    assert!(
+        stdout.contains("git std check --file {msg}"),
+        "should show command with {{msg}} token"
+    );
+}
+
+#[test]
+fn hooks_list_no_hooks() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // No .githooks/ directory at all.
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "list"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("no hooks configured"));
+}
+
+#[test]
+fn hooks_list_multiple_hooks() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "dprint check\n").unwrap();
+    std::fs::write(hooks_dir.join("pre-push.hooks"), "!cargo test\n").unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "list"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    assert!(
+        stdout.contains("pre-commit") && stdout.contains("pre-push"),
+        "should list all hooks"
+    );
+}

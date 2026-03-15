@@ -7,6 +7,7 @@
 pub mod glob;
 mod parse;
 pub mod run;
+pub mod shim;
 
 pub use glob::matches_any;
 pub use parse::{HookCommand, Prefix, parse};

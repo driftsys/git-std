@@ -5,6 +5,7 @@ use yansi::Paint;
 
 use standard_githooks::Prefix;
 use standard_githooks::run::{HookMode, default_mode, substitute_msg};
+use standard_githooks::shim::generate_shim;
 
 /// The result of executing a single hook command.
 struct CommandResult {
@@ -179,4 +180,167 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
     }
 
     if has_failure { 1 } else { 0 }
+}
+
+/// Scan `.githooks/` for `*.hooks` files and return sorted hook names.
+fn discover_hooks() -> Vec<String> {
+    let hooks_dir = Path::new(".githooks");
+    let entries = match std::fs::read_dir(hooks_dir) {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut hooks: Vec<String> = entries
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let name = entry.file_name().to_string_lossy().to_string();
+            let hook_name = name.strip_suffix(".hooks")?;
+            Some(hook_name.to_string())
+        })
+        .collect();
+
+    hooks.sort();
+    hooks
+}
+
+/// Run the `hooks install` subcommand. Returns the process exit code.
+///
+/// Configures `core.hooksPath`, creates the `.githooks/` directory,
+/// and writes shim scripts for each `.hooks` file found.
+pub fn install() -> i32 {
+    // 1. Set core.hooksPath
+    let status = Command::new("git")
+        .args(["config", "core.hooksPath", ".githooks"])
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            eprintln!(
+                "  {}  core.hooksPath \u{2192} .githooks",
+                "\u{2713}".green()
+            );
+        }
+        _ => {
+            eprintln!("error: failed to set core.hooksPath");
+            return 1;
+        }
+    }
+
+    // 2. Ensure .githooks/ exists
+    let hooks_dir = Path::new(".githooks");
+    if !hooks_dir.exists()
+        && let Err(e) = std::fs::create_dir_all(hooks_dir)
+    {
+        eprintln!("error: cannot create .githooks/: {e}");
+        return 1;
+    }
+
+    // 3. Write shims for each .hooks file
+    let hooks = discover_hooks();
+
+    if hooks.is_empty() {
+        eprintln!();
+        eprintln!("  no .hooks files found in .githooks/");
+        return 0;
+    }
+
+    for hook_name in &hooks {
+        let shim_content = generate_shim(hook_name);
+        let shim_path = hooks_dir.join(hook_name);
+
+        if let Err(e) = std::fs::write(&shim_path, &shim_content) {
+            eprintln!("error: cannot write {}: {e}", shim_path.display());
+            return 1;
+        }
+
+        // Set executable permissions on Unix
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = std::fs::Permissions::from_mode(0o755);
+            if let Err(e) = std::fs::set_permissions(&shim_path, perms) {
+                eprintln!(
+                    "error: cannot set permissions on {}: {e}",
+                    shim_path.display()
+                );
+                return 1;
+            }
+        }
+
+        eprintln!(
+            "  {}  .githooks/{:<18}\u{2192} git std hooks run {hook_name}",
+            "\u{2713}".green(),
+            hook_name,
+        );
+    }
+
+    0
+}
+
+/// Run the `hooks list` subcommand. Returns the process exit code.
+///
+/// Reads all `.githooks/*.hooks` files, parses them, and prints
+/// a human-readable summary of each hook and its commands.
+pub fn list() -> i32 {
+    let hooks = discover_hooks();
+
+    if hooks.is_empty() {
+        eprintln!("  no hooks configured");
+        return 0;
+    }
+
+    for (i, hook_name) in hooks.iter().enumerate() {
+        if i > 0 {
+            println!();
+        }
+
+        let hooks_file = format!(".githooks/{hook_name}.hooks");
+        let content = match std::fs::read_to_string(&hooks_file) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("error: cannot read {hooks_file}: {e}");
+                return 2;
+            }
+        };
+
+        let commands = standard_githooks::parse(&content);
+        let mode = default_mode(hook_name);
+        let mode_label = match mode {
+            HookMode::Collect => "collect",
+            HookMode::FailFast => "fail-fast",
+        };
+
+        println!("  {hook_name} ({mode_label} mode):");
+
+        for cmd in &commands {
+            let prefix_char = match cmd.prefix {
+                Prefix::FailFast => "!",
+                Prefix::Advisory => "?",
+                Prefix::Default => " ",
+            };
+
+            let display = if let Some(ref glob) = cmd.glob {
+                // Right-align glob after command with padding
+                let cmd_part = format!("  {prefix_char} {}", cmd.command);
+                let total_width = 50;
+                let padding = if cmd_part.len() < total_width {
+                    total_width - cmd_part.len()
+                } else {
+                    4
+                };
+                format!(
+                    "  {prefix_char} {}{:width$}{glob}",
+                    cmd.command,
+                    "",
+                    width = padding
+                )
+            } else {
+                format!("  {prefix_char} {}", cmd.command)
+            };
+
+            println!("  {display}");
+        }
+    }
+
+    0
 }
