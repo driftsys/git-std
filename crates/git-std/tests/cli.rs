@@ -778,11 +778,19 @@ fn hooks_run_commit_msg_bad_message_fails() {
     let dir = tempfile::tempdir().unwrap();
     init_hooks_repo(dir.path());
 
+    // Use the cargo-built binary path so the hook command works in CI
+    // where `git std` isn't on PATH.
+    let bin = Command::cargo_bin("git-std")
+        .unwrap()
+        .get_program()
+        .to_owned();
+    let bin_str = bin.to_string_lossy();
+
     let hooks_dir = dir.path().join(".githooks");
     std::fs::create_dir_all(&hooks_dir).unwrap();
     std::fs::write(
         hooks_dir.join("commit-msg.hooks"),
-        "! git std check --file {msg}\n",
+        format!("! {bin_str} check --file {{msg}}\n"),
     )
     .unwrap();
 
@@ -812,11 +820,18 @@ fn hooks_run_commit_msg_good_message_passes() {
     let dir = tempfile::tempdir().unwrap();
     init_hooks_repo(dir.path());
 
+    // Use the cargo-built binary path so the hook command works in CI.
+    let bin = Command::cargo_bin("git-std")
+        .unwrap()
+        .get_program()
+        .to_owned();
+    let bin_str = bin.to_string_lossy();
+
     let hooks_dir = dir.path().join(".githooks");
     std::fs::create_dir_all(&hooks_dir).unwrap();
     std::fs::write(
         hooks_dir.join("commit-msg.hooks"),
-        "! git std check --file {msg}\n",
+        format!("! {bin_str} check --file {{msg}}\n"),
     )
     .unwrap();
 
@@ -859,9 +874,16 @@ fn hooks_full_install_cycle() {
         "echo \"pre-commit ok\"\n",
     )
     .unwrap();
+    // Use the cargo-built binary path for the commit-msg hook so it works
+    // in CI where `git std` isn't on PATH.
+    let bin = Command::cargo_bin("git-std")
+        .unwrap()
+        .get_program()
+        .to_owned();
+    let bin_str = bin.to_string_lossy();
     std::fs::write(
         hooks_dir.join("commit-msg.hooks"),
-        "! git std check --file {msg}\n",
+        format!("! {bin_str} check --file {{msg}}\n"),
     )
     .unwrap();
 
