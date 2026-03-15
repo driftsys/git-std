@@ -504,7 +504,7 @@ Each shim delegates to `git std hooks run`:
 
 ```bash
 #!/bin/bash
-exec git std hooks run <hook> "$@"
+exec git std hooks run <hook> -- "$@"
 ```
 
 Idempotent — re-running overwrites existing shims.

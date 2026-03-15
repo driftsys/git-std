@@ -1,7 +1,8 @@
 /// Generate the shim script content for a given hook name.
 ///
-/// The shim delegates execution to `git std hooks run <hook>`,
-/// passing through any arguments git provides.
+/// The shim delegates execution to `git std hooks run <hook> -- <args>`,
+/// passing through any arguments git provides after `--` so that clap's
+/// `#[arg(last = true)]` can capture them.
 ///
 /// # Example
 ///
@@ -9,10 +10,10 @@
 /// use standard_githooks::shim::generate_shim;
 ///
 /// let shim = generate_shim("pre-commit");
-/// assert_eq!(shim, "#!/bin/bash\nexec git std hooks run pre-commit \"$@\"\n");
+/// assert_eq!(shim, "#!/bin/bash\nexec git std hooks run pre-commit -- \"$@\"\n");
 /// ```
 pub fn generate_shim(hook_name: &str) -> String {
-    format!("#!/bin/bash\nexec git std hooks run {hook_name} \"$@\"\n")
+    format!("#!/bin/bash\nexec git std hooks run {hook_name} -- \"$@\"\n")
 }
 
 #[cfg(test)]
@@ -24,7 +25,7 @@ mod tests {
         let shim = generate_shim("pre-commit");
         assert_eq!(
             shim,
-            "#!/bin/bash\nexec git std hooks run pre-commit \"$@\"\n"
+            "#!/bin/bash\nexec git std hooks run pre-commit -- \"$@\"\n"
         );
     }
 
@@ -33,7 +34,7 @@ mod tests {
         let shim = generate_shim("commit-msg");
         assert_eq!(
             shim,
-            "#!/bin/bash\nexec git std hooks run commit-msg \"$@\"\n"
+            "#!/bin/bash\nexec git std hooks run commit-msg -- \"$@\"\n"
         );
     }
 
@@ -42,7 +43,7 @@ mod tests {
         let shim = generate_shim("pre-push");
         assert_eq!(
             shim,
-            "#!/bin/bash\nexec git std hooks run pre-push \"$@\"\n"
+            "#!/bin/bash\nexec git std hooks run pre-push -- \"$@\"\n"
         );
     }
 }
