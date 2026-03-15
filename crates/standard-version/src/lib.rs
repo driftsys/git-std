@@ -40,6 +40,7 @@ pub mod gradle;
 pub mod json;
 pub mod pubspec;
 pub mod pyproject;
+pub mod regex_engine;
 pub mod version_file;
 pub mod version_plain;
 
@@ -48,6 +49,7 @@ pub use gradle::GradleVersionFile;
 pub use json::{DenoVersionFile, JsonVersionFile};
 pub use pubspec::PubspecVersionFile;
 pub use pyproject::PyprojectVersionFile;
+pub use regex_engine::RegexVersionFile;
 pub use version_file::{
     CustomVersionFile, UpdateResult, VersionFile, VersionFileError, update_version_files,
 };
