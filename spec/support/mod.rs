@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 /// config, commits, and tags.
 pub struct TestRepo {
     dir: tempfile::TempDir,
-    repo: git2::Repository,
     file_counter: usize,
 }
 
@@ -15,21 +14,12 @@ impl TestRepo {
     /// Create a new test repository with `git init` and user config.
     pub fn new() -> Self {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
-        let repo = git2::Repository::init(dir.path()).expect("failed to init repo");
-
-        {
-            let mut config = repo.config().expect("failed to get config");
-            config
-                .set_str("user.name", "Test")
-                .expect("failed to set user.name");
-            config
-                .set_str("user.email", "test@test.com")
-                .expect("failed to set user.email");
-        }
+        git(dir.path(), &["init"]);
+        git(dir.path(), &["config", "user.name", "Test"]);
+        git(dir.path(), &["config", "user.email", "test@test.com"]);
 
         Self {
             dir,
-            repo,
             file_counter: 0,
         }
     }
@@ -79,44 +69,15 @@ impl TestRepo {
         std::fs::write(self.dir.path().join(&filename), message)
             .expect("failed to write commit file");
 
-        let mut index = self.repo.index().expect("failed to get index");
-        index
-            .add_path(Path::new(&filename))
-            .expect("failed to stage file");
-        index.write().expect("failed to write index");
-        let tree_oid = index.write_tree().expect("failed to write tree");
-        let sig = self.repo.signature().expect("failed to get signature");
-
-        // Scope the tree borrow so it doesn't conflict with &mut self.
-        {
-            let tree = self.repo.find_tree(tree_oid).expect("failed to find tree");
-            if let Ok(head) = self.repo.head() {
-                let parent = head.peel_to_commit().expect("failed to peel to commit");
-                self.repo
-                    .commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent])
-                    .expect("failed to create commit");
-            } else {
-                self.repo
-                    .commit(Some("HEAD"), &sig, &sig, message, &tree, &[])
-                    .expect("failed to create initial commit");
-            }
-        }
+        git(self.dir.path(), &["add", &filename]);
+        git(self.dir.path(), &["commit", "-m", message]);
 
         self
     }
 
     /// Create an annotated tag at HEAD.
     pub fn create_tag(&self, name: &str) -> &Self {
-        let sig = self.repo.signature().expect("failed to get signature");
-        let head = self
-            .repo
-            .head()
-            .expect("failed to get HEAD")
-            .peel_to_commit()
-            .expect("failed to peel to commit");
-        self.repo
-            .tag(name, head.as_object(), &sig, name, false)
-            .expect("failed to create tag");
+        git(self.dir.path(), &["tag", "-a", name, "-m", name]);
         self
     }
 
@@ -129,4 +90,19 @@ impl TestRepo {
     pub fn bin_path() -> PathBuf {
         assert_cmd::cargo::cargo_bin("git-std")
     }
+}
+
+fn git(dir: &Path, args: &[&str]) -> String {
+    let output = std::process::Command::new("git")
+        .current_dir(dir)
+        .args(args)
+        .output()
+        .expect("failed to run git");
+    assert!(
+        output.status.success(),
+        "git {:?} failed: {}",
+        args,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
 }

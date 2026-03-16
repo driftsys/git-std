@@ -19,12 +19,17 @@ fn check_range_mixed_valid_invalid() {
     repo.add_commit("invalid message");
 
     // Range from first commit to HEAD (all commits after first).
-    let repo_git = git2::Repository::open(repo.path()).unwrap();
-    let mut revwalk = repo_git.revwalk().unwrap();
-    revwalk.push_head().unwrap();
-    revwalk.set_sorting(git2::Sort::REVERSE).unwrap();
-    let first_oid = revwalk.next().unwrap().unwrap();
-    let range = format!("{}..HEAD", &first_oid.to_string()[..7]);
+    let output = std::process::Command::new("git")
+        .current_dir(repo.path())
+        .args(["rev-list", "--reverse", "HEAD"])
+        .output()
+        .unwrap();
+    let first_oid = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .next()
+        .unwrap()
+        .to_string();
+    let range = format!("{}..HEAD", &first_oid[..7]);
 
     Command::new(TestRepo::bin_path())
         .args(["check", "--range", &range])

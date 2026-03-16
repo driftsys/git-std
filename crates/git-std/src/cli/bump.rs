@@ -49,18 +49,12 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         return run_patch(config, opts);
     }
 
-    let repo = match git2::Repository::discover(".") {
-        Ok(r) => r,
-        Err(e) => {
-            ui::error(&format!("cannot open repository: {e}"));
-            return 1;
-        }
-    };
+    let dir = std::path::Path::new(".");
 
     let tag_prefix = &config.versioning.tag_prefix;
 
     // Step 1: Find latest version tag.
-    let current_version = match git::find_latest_version_tag(&repo, tag_prefix) {
+    let current_version = match git::find_latest_version_tag(dir, tag_prefix) {
         Ok(Some((oid, ver))) => Some((oid, ver)),
         Ok(None) => None,
         Err(e) => {
@@ -70,7 +64,7 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     };
 
     // Step 2: Collect commits since that tag.
-    let head_oid = match repo.head().and_then(|h| h.peel_to_commit().map(|c| c.id())) {
+    let head_oid = match git::head_oid(dir) {
         Ok(oid) => oid,
         Err(e) => {
             ui::error(&format!("cannot resolve HEAD: {e}"));
@@ -78,8 +72,8 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     };
 
-    let tag_oid = current_version.as_ref().map(|(oid, _)| *oid);
-    let raw_commits = match git::walk_commits(&repo, head_oid, tag_oid) {
+    let tag_oid = current_version.as_ref().map(|(oid, _)| oid.as_str());
+    let raw_commits = match git::walk_commits(dir, &head_oid, tag_oid) {
         Ok(c) => c,
         Err(e) => {
             ui::error(&e.to_string());
@@ -181,7 +175,7 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         raw_commits: &raw_commits,
     };
 
-    finalize_bump(&repo, config, opts, &ctx)
+    finalize_bump(dir, config, opts, &ctx)
 }
 
 /// Context passed from the version-computation phase to the shared finalize logic.
@@ -191,7 +185,7 @@ struct FinalizeContext<'a> {
     /// The previous version string, if any (used for changelog compare links).
     prev_version: Option<&'a str>,
     /// Raw commits since the last tag, used for changelog generation.
-    raw_commits: &'a [(git2::Oid, String)],
+    raw_commits: &'a [(String, String)],
 }
 
 /// Shared finalize logic for both semver and calver bump paths.
@@ -199,7 +193,7 @@ struct FinalizeContext<'a> {
 /// Handles workdir resolution, custom version files, dry-run output,
 /// version file updates, changelog generation, commit creation, and tagging.
 fn finalize_bump(
-    repo: &git2::Repository,
+    dir: &std::path::Path,
     config: &ProjectConfig,
     opts: &BumpOptions,
     ctx: &FinalizeContext<'_>,
@@ -207,13 +201,14 @@ fn finalize_bump(
     let tag_prefix = &config.versioning.tag_prefix;
     let new_version = &ctx.new_version;
 
-    let workdir = match repo.workdir() {
-        Some(w) => w,
-        None => {
+    let workdir = match git::workdir(dir) {
+        Ok(w) => w,
+        Err(_) => {
             ui::error("bare repository not supported");
             return 1;
         }
     };
+    let workdir = workdir.as_path();
 
     let custom_files: Vec<CustomVersionFile> = config
         .version_files
@@ -301,7 +296,7 @@ fn finalize_bump(
     // Generate/update changelog.
     if !opts.skip_changelog {
         let changelog_config = config.to_changelog_config();
-        let host = git::detect_host_from_repo(repo);
+        let host = git::detect_host(dir);
         let changelog_path = workdir.join("CHANGELOG.md");
 
         let release = build_version_release(
@@ -366,7 +361,7 @@ fn finalize_bump(
             paths_to_stage.push("Cargo.lock");
         }
 
-        if let Err(e) = git::stage_files(repo, &paths_to_stage) {
+        if let Err(e) = git::stage_files(dir, &paths_to_stage) {
             ui::error(&format!("cannot stage files: {e}"));
             return 1;
         }
@@ -374,11 +369,11 @@ fn finalize_bump(
         let commit_msg = format!("chore(release): {new_version}");
 
         if opts.sign {
-            if let Err(e) = git::create_signed_commit(&commit_msg) {
+            if let Err(e) = git::create_signed_commit(dir, &commit_msg) {
                 ui::error(&e.to_string());
                 return 1;
             }
-        } else if let Err(e) = git::create_commit(repo, &commit_msg) {
+        } else if let Err(e) = git::create_commit(dir, &commit_msg) {
             ui::error(&format!("cannot create commit: {e}"));
             return 1;
         }
@@ -397,11 +392,11 @@ fn finalize_bump(
         let tag_msg = new_version.to_string();
 
         if opts.sign {
-            if let Err(e) = git::create_signed_tag(&tag_name, &tag_msg) {
+            if let Err(e) = git::create_signed_tag(dir, &tag_name, &tag_msg) {
                 ui::error(&e.to_string());
                 return 1;
             }
-        } else if let Err(e) = git::create_annotated_tag(repo, &tag_name, &tag_msg) {
+        } else if let Err(e) = git::create_annotated_tag(dir, &tag_name, &tag_msg) {
             ui::error(&format!("cannot create tag: {e}"));
             return 1;
         }
@@ -445,14 +440,14 @@ fn print_summary(summary: &standard_version::BumpSummary) {
 
 /// Build a `VersionRelease` from raw commits for changelog generation.
 fn build_version_release(
-    commits: &[(git2::Oid, String)],
+    commits: &[(String, String)],
     version: &str,
     prev_tag: Option<&str>,
     config: &standard_changelog::ChangelogConfig,
 ) -> Option<VersionRelease> {
     let pairs: Vec<(String, &str)> = commits
         .iter()
-        .map(|(oid, msg)| (format!("{oid}")[..7].to_string(), msg.as_str()))
+        .map(|(oid, msg)| (oid[..7].to_string(), msg.as_str()))
         .collect();
     let refs: Vec<(&str, &str)> = pairs.iter().map(|(h, m)| (h.as_str(), *m)).collect();
 
@@ -488,27 +483,21 @@ fn calver_date_from_epoch_days(days: i32) -> standard_version::calver::CalverDat
     // Howard Hinnant's civil_from_days algorithm.
     let z = days + 719468;
     let era = z.div_euclid(146097);
-    let doe = z.rem_euclid(146097) as u32; // day of era [0, 146096]
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; // year of era [0, 399]
+    let doe = z.rem_euclid(146097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
     let y = yoe as i32 + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // day of year [0, 365]
-    let mp = (5 * doy + 2) / 153; // month pseudo [0, 11]
-    let d = doy - (153 * mp + 2) / 5 + 1; // day [1, 31]
-    let m = if mp < 10 { mp + 3 } else { mp - 9 }; // month [1, 12]
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
 
-    // ISO week number: ISO weeks start on Monday.
-    // day_of_week: Monday=1 .. Sunday=7
-    let dow = ((days + 3).rem_euclid(7) + 1) as u32; // Unix epoch was Thursday (4), so +3 maps to Mon=1
-    // ISO week: the week containing January 4th is week 1.
-    // ordinal day of year (1-based, with year starting in January)
+    let dow = ((days + 3).rem_euclid(7) + 1) as u32;
     let jan1_days = {
-        // days_from_civil for (y, 1, 1) using Howard Hinnant algorithm.
-        // January is month 1 which is <= 2, so shift year by -1.
         let ys = y - 1;
         let eras = ys.div_euclid(400);
         let yoes = ys.rem_euclid(400) as u32;
-        let ms: u32 = 10; // m=1 -> mp = m + 9 = 10 (March-based)
+        let ms: u32 = 10;
         let ds: u32 = 1;
         let doys = (153 * ms + 2) / 5 + ds - 1;
         let does = yoes * 365 + yoes / 4 - yoes / 100 + doys;
@@ -517,16 +506,12 @@ fn calver_date_from_epoch_days(days: i32) -> standard_version::calver::CalverDat
     let ordinal = days - jan1_days + 1;
     let jan1_dow = (jan1_days + 3).rem_euclid(7) + 1;
 
-    // ISO week calculation
     let iso_week = {
         let w = (ordinal - dow as i32 + 10) / 7;
         if w < 1 {
-            // Last week of previous year -- compute that year's week count.
-            // Simplified: just return 52 or 53.
             let prev_jan1_dow = (jan1_days - 1 + 3).rem_euclid(7) + 1;
             if prev_jan1_dow == 4
                 || (prev_jan1_dow == 3 && {
-                    // Check if previous year is leap
                     let py = y - 1;
                     py % 4 == 0 && (py % 100 != 0 || py % 400 == 0)
                 })
@@ -536,7 +521,6 @@ fn calver_date_from_epoch_days(days: i32) -> standard_version::calver::CalverDat
                 52
             }
         } else if w > 52 {
-            // Check if it belongs to week 1 of next year.
             let is_leap = y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
             let days_in_year = if is_leap { 366 } else { 365 };
             if ordinal > days_in_year - 3 && jan1_dow != 4 {
@@ -559,28 +543,17 @@ fn calver_date_from_epoch_days(days: i32) -> standard_version::calver::CalverDat
 }
 
 /// Run the bump subcommand in stable-branch mode.
-///
-/// Creates a stable branch from HEAD configured for patch-only bumps,
-/// then advances the current branch with a major (or minor) version bump.
 fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
-    // --stable is not supported with calver.
     if config.scheme == Scheme::Calver {
         ui::error("--stable is not supported with scheme = \"calver\"");
         return 1;
     }
 
-    let repo = match git2::Repository::discover(".") {
-        Ok(r) => r,
-        Err(e) => {
-            ui::error(&format!("cannot open repository: {e}"));
-            return 1;
-        }
-    };
+    let dir = std::path::Path::new(".");
 
     let tag_prefix = &config.versioning.tag_prefix;
 
-    // Step 1: Find latest version tag and get current version.
-    let current_version = match git::find_latest_version_tag(&repo, tag_prefix) {
+    let current_version = match git::find_latest_version_tag(dir, tag_prefix) {
         Ok(Some((oid, ver))) => Some((oid, ver)),
         Ok(None) => None,
         Err(e) => {
@@ -594,8 +567,7 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         .map(|(_, v)| v.clone())
         .unwrap_or_else(|| semver::Version::new(0, 0, 0));
 
-    // Step 2: Error if working tree is dirty.
-    match git::is_working_tree_dirty(&repo) {
+    match git::is_working_tree_dirty(dir) {
         Ok(true) => {
             ui::error("working tree has uncommitted changes");
             return 1;
@@ -607,28 +579,31 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         Ok(false) => {}
     }
 
-    // Step 3: Determine stable branch name.
     let stable_branch_name = match &opts.stable {
         Some(Some(name)) => name.clone(),
         _ => format!("stable-v{}.{}", cur_ver.major, cur_ver.minor),
     };
 
-    // Step 4: Error if that branch already exists.
-    if git::branch_exists(&repo, &stable_branch_name) {
-        ui::error(&format!("branch '{stable_branch_name}' already exists"));
-        return 1;
+    match git::branch_exists(dir, &stable_branch_name) {
+        Ok(true) => {
+            ui::error(&format!("branch '{stable_branch_name}' already exists"));
+            return 1;
+        }
+        Ok(false) => {}
+        Err(e) => {
+            ui::error(&format!("cannot check branch: {e}"));
+            return 1;
+        }
     }
 
-    // Determine the current branch name so we can switch back.
-    let original_branch = match repo.head() {
-        Ok(head) => head.shorthand().unwrap_or("main").to_string(),
+    let original_branch = match git::current_branch(dir) {
+        Ok(name) => name,
         Err(e) => {
             ui::error(&format!("cannot resolve HEAD: {e}"));
             return 1;
         }
     };
 
-    // Compute the new version for main.
     let new_version = if opts.minor {
         semver::Version::new(cur_ver.major, cur_ver.minor + 1, 0)
     } else {
@@ -637,7 +612,6 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     let bump_kind = if opts.minor { "minor" } else { "major" };
 
-    // --- Dry run: print plan and exit ---
     if opts.dry_run {
         ui::blank();
         eprintln!("{INDENT}Creating stable branch...", INDENT = ui::INDENT);
@@ -679,35 +653,24 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     // --- Actual execution ---
 
-    // Step 5: Create the stable branch from HEAD.
-    let head_commit = match repo.head().and_then(|h| h.peel_to_commit()) {
-        Ok(c) => c,
-        Err(e) => {
-            ui::error(&format!("cannot resolve HEAD: {e}"));
-            return 1;
-        }
-    };
-
-    if let Err(e) = git::create_branch(&repo, &stable_branch_name, &head_commit) {
+    if let Err(e) = git::create_branch(dir, &stable_branch_name) {
         ui::error(&format!("cannot create branch: {e}"));
         return 1;
     }
 
-    // Step 6: Switch to the stable branch and commit config.
-    if let Err(e) = git::checkout_branch(&repo, &stable_branch_name) {
+    if let Err(e) = git::checkout_branch(dir, &stable_branch_name) {
         ui::error(&format!("cannot checkout branch: {e}"));
         return 1;
     }
 
-    let workdir = match repo.workdir() {
-        Some(w) => w.to_path_buf(),
-        None => {
+    let workdir = match git::workdir(dir) {
+        Ok(w) => w,
+        Err(_) => {
             ui::error("bare repository not supported");
             return 1;
         }
     };
 
-    // Write/update .git-std.toml with scheme = "patch".
     let config_path = workdir.join(".git-std.toml");
     let config_content = if config_path.exists() {
         let existing = std::fs::read_to_string(&config_path).unwrap_or_default();
@@ -721,8 +684,7 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         return 1;
     }
 
-    // Stage and commit on the stable branch.
-    if let Err(e) = git::stage_files(&repo, &[".git-std.toml"]) {
+    if let Err(e) = git::stage_files(dir, &[".git-std.toml"]) {
         ui::error(&format!("cannot stage files: {e}"));
         return 1;
     }
@@ -732,7 +694,7 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         cur_ver.major, cur_ver.minor
     );
 
-    if let Err(e) = git::create_commit(&repo, &stabilize_msg) {
+    if let Err(e) = git::create_commit(dir, &stabilize_msg) {
         ui::error(&format!("cannot create commit: {e}"));
         return 1;
     }
@@ -748,13 +710,11 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         INDENT = ui::INDENT,
     );
 
-    // Step 7: Switch back to the original branch.
-    if let Err(e) = git::checkout_branch(&repo, &original_branch) {
+    if let Err(e) = git::checkout_branch(dir, &original_branch) {
         ui::error(&format!("cannot checkout branch '{original_branch}': {e}"));
         return 1;
     }
 
-    // Step 8 & 9: Bump on main and finalize.
     ui::blank();
     eprintln!(
         "{INDENT}Advancing {original_branch}...",
@@ -766,8 +726,7 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         DETAIL = ui::DETAIL_INDENT,
     );
 
-    // Collect commits since tag for changelog.
-    let head_oid = match repo.head().and_then(|h| h.peel_to_commit().map(|c| c.id())) {
+    let head_oid = match git::head_oid(dir) {
         Ok(oid) => oid,
         Err(e) => {
             ui::error(&format!("cannot resolve HEAD: {e}"));
@@ -775,8 +734,8 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     };
 
-    let tag_oid = current_version.as_ref().map(|(oid, _)| *oid);
-    let raw_commits = match git::walk_commits(&repo, head_oid, tag_oid) {
+    let tag_oid = current_version.as_ref().map(|(oid, _)| oid.as_str());
+    let raw_commits = match git::walk_commits(dir, &head_oid, tag_oid) {
         Ok(c) => c,
         Err(e) => {
             ui::error(&e.to_string());
@@ -792,17 +751,11 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         raw_commits: &raw_commits,
     };
 
-    let exit = finalize_bump(&repo, config, opts, &ctx);
+    let exit = finalize_bump(dir, config, opts, &ctx);
     if exit != 0 {
         return exit;
     }
 
-    // Step 10: Print push instructions for both branches (overrides finalize_bump's output).
-    // finalize_bump already printed the push instruction for the main branch,
-    // but we want to add the stable branch push instruction.
-    // The finalize_bump already prints "Push with: git push --follow-tags" so
-    // we just need to print the stable branch push before it.
-    // Actually, finalize_bump prints it. Let's just add the stable branch.
     eprintln!(
         "{INDENT}Push stable: git push origin {stable_branch_name}",
         INDENT = ui::INDENT,
@@ -822,7 +775,6 @@ fn update_scheme_in_config(existing: &str, scheme: &str) -> String {
     for line in existing.lines() {
         let trimmed = line.trim();
 
-        // Track table sections.
         if trimmed.starts_with('[') {
             if trimmed == "[versioning]" {
                 has_versioning = true;
@@ -832,14 +784,12 @@ fn update_scheme_in_config(existing: &str, scheme: &str) -> String {
             }
         }
 
-        // Replace existing scheme line anywhere at top level.
         if trimmed.starts_with("scheme") && trimmed.contains('=') && !in_versioning {
             result.push_str(&format!("scheme = \"{scheme}\"\n"));
             found_scheme = true;
             continue;
         }
 
-        // Replace scheme inside [versioning] section.
         if in_versioning && trimmed.starts_with("scheme") && trimmed.contains('=') {
             result.push_str(&format!("scheme = \"{scheme}\"\n"));
             found_scheme = true;
@@ -852,7 +802,6 @@ fn update_scheme_in_config(existing: &str, scheme: &str) -> String {
 
     if !found_scheme {
         if has_versioning {
-            // Insert scheme after the [versioning] header by reconstructing.
             let mut new_result = String::new();
             for line in result.lines() {
                 new_result.push_str(line);
@@ -863,7 +812,6 @@ fn update_scheme_in_config(existing: &str, scheme: &str) -> String {
             }
             return new_result;
         }
-        // No scheme or versioning section, just prepend.
         result.insert_str(0, &format!("scheme = \"{scheme}\"\n"));
     }
 
@@ -871,22 +819,12 @@ fn update_scheme_in_config(existing: &str, scheme: &str) -> String {
 }
 
 /// Run the bump subcommand in patch-only mode.
-///
-/// Always increments the patch version. Rejects breaking changes unless
-/// `--force` is passed.
 fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
-    let repo = match git2::Repository::discover(".") {
-        Ok(r) => r,
-        Err(e) => {
-            ui::error(&format!("cannot open repository: {e}"));
-            return 1;
-        }
-    };
+    let dir = std::path::Path::new(".");
 
     let tag_prefix = &config.versioning.tag_prefix;
 
-    // Find latest semver tag.
-    let current_version = match git::find_latest_version_tag(&repo, tag_prefix) {
+    let current_version = match git::find_latest_version_tag(dir, tag_prefix) {
         Ok(Some((oid, ver))) => Some((oid, ver)),
         Ok(None) => None,
         Err(e) => {
@@ -895,8 +833,7 @@ fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     };
 
-    // Collect commits since that tag.
-    let head_oid = match repo.head().and_then(|h| h.peel_to_commit().map(|c| c.id())) {
+    let head_oid = match git::head_oid(dir) {
         Ok(oid) => oid,
         Err(e) => {
             ui::error(&format!("cannot resolve HEAD: {e}"));
@@ -904,8 +841,8 @@ fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     };
 
-    let tag_oid = current_version.as_ref().map(|(oid, _)| *oid);
-    let raw_commits = match git::walk_commits(&repo, head_oid, tag_oid) {
+    let tag_oid = current_version.as_ref().map(|(oid, _)| oid.as_str());
+    let raw_commits = match git::walk_commits(dir, &head_oid, tag_oid) {
         Ok(c) => c,
         Err(e) => {
             ui::error(&e.to_string());
@@ -913,7 +850,6 @@ fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     };
 
-    // Parse commits and check for breaking changes.
     let has_breaking = raw_commits
         .iter()
         .filter_map(|(_, msg)| standard_commit::parse(msg).ok())
@@ -929,7 +865,6 @@ fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         .map(|(_, v)| v.clone())
         .unwrap_or_else(|| semver::Version::new(0, 0, 0));
 
-    // Always bump patch.
     let new_version = semver::Version::new(cur_ver.major, cur_ver.minor, cur_ver.patch + 1);
 
     ui::blank();
@@ -947,30 +882,22 @@ fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         raw_commits: &raw_commits,
     };
 
-    finalize_bump(&repo, config, opts, &ctx)
+    finalize_bump(dir, config, opts, &ctx)
 }
 
 /// Run the bump subcommand in calver mode.
 fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
-    let repo = match git2::Repository::discover(".") {
-        Ok(r) => r,
-        Err(e) => {
-            ui::error(&format!("cannot open repository: {e}"));
-            return 1;
-        }
-    };
+    let dir = std::path::Path::new(".");
 
     let tag_prefix = &config.versioning.tag_prefix;
     let calver_format = &config.versioning.calver_format;
 
-    // Calver does not support pre-release versioning.
     if opts.prerelease.is_some() {
         ui::error("--prerelease is not supported with scheme = \"calver\"");
         return 1;
     }
 
-    // Find the latest calver tag.
-    let current_tag = match git::find_latest_calver_tag(&repo, tag_prefix) {
+    let current_tag = match git::find_latest_calver_tag(dir, tag_prefix) {
         Ok(v) => v,
         Err(e) => {
             ui::error(&e.to_string());
@@ -978,8 +905,7 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     };
 
-    // Resolve HEAD.
-    let head_oid = match repo.head().and_then(|h| h.peel_to_commit().map(|c| c.id())) {
+    let head_oid = match git::head_oid(dir) {
         Ok(oid) => oid,
         Err(e) => {
             ui::error(&format!("cannot resolve HEAD: {e}"));
@@ -987,9 +913,8 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     };
 
-    // Collect commits since the tag.
-    let tag_oid = current_tag.as_ref().map(|(oid, _)| *oid);
-    let raw_commits = match git::walk_commits(&repo, head_oid, tag_oid) {
+    let tag_oid = current_tag.as_ref().map(|(oid, _)| oid.as_str());
+    let raw_commits = match git::walk_commits(dir, &head_oid, tag_oid) {
         Ok(c) => c,
         Err(e) => {
             ui::error(&e.to_string());
@@ -999,7 +924,6 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     let prev_ver = current_tag.as_ref().map(|(_, v)| v.as_str());
 
-    // Compute next calver version.
     let date = today_calver_date();
     let new_version = if let Some(ref forced) = opts.release_as {
         forced.clone()
@@ -1034,7 +958,7 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         raw_commits: &raw_commits,
     };
 
-    finalize_bump(&repo, config, opts, &ctx)
+    finalize_bump(dir, config, opts, &ctx)
 }
 
 #[cfg(test)]
@@ -1053,45 +977,40 @@ mod tests {
 
     #[test]
     fn calver_date_2026_03_16() {
-        // 2026-03-16 is a Monday, ISO week 12
-        // Days since epoch: (2026-1970)*365 + leap days + day_of_year
-        let days = 20528; // 2026-03-16
+        let days = 20528;
         let d = calver_date_from_epoch_days(days);
         assert_eq!(d.year, 2026);
         assert_eq!(d.month, 3);
         assert_eq!(d.day, 16);
-        assert_eq!(d.day_of_week, 1); // Monday
+        assert_eq!(d.day_of_week, 1);
         assert_eq!(d.iso_week, 12);
     }
 
     #[test]
     fn calver_date_dec31_to_jan1_boundary() {
-        // 2026-12-31 is a Thursday, ISO week 53
-        let dec31 = 20818; // 2026-12-31
+        let dec31 = 20818;
         let d = calver_date_from_epoch_days(dec31);
         assert_eq!(d.year, 2026);
         assert_eq!(d.month, 12);
         assert_eq!(d.day, 31);
-        assert_eq!(d.day_of_week, 4); // Thursday
+        assert_eq!(d.day_of_week, 4);
 
-        // 2027-01-01 is a Friday, ISO week 53 (still belongs to 2026's week 53)
-        let jan1 = 20819; // 2027-01-01
+        let jan1 = 20819;
         let d = calver_date_from_epoch_days(jan1);
         assert_eq!(d.year, 2027);
         assert_eq!(d.month, 1);
         assert_eq!(d.day, 1);
-        assert_eq!(d.day_of_week, 5); // Friday
+        assert_eq!(d.day_of_week, 5);
     }
 
     #[test]
     fn calver_date_jan1_2024_monday() {
-        // 2024-01-01 is a Monday, ISO week 1
-        let days = 19723; // 2024-01-01
+        let days = 19723;
         let d = calver_date_from_epoch_days(days);
         assert_eq!(d.year, 2024);
         assert_eq!(d.month, 1);
         assert_eq!(d.day, 1);
-        assert_eq!(d.day_of_week, 1); // Monday
+        assert_eq!(d.day_of_week, 1);
         assert_eq!(d.iso_week, 1);
     }
 
@@ -1102,7 +1021,6 @@ mod tests {
             .unwrap_or_default()
             .as_secs() as i64;
         let date = standard_changelog::format_date(secs);
-        // Should be YYYY-MM-DD format.
         assert_eq!(date.len(), 10);
         assert_eq!(&date[4..5], "-");
         assert_eq!(&date[7..8], "-");

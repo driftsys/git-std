@@ -157,17 +157,15 @@ fn bump_no_tag_flag() {
     );
 
     // Tag should NOT exist.
-    let repo_git = git2::Repository::open(repo.path()).unwrap();
-    let tags: Vec<String> = repo_git
-        .tag_names(None)
-        .unwrap()
-        .iter()
-        .flatten()
-        .map(String::from)
-        .collect();
+    let output = std::process::Command::new("git")
+        .current_dir(repo.path())
+        .args(["tag", "-l"])
+        .output()
+        .unwrap();
+    let tags = String::from_utf8_lossy(&output.stdout);
     assert!(
-        !tags.contains(&"v1.1.0".to_string()),
-        "tag v1.1.0 should not exist, found tags: {tags:?}"
+        !tags.contains("v1.1.0"),
+        "tag v1.1.0 should not exist, found tags: {tags}"
     );
 }
 
@@ -194,25 +192,27 @@ fn bump_no_commit_flag() {
 
     // No new commit should have been created — HEAD message should still
     // be the feat commit, not a release commit.
-    let repo_git = git2::Repository::open(repo.path()).unwrap();
-    let head = repo_git.head().unwrap().peel_to_commit().unwrap();
-    let msg = head.message().unwrap_or("");
+    let msg_output = std::process::Command::new("git")
+        .current_dir(repo.path())
+        .args(["log", "-1", "--format=%s"])
+        .output()
+        .unwrap();
+    let msg = String::from_utf8_lossy(&msg_output.stdout);
     assert!(
         !msg.contains("chore(release)"),
         "expected no release commit, got: {msg}"
     );
 
     // Tag should NOT exist.
-    let tags: Vec<String> = repo_git
-        .tag_names(None)
-        .unwrap()
-        .iter()
-        .flatten()
-        .map(String::from)
-        .collect();
+    let output = std::process::Command::new("git")
+        .current_dir(repo.path())
+        .args(["tag", "-l"])
+        .output()
+        .unwrap();
+    let tags = String::from_utf8_lossy(&output.stdout);
     assert!(
-        !tags.contains(&"v1.1.0".to_string()),
-        "tag v1.1.0 should not exist, found tags: {tags:?}"
+        !tags.contains("v1.1.0"),
+        "tag v1.1.0 should not exist, found tags: {tags}"
     );
 }
 
@@ -321,12 +321,11 @@ fn bump_patch_scheme_dry_run() {
 fn bump_stable_dry_run() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
     // Stage Cargo.toml so the working tree is clean (--stable requires it).
-    let git_repo = git2::Repository::open(repo.path()).unwrap();
-    let mut index = git_repo.index().unwrap();
-    index.add_path(std::path::Path::new("Cargo.toml")).unwrap();
-    index.write().unwrap();
-    drop(index);
-    drop(git_repo);
+    std::process::Command::new("git")
+        .current_dir(repo.path())
+        .args(["add", "Cargo.toml"])
+        .status()
+        .unwrap();
     repo.add_commit("chore: init");
     repo.create_tag("v1.2.0");
     repo.add_commit("feat!: breaking change");

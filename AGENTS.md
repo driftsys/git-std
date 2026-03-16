@@ -58,14 +58,14 @@ I/O for version file detection and updates.
 
 - Config is `.git-std.toml`. Hooks config is
   `.githooks/*.hooks` (plain text, one command per line).
-- Uses `git2` (libgit2) for git operations — no shelling
-  out to `git` (except for GPG signing).
+- Uses `git` CLI subprocess calls for all git operations
+  (no C dependency on libgit2).
 - Target binary size: ~5-8 MB
   (`lto = true`, `strip = true`, `codegen-units = 1`).
 - Static linking with `musl` on Linux.
 
 **Key dependencies:** `clap` (CLI), `inquire` (prompts),
-`git2` (git ops), `semver` (version parsing), `toml`
+`semver` (version parsing), `toml`
 (config), `yansi` (colours).
 
 ## Workflow
