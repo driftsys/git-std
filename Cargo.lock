@@ -357,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "git-std"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -982,28 +982,28 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "standard-changelog"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "standard-commit",
 ]
 
 [[package]]
 name = "standard-commit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "git-conventional",
 ]
 
 [[package]]
 name = "standard-githooks"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "globset",
 ]
 
 [[package]]
 name = "standard-version"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "regex",
  "semver",

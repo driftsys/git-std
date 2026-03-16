@@ -1,6 +1,6 @@
 [package]
 name = "standard-changelog"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Changelog generation from conventional commits"
 license = "MIT"
@@ -10,4 +10,4 @@ keywords = ["changelog", "conventional-commits", "release", "git"]
 categories = ["development-tools"]
 
 [dependencies]
-standard-commit = { version = "0.1.0", path = "../standard-commit" }
+standard-commit = { version = "0.2.0", path = "../standard-commit" }

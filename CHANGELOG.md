@@ -1,5 +1,113 @@
 # Changelog
 
+## [0.2.0] (2026-03-16)
+
+### Documentation
+
+- update USAGE.md and READMEs for current features ([9239f32])
+- document calver tag return type rationale ([586082b]), closes [#129]
+- fix collect mode terminology in hooks spec ([3a5e995]), closes [#112]
+- update AGENTS.md and SPEC.md for current state ([701c904])
+- allow org-level epic references in issue model ([51caef6])
+- standardize issue model in AGENTS.md ([d32edd2])
+- update merge strategy to merge commits for traceability ([5d7ae77])
+- update merge strategy to merge commits for traceability ([b022c2d])
+- add isolation and PR review guidelines to AGENTS.md ([027c9bb])
+- allow standard-version crate to perform file I/O ([#107]) ([f2889b8])
+- **bump:** add multi-ecosystem version file support to spec ([#95]) ([b9af904])
+- add per-crate READMEs and streamline root README ([b3fd36b])
+- fix inaccuracies across all documentation ([8761337])
+
+### Features
+
+- wire calver into bump, add changelog --range, integration tests ([97aafd7])
+- implement calver, changelog --range, and release cycle tests ([#121])
+  ([c169f16]), closes [#44], closes #54, closes #56, closes #57
+- **bump:** add regex engine for custom [[version_files]] ([#118]) ([0ebc583]),
+  closes [#103]
+- **bump:** wire multi-ecosystem version files into bump workflow ([#117])
+  ([5c1a05f]), closes [#104]
+- **bump:** add text-based version file engines ([#111]) ([6b2bd6f]), closes
+  [#100], closes #101, closes #102
+- **bump:** add JSON version file engines for package.json and deno.json
+  ([#110]) ([adca4cd]), closes [#98]
+- **bump:** add pyproject.toml version file engine ([#109]) ([3be8c42]), closes
+  [#99]
+- **hooks:** implement hooks run ([#22]-[#28]) ([#106]) ([b28d51c]), closes
+  [#22], closes #23, closes #24, closes #25, closes #26, closes #27, closes #28,
+  [#29], closes #30, closes #31, [#32], closes #33, closes #34, closes #35
+- **bump:** add VersionFile trait and refactor Cargo.toml engine ([#108])
+  ([f4195a5]), closes [#97]
+
+### Refactoring
+
+- **hooks:** improve API consistency and extract helpers ([#116]) ([a14a669]),
+  closes [#98]
+
+### Bug Fixes
+
+- **bump:** warn on system clock failure in calver date ([eb5fcee]), closes
+  [#131]
+- **bump:** address calver review findings ([b5c87bc])
+- **bump:** address review findings from multi-ecosystem version files ([#122])
+  ([e670128])
+- **bump:** sync Cargo.lock after version update ([ee60541])
+
+[0.2.0]: https://github.com/driftsys/git-std/compare/v0.1.0...v0.2.0
+[9239f32]: https://github.com/driftsys/git-std/commit/9239f32
+[586082b]: https://github.com/driftsys/git-std/commit/586082b
+[#129]: https://github.com/driftsys/git-std/issues/129
+[3a5e995]: https://github.com/driftsys/git-std/commit/3a5e995
+[#112]: https://github.com/driftsys/git-std/issues/112
+[701c904]: https://github.com/driftsys/git-std/commit/701c904
+[51caef6]: https://github.com/driftsys/git-std/commit/51caef6
+[d32edd2]: https://github.com/driftsys/git-std/commit/d32edd2
+[5d7ae77]: https://github.com/driftsys/git-std/commit/5d7ae77
+[b022c2d]: https://github.com/driftsys/git-std/commit/b022c2d
+[027c9bb]: https://github.com/driftsys/git-std/commit/027c9bb
+[f2889b8]: https://github.com/driftsys/git-std/commit/f2889b8
+[#107]: https://github.com/driftsys/git-std/issues/107
+[b9af904]: https://github.com/driftsys/git-std/commit/b9af904
+[#95]: https://github.com/driftsys/git-std/issues/95
+[b3fd36b]: https://github.com/driftsys/git-std/commit/b3fd36b
+[8761337]: https://github.com/driftsys/git-std/commit/8761337
+[97aafd7]: https://github.com/driftsys/git-std/commit/97aafd7
+[c169f16]: https://github.com/driftsys/git-std/commit/c169f16
+[#121]: https://github.com/driftsys/git-std/issues/121
+[#44]: https://github.com/driftsys/git-std/issues/44
+[0ebc583]: https://github.com/driftsys/git-std/commit/0ebc583
+[#118]: https://github.com/driftsys/git-std/issues/118
+[#103]: https://github.com/driftsys/git-std/issues/103
+[5c1a05f]: https://github.com/driftsys/git-std/commit/5c1a05f
+[#117]: https://github.com/driftsys/git-std/issues/117
+[#104]: https://github.com/driftsys/git-std/issues/104
+[6b2bd6f]: https://github.com/driftsys/git-std/commit/6b2bd6f
+[#111]: https://github.com/driftsys/git-std/issues/111
+[#100]: https://github.com/driftsys/git-std/issues/100
+[adca4cd]: https://github.com/driftsys/git-std/commit/adca4cd
+[#110]: https://github.com/driftsys/git-std/issues/110
+[#98]: https://github.com/driftsys/git-std/issues/98
+[3be8c42]: https://github.com/driftsys/git-std/commit/3be8c42
+[#109]: https://github.com/driftsys/git-std/issues/109
+[#99]: https://github.com/driftsys/git-std/issues/99
+[b28d51c]: https://github.com/driftsys/git-std/commit/b28d51c
+[#22]: https://github.com/driftsys/git-std/issues/22
+[#28]: https://github.com/driftsys/git-std/issues/28
+[#106]: https://github.com/driftsys/git-std/issues/106
+[#29]: https://github.com/driftsys/git-std/issues/29
+[#32]: https://github.com/driftsys/git-std/issues/32
+[f4195a5]: https://github.com/driftsys/git-std/commit/f4195a5
+[#108]: https://github.com/driftsys/git-std/issues/108
+[#97]: https://github.com/driftsys/git-std/issues/97
+[a14a669]: https://github.com/driftsys/git-std/commit/a14a669
+[#116]: https://github.com/driftsys/git-std/issues/116
+[eb5fcee]: https://github.com/driftsys/git-std/commit/eb5fcee
+[#131]: https://github.com/driftsys/git-std/issues/131
+[b5c87bc]: https://github.com/driftsys/git-std/commit/b5c87bc
+[e670128]: https://github.com/driftsys/git-std/commit/e670128
+[#122]: https://github.com/driftsys/git-std/issues/122
+[ee60541]: https://github.com/driftsys/git-std/commit/ee60541
+
 ## 0.1.0 (2026-03-14)
 
 ### Features
@@ -25,13 +133,6 @@
   [#2]
 - **infra:** init cargo workspace layout ([de58038]), closes [#1]
 
-### Documentation
-
-- improve public API rustdoc with examples ([b65ee7d])
-- add README and CONTRIBUTING ([#91]) ([598d816])
-- **agents:** add zero IDE warnings convention and cSpell guidance ([3557f65])
-- add README overview with workspace crates and spec references ([311ded0])
-
 ### Refactoring
 
 - move logic to library crates and organize CLI modules ([#93]) ([1dd8cfa])
@@ -45,6 +146,13 @@
 - **ci:** use cross for aarch64-unknown-linux-musl build ([4e55a3e])
 - **ci:** use musl cross-compiler for aarch64-unknown-linux-musl ([d9ee886])
 - **build:** drop OpenSSL dependency for cross-compilation ([db03bbe])
+
+### Documentation
+
+- improve public API rustdoc with examples ([b65ee7d])
+- add README and CONTRIBUTING ([#91]) ([598d816])
+- **agents:** add zero IDE warnings convention and cSpell guidance ([3557f65])
+- add README overview with workspace crates and spec references ([311ded0])
 
 [d4747e2]: https://github.com/driftsys/git-std/commit/d4747e2
 [#92]: https://github.com/driftsys/git-std/issues/92
@@ -78,11 +186,6 @@
 [#2]: https://github.com/driftsys/git-std/issues/2
 [de58038]: https://github.com/driftsys/git-std/commit/de58038
 [#1]: https://github.com/driftsys/git-std/issues/1
-[b65ee7d]: https://github.com/driftsys/git-std/commit/b65ee7d
-[598d816]: https://github.com/driftsys/git-std/commit/598d816
-[#91]: https://github.com/driftsys/git-std/issues/91
-[3557f65]: https://github.com/driftsys/git-std/commit/3557f65
-[311ded0]: https://github.com/driftsys/git-std/commit/311ded0
 [1dd8cfa]: https://github.com/driftsys/git-std/commit/1dd8cfa
 [#93]: https://github.com/driftsys/git-std/issues/93
 [b6de59d]: https://github.com/driftsys/git-std/commit/b6de59d
@@ -91,3 +194,8 @@
 [4e55a3e]: https://github.com/driftsys/git-std/commit/4e55a3e
 [d9ee886]: https://github.com/driftsys/git-std/commit/d9ee886
 [db03bbe]: https://github.com/driftsys/git-std/commit/db03bbe
+[b65ee7d]: https://github.com/driftsys/git-std/commit/b65ee7d
+[598d816]: https://github.com/driftsys/git-std/commit/598d816
+[#91]: https://github.com/driftsys/git-std/issues/91
+[3557f65]: https://github.com/driftsys/git-std/commit/3557f65
+[311ded0]: https://github.com/driftsys/git-std/commit/311ded0
