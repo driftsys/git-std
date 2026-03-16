@@ -28,10 +28,20 @@ pub struct BumpOptions {
     pub sign: bool,
     /// Allow breaking changes in patch-only scheme.
     pub force: bool,
+    /// Create a stable branch for patch-only releases.
+    ///
+    /// `None` = flag not used, `Some(None)` = `--stable` without value
+    /// (auto-generate branch name), `Some(Some(name))` = custom branch name.
+    pub stable: Option<Option<String>>,
+    /// Use minor bump instead of major when advancing main after `--stable`.
+    pub minor: bool,
 }
 
 /// Run the bump subcommand. Returns the exit code.
 pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
+    if opts.stable.is_some() {
+        return run_stable(config, opts);
+    }
     if config.scheme == Scheme::Calver {
         return run_calver(config, opts);
     }
@@ -537,6 +547,316 @@ fn calver_date_from_epoch_days(days: i32) -> standard_version::calver::CalverDat
         iso_week: iso_week as u32,
         day_of_week: dow,
     }
+}
+
+/// Run the bump subcommand in stable-branch mode.
+///
+/// Creates a stable branch from HEAD configured for patch-only bumps,
+/// then advances the current branch with a major (or minor) version bump.
+fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
+    // --stable is not supported with calver.
+    if config.scheme == Scheme::Calver {
+        ui::error("--stable is not supported with scheme = \"calver\"");
+        return 1;
+    }
+
+    let repo = match git2::Repository::discover(".") {
+        Ok(r) => r,
+        Err(e) => {
+            ui::error(&format!("cannot open repository: {e}"));
+            return 1;
+        }
+    };
+
+    let tag_prefix = &config.versioning.tag_prefix;
+
+    // Step 1: Find latest version tag and get current version.
+    let current_version = match git::find_latest_version_tag(&repo, tag_prefix) {
+        Ok(Some((oid, ver))) => Some((oid, ver)),
+        Ok(None) => None,
+        Err(e) => {
+            ui::error(&e.to_string());
+            return 1;
+        }
+    };
+
+    let cur_ver = current_version
+        .as_ref()
+        .map(|(_, v)| v.clone())
+        .unwrap_or_else(|| semver::Version::new(0, 0, 0));
+
+    // Step 2: Error if working tree is dirty.
+    match git::is_working_tree_dirty(&repo) {
+        Ok(true) => {
+            ui::error("working tree has uncommitted changes");
+            return 1;
+        }
+        Err(e) => {
+            ui::error(&format!("cannot check working tree status: {e}"));
+            return 1;
+        }
+        Ok(false) => {}
+    }
+
+    // Step 3: Determine stable branch name.
+    let stable_branch_name = match &opts.stable {
+        Some(Some(name)) => name.clone(),
+        _ => format!("stable-v{}.{}", cur_ver.major, cur_ver.minor),
+    };
+
+    // Step 4: Error if that branch already exists.
+    if git::branch_exists(&repo, &stable_branch_name) {
+        ui::error(&format!("branch '{stable_branch_name}' already exists"));
+        return 1;
+    }
+
+    // Determine the current branch name so we can switch back.
+    let original_branch = match repo.head() {
+        Ok(head) => head
+            .shorthand()
+            .unwrap_or("main")
+            .to_string(),
+        Err(e) => {
+            ui::error(&format!("cannot resolve HEAD: {e}"));
+            return 1;
+        }
+    };
+
+    // Compute the new version for main.
+    let new_version = if opts.minor {
+        semver::Version::new(cur_ver.major, cur_ver.minor + 1, 0)
+    } else {
+        semver::Version::new(cur_ver.major + 1, 0, 0)
+    };
+
+    let bump_kind = if opts.minor { "minor" } else { "major" };
+
+    // --- Dry run: print plan and exit ---
+    if opts.dry_run {
+        ui::blank();
+        eprintln!("{INDENT}Creating stable branch...", INDENT = ui::INDENT);
+        ui::item("Branch:", &stable_branch_name);
+        ui::item("Scheme:", "patch (patch-only bumps)");
+        ui::blank();
+        eprintln!(
+            "{INDENT}Would commit: chore(release): stabilize v{}.{}",
+            cur_ver.major, cur_ver.minor,
+            INDENT = ui::INDENT,
+        );
+        ui::blank();
+        eprintln!("{INDENT}Advancing {original_branch}...", INDENT = ui::INDENT);
+        eprintln!(
+            "{DETAIL}{} ({bump_kind})",
+            format!("{cur_ver} \u{2192} {new_version}").bold(),
+            DETAIL = ui::DETAIL_INDENT,
+        );
+        ui::blank();
+        eprintln!(
+            "{INDENT}Would commit: chore(release): {new_version}",
+            INDENT = ui::INDENT,
+        );
+        eprintln!(
+            "{INDENT}Would tag:    {tag_prefix}{new_version}",
+            INDENT = ui::INDENT,
+        );
+        ui::blank();
+        eprintln!("{INDENT}Push with:", INDENT = ui::INDENT);
+        ui::item("", &format!("git push origin {stable_branch_name}"));
+        ui::item("", "git push --follow-tags");
+        ui::blank();
+        return 0;
+    }
+
+    // --- Actual execution ---
+
+    // Step 5: Create the stable branch from HEAD.
+    let head_commit = match repo.head().and_then(|h| h.peel_to_commit()) {
+        Ok(c) => c,
+        Err(e) => {
+            ui::error(&format!("cannot resolve HEAD: {e}"));
+            return 1;
+        }
+    };
+
+    if let Err(e) = git::create_branch(&repo, &stable_branch_name, &head_commit) {
+        ui::error(&format!("cannot create branch: {e}"));
+        return 1;
+    }
+
+    // Step 6: Switch to the stable branch and commit config.
+    if let Err(e) = git::checkout_branch(&repo, &stable_branch_name) {
+        ui::error(&format!("cannot checkout branch: {e}"));
+        return 1;
+    }
+
+    let workdir = match repo.workdir() {
+        Some(w) => w.to_path_buf(),
+        None => {
+            ui::error("bare repository not supported");
+            return 1;
+        }
+    };
+
+    // Write/update .git-std.toml with scheme = "patch".
+    let config_path = workdir.join(".git-std.toml");
+    let config_content = if config_path.exists() {
+        let existing = std::fs::read_to_string(&config_path).unwrap_or_default();
+        update_scheme_in_config(&existing, "patch")
+    } else {
+        "[versioning]\nscheme = \"patch\"\n".to_string()
+    };
+
+    if let Err(e) = std::fs::write(&config_path, &config_content) {
+        ui::error(&format!("cannot write .git-std.toml: {e}"));
+        return 1;
+    }
+
+    // Stage and commit on the stable branch.
+    if let Err(e) = git::stage_files(&repo, &[".git-std.toml"]) {
+        ui::error(&format!("cannot stage files: {e}"));
+        return 1;
+    }
+
+    let stabilize_msg = format!(
+        "chore(release): stabilize v{}.{}",
+        cur_ver.major, cur_ver.minor
+    );
+
+    if let Err(e) = git::create_commit(&repo, &stabilize_msg) {
+        ui::error(&format!("cannot create commit: {e}"));
+        return 1;
+    }
+
+    ui::blank();
+    eprintln!("{INDENT}Creating stable branch...", INDENT = ui::INDENT);
+    ui::item("Branch:", &stable_branch_name);
+    ui::item("Scheme:", "patch (patch-only bumps)");
+    ui::blank();
+    eprintln!(
+        "{INDENT}Committed: {}",
+        stabilize_msg.green(),
+        INDENT = ui::INDENT,
+    );
+
+    // Step 7: Switch back to the original branch.
+    if let Err(e) = git::checkout_branch(&repo, &original_branch) {
+        ui::error(&format!("cannot checkout branch '{original_branch}': {e}"));
+        return 1;
+    }
+
+    // Step 8 & 9: Bump on main and finalize.
+    ui::blank();
+    eprintln!("{INDENT}Advancing {original_branch}...", INDENT = ui::INDENT);
+    eprintln!(
+        "{DETAIL}{} ({bump_kind})",
+        format!("{cur_ver} \u{2192} {new_version}").bold(),
+        DETAIL = ui::DETAIL_INDENT,
+    );
+
+    // Collect commits since tag for changelog.
+    let head_oid = match repo.head().and_then(|h| h.peel_to_commit().map(|c| c.id())) {
+        Ok(oid) => oid,
+        Err(e) => {
+            ui::error(&format!("cannot resolve HEAD: {e}"));
+            return 1;
+        }
+    };
+
+    let tag_oid = current_version.as_ref().map(|(oid, _)| *oid);
+    let raw_commits = match git::walk_commits(&repo, head_oid, tag_oid) {
+        Ok(c) => c,
+        Err(e) => {
+            ui::error(&e.to_string());
+            return 1;
+        }
+    };
+
+    let prev_ver_str = current_version
+        .as_ref()
+        .map(|(_, v)| v.to_string());
+
+    let ctx = FinalizeContext {
+        new_version: new_version.to_string(),
+        prev_version: prev_ver_str.as_deref(),
+        raw_commits: &raw_commits,
+    };
+
+    let exit = finalize_bump(&repo, config, opts, &ctx);
+    if exit != 0 {
+        return exit;
+    }
+
+    // Step 10: Print push instructions for both branches (overrides finalize_bump's output).
+    // finalize_bump already printed the push instruction for the main branch,
+    // but we want to add the stable branch push instruction.
+    // The finalize_bump already prints "Push with: git push --follow-tags" so
+    // we just need to print the stable branch push before it.
+    // Actually, finalize_bump prints it. Let's just add the stable branch.
+    eprintln!(
+        "{INDENT}Push stable: git push origin {stable_branch_name}",
+        INDENT = ui::INDENT,
+    );
+    ui::blank();
+
+    0
+}
+
+/// Update or add `scheme = "patch"` in a `.git-std.toml` config string.
+fn update_scheme_in_config(existing: &str, scheme: &str) -> String {
+    let mut result = String::new();
+    let mut found_scheme = false;
+    let mut in_versioning = false;
+    let mut has_versioning = false;
+
+    for line in existing.lines() {
+        let trimmed = line.trim();
+
+        // Track table sections.
+        if trimmed.starts_with('[') {
+            if trimmed == "[versioning]" {
+                has_versioning = true;
+                in_versioning = true;
+            } else {
+                in_versioning = false;
+            }
+        }
+
+        // Replace existing scheme line anywhere at top level.
+        if trimmed.starts_with("scheme") && trimmed.contains('=') && !in_versioning {
+            result.push_str(&format!("scheme = \"{scheme}\"\n"));
+            found_scheme = true;
+            continue;
+        }
+
+        // Replace scheme inside [versioning] section.
+        if in_versioning && trimmed.starts_with("scheme") && trimmed.contains('=') {
+            result.push_str(&format!("scheme = \"{scheme}\"\n"));
+            found_scheme = true;
+            continue;
+        }
+
+        result.push_str(line);
+        result.push('\n');
+    }
+
+    if !found_scheme {
+        if has_versioning {
+            // Insert scheme after the [versioning] header by reconstructing.
+            let mut new_result = String::new();
+            for line in result.lines() {
+                new_result.push_str(line);
+                new_result.push('\n');
+                if line.trim() == "[versioning]" {
+                    new_result.push_str(&format!("scheme = \"{scheme}\"\n"));
+                }
+            }
+            return new_result;
+        }
+        // No scheme or versioning section, just prepend.
+        result.insert_str(0, &format!("scheme = \"{scheme}\"\n"));
+    }
+
+    result
 }
 
 /// Run the bump subcommand in patch-only mode.

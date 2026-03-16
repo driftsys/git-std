@@ -211,6 +211,42 @@ pub fn create_annotated_tag(
     Ok(())
 }
 
+/// Check whether the working tree has uncommitted changes.
+pub fn is_working_tree_dirty(repo: &git2::Repository) -> Result<bool, git2::Error> {
+    let statuses = repo.statuses(Some(
+        git2::StatusOptions::new()
+            .include_untracked(true)
+            .recurse_untracked_dirs(true),
+    ))?;
+    Ok(!statuses.is_empty())
+}
+
+/// Create a branch pointing at the given commit.
+pub fn create_branch<'a>(
+    repo: &'a git2::Repository,
+    name: &str,
+    commit: &git2::Commit<'a>,
+) -> Result<git2::Branch<'a>, git2::Error> {
+    repo.branch(name, commit, false)
+}
+
+/// Check whether a local branch exists.
+pub fn branch_exists(repo: &git2::Repository, name: &str) -> bool {
+    repo.find_branch(name, git2::BranchType::Local).is_ok()
+}
+
+/// Switch HEAD to the given branch name (e.g. `main`).
+pub fn checkout_branch(
+    repo: &git2::Repository,
+    name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let refname = format!("refs/heads/{name}");
+    let obj = repo.revparse_single(&refname)?;
+    repo.checkout_tree(&obj, Some(git2::build::CheckoutBuilder::new().force()))?;
+    repo.set_head(&refname)?;
+    Ok(())
+}
+
 /// Create a signed tag by shelling out to `git`.
 pub fn create_signed_tag(name: &str, message: &str) -> Result<(), Box<dyn std::error::Error>> {
     let status = std::process::Command::new("git")
