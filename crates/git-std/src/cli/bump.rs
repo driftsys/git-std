@@ -72,6 +72,12 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     };
 
+    // Filter out process commits (merges, reverts, fixups, etc.).
+    let raw_commits: Vec<_> = raw_commits
+        .into_iter()
+        .filter(|(_, msg)| !standard_commit::is_process_commit(msg))
+        .collect();
+
     // Step 3: Parse as conventional commits.
     let parsed: Vec<standard_commit::ConventionalCommit> = raw_commits
         .iter()
@@ -586,6 +592,12 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
             return 1;
         }
     };
+
+    // Filter out process commits (merges, reverts, fixups, etc.).
+    let raw_commits: Vec<_> = raw_commits
+        .into_iter()
+        .filter(|(_, msg)| !standard_commit::is_process_commit(msg))
+        .collect();
 
     let prev_ver = current_tag.as_ref().map(|(_, v)| v.as_str());
 
