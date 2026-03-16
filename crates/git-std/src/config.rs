@@ -143,7 +143,10 @@ pub fn load(dir: &Path) -> ProjectConfig {
 fn parse_config(content: &str) -> ProjectConfig {
     let table: toml::Table = match content.parse() {
         Ok(t) => t,
-        Err(_) => {
+        Err(e) => {
+            eprintln!(
+                "warning: invalid .git-std.toml, using defaults: {e}"
+            );
             return ProjectConfig {
                 types: default_types(),
                 scopes: ScopesConfig::None,

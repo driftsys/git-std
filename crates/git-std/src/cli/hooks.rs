@@ -262,6 +262,7 @@ pub fn install() -> i32 {
         }
         _ => {
             eprintln!("error: failed to set core.hooksPath");
+            eprintln!("  hint: ensure you are inside a git repository and have write access");
             return 1;
         }
     }

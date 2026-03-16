@@ -182,7 +182,10 @@ fn main() {
             } else if let Some(message) = message {
                 cli::check::run(&message, lint_ref, format)
             } else {
-                eprintln!("error: provide a message, --file, or --range");
+                eprintln!("error: no input provided");
+                eprintln!("  usage: git std check <message>");
+                eprintln!("         git std check --file <path>");
+                eprintln!("         git std check --range <from..to>");
                 2
             };
             std::process::exit(code);

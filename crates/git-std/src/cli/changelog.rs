@@ -20,6 +20,7 @@ pub fn run(config: &ChangelogConfig, opts: &ChangelogOptions) -> i32 {
         Ok(r) => r,
         Err(e) => {
             eprintln!("error: cannot open repository: {e}");
+            eprintln!("  hint: run this command from inside a git repository");
             return 1;
         }
     };
@@ -51,7 +52,8 @@ fn run_full(
     };
 
     if releases.is_empty() {
-        eprintln!("error: no releases found");
+        eprintln!("error: no releases found in git history");
+        eprintln!("  hint: create a version tag first (e.g. git tag v0.1.0) or use --range");
         return 1;
     }
 
