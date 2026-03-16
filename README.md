@@ -52,7 +52,7 @@ terminal output.
 | Crate                | Description                                      |
 | -------------------- | ------------------------------------------------ |
 | [standard-commit]    | Conventional commit parsing, linting, formatting |
-| [standard-version]   | Semantic version bump calculation                |
+| [standard-version]   | Version bump (semver + calver), file detection   |
 | [standard-changelog] | Changelog generation from conventional commits   |
 | [standard-githooks]  | Hook file format parsing, shim generation        |
 

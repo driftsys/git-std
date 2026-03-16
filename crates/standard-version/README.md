@@ -1,9 +1,11 @@
 # standard-version
 
-Semantic version bump calculation from conventional commits.
+Version bump calculation from conventional commits — supports
+semver and calendar versioning (calver).
 
-Pure library — computes the next version from a list of parsed
-conventional commits and bump rules. No I/O, no git operations.
+Also provides the `VersionFile` trait for ecosystem-specific
+version file detection and updating (Cargo.toml, package.json,
+pyproject.toml, pubspec.yaml, gradle.properties, VERSION).
 
 ## Entry points
 
@@ -11,6 +13,8 @@ conventional commits and bump rules. No I/O, no git operations.
 - `apply_bump` — apply a bump level to a semver version
 - `apply_prerelease` — bump with a pre-release tag (e.g. `rc.0`)
 - `replace_version_in_toml` — update the version in a TOML string
+- `update_version_files` — detect and update version files
+- `calver::next_version` — compute next calver version from date
 
 ## Example
 

@@ -30,6 +30,7 @@ git std check --range main..HEAD                   # all commits in a range
 | `--file <path>`   | Read message from file                       |
 | `--range <range>` | Validate all commits in a git revision range |
 | `--strict`        | Enforce types/scopes from `.git-std.toml`    |
+| `--format <fmt>`  | Output format: `text` (default) or `json`    |
 
 **Exit codes:** `0` = valid, `1` = invalid, `2` = I/O or usage error.
 
@@ -57,16 +58,16 @@ scope, description, body, and breaking change, then runs
 
 **Flags:**
 
-| Flag              | Description                      |
-| ----------------- | -------------------------------- |
-| `--type <type>`   | Pre-fill type, skip prompt       |
-| `--scope <scope>` | Pre-fill scope, skip prompt      |
-| `--message <msg>` | Non-interactive mode             |
-| `--breaking`      | Add `BREAKING CHANGE` footer     |
-| `--dry-run`       | Print message without committing |
-| `--amend`         | Pass `--amend` to `git commit`   |
-| `--sign` / `-S`   | GPG-sign the commit              |
-| `--all` / `-a`    | Stage tracked changes            |
+| Flag               | Description                      |
+| ------------------ | -------------------------------- |
+| `--type <type>`    | Pre-fill type, skip prompt       |
+| `--scope <scope>`  | Pre-fill scope, skip prompt      |
+| `--message <msg>`  | Non-interactive mode             |
+| `--breaking <msg>` | Add `BREAKING CHANGE` footer     |
+| `--dry-run`        | Print message without committing |
+| `--amend`          | Pass `--amend` to `git commit`   |
+| `--sign` / `-S`    | GPG-sign the commit              |
+| `--all` / `-a`     | Stage tracked changes            |
 
 **Exit codes:** `0` = committed, `1` = validation/git error, `2` = usage error.
 
@@ -96,11 +97,16 @@ Generate or update the changelog from git history.
 
 **Flags:**
 
-| Flag              | Description                           |
-| ----------------- | ------------------------------------- |
-| `--full`          | Regenerate entire changelog           |
-| `--stdout`        | Print to stdout instead of file       |
-| `--output <file>` | Write to file (default: CHANGELOG.md) |
+| Flag               | Description                              |
+| ------------------ | ---------------------------------------- |
+| `--full`           | Regenerate entire changelog              |
+| `--range <range>`  | Generate for a tag range (e.g. `v1..v2`) |
+| `--stdout`         | Print to stdout instead of file          |
+| `--output <file>`  | Write to file (default: CHANGELOG.md)    |
+
+`--full` and `--range` are mutually exclusive. Without
+either, generates an incremental changelog from unreleased
+commits since the last tag.
 
 ### `git std hooks`
 
@@ -112,9 +118,10 @@ git std hooks run <hook> # execute a hook manually
 git std hooks list       # display configured hooks
 ```
 
-### `git std self-update`
+### `git std self-update` *(planned)*
 
 Fetch the latest release and replace the current binary.
+Not yet implemented.
 
 ## Global Flags
 
@@ -123,7 +130,6 @@ Fetch the latest release and replace the current binary.
 | `--help` / `-h`    | Print help                          |
 | `--version` / `-V` | Print version                       |
 | `--color <when>`   | `auto` (default), `always`, `never` |
-| `--quiet` / `-q`   | Suppress non-error output           |
 
 ---
 
