@@ -179,49 +179,43 @@ fn file_with_body_and_comments() {
 
 // ── check --range (#12) ────────────────────────────────────────
 
-fn make_test_repo(dir: &std::path::Path) -> git2::Repository {
-    let repo = git2::Repository::init(dir).unwrap();
-    let mut config = repo.config().unwrap();
-    config.set_str("user.name", "Test").unwrap();
-    config.set_str("user.email", "test@test.com").unwrap();
-    repo
+fn make_test_repo(dir: &std::path::Path) {
+    git(dir, &["init"]);
+    git(dir, &["config", "user.name", "Test"]);
+    git(dir, &["config", "user.email", "test@test.com"]);
 }
 
-fn create_commit(
-    repo: &git2::Repository,
-    dir: &std::path::Path,
-    message: &str,
-    content: &str,
-) -> git2::Oid {
-    let sig = repo.signature().unwrap();
-    let path = dir.join("file.txt");
-    std::fs::write(&path, content).unwrap();
-    let mut index = repo.index().unwrap();
-    index.add_path(std::path::Path::new("file.txt")).unwrap();
-    index.write().unwrap();
-    let tree_id = index.write_tree().unwrap();
-    let tree = repo.find_tree(tree_id).unwrap();
+fn create_commit(dir: &std::path::Path, message: &str, content: &str) -> String {
+    std::fs::write(dir.join("file.txt"), content).unwrap();
+    git(dir, &["add", "file.txt"]);
+    git(dir, &["commit", "-m", message]);
+    git(dir, &["rev-parse", "HEAD"])
+}
 
-    let parents: Vec<git2::Commit> = if let Ok(head) = repo.head() {
-        vec![head.peel_to_commit().unwrap()]
-    } else {
-        vec![]
-    };
-    let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
-
-    repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parent_refs)
-        .unwrap()
+fn git(dir: &std::path::Path, args: &[&str]) -> String {
+    let output = std::process::Command::new("git")
+        .current_dir(dir)
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {:?} failed: {}",
+        args,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
 
 #[test]
 fn range_all_valid_exits_0() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = make_test_repo(dir.path());
+    make_test_repo(dir.path());
 
-    let initial = create_commit(&repo, dir.path(), "feat: initial commit", "hello");
-    create_commit(&repo, dir.path(), "fix: correct typo", "world");
+    let initial = create_commit(dir.path(), "feat: initial commit", "hello");
+    create_commit(dir.path(), "fix: correct typo", "world");
 
-    let range = format!("{}..HEAD", &initial.to_string()[..7]);
+    let range = format!("{}..HEAD", &initial[..7]);
 
     git_std()
         .args(["check", "--range", &range])
@@ -234,12 +228,12 @@ fn range_all_valid_exits_0() {
 #[test]
 fn range_invalid_commit_exits_1() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = make_test_repo(dir.path());
+    make_test_repo(dir.path());
 
-    let initial = create_commit(&repo, dir.path(), "feat: initial", "hello");
-    create_commit(&repo, dir.path(), "bad commit message", "world");
+    let initial = create_commit(dir.path(), "feat: initial", "hello");
+    create_commit(dir.path(), "bad commit message", "world");
 
-    let range = format!("{}..HEAD", &initial.to_string()[..7]);
+    let range = format!("{}..HEAD", &initial[..7]);
 
     git_std()
         .args(["check", "--range", &range])
@@ -252,13 +246,13 @@ fn range_invalid_commit_exits_1() {
 #[test]
 fn range_mixed_reports_both() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = make_test_repo(dir.path());
+    make_test_repo(dir.path());
 
-    let initial = create_commit(&repo, dir.path(), "feat: initial", "a");
-    create_commit(&repo, dir.path(), "fix: valid one", "b");
-    create_commit(&repo, dir.path(), "invalid message", "c");
+    let initial = create_commit(dir.path(), "feat: initial", "a");
+    create_commit(dir.path(), "fix: valid one", "b");
+    create_commit(dir.path(), "invalid message", "c");
 
-    let range = format!("{}..HEAD", &initial.to_string()[..7]);
+    let range = format!("{}..HEAD", &initial[..7]);
 
     git_std()
         .args(["check", "--range", &range])
@@ -524,7 +518,7 @@ fn color_never_no_ansi_codes_invalid() {
 #[test]
 fn strict_auto_scopes_accepts_discovered() {
     let dir = tempfile::tempdir().unwrap();
-    let _repo = make_test_repo(dir.path());
+    make_test_repo(dir.path());
     std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 
@@ -538,7 +532,7 @@ fn strict_auto_scopes_accepts_discovered() {
 #[test]
 fn strict_auto_scopes_rejects_unknown() {
     let dir = tempfile::tempdir().unwrap();
-    let _repo = make_test_repo(dir.path());
+    make_test_repo(dir.path());
     std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 
@@ -553,7 +547,7 @@ fn strict_auto_scopes_rejects_unknown() {
 #[test]
 fn strict_auto_scopes_requires_scope() {
     let dir = tempfile::tempdir().unwrap();
-    let _repo = make_test_repo(dir.path());
+    make_test_repo(dir.path());
     std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 
@@ -568,7 +562,7 @@ fn strict_auto_scopes_requires_scope() {
 #[test]
 fn strict_auto_scopes_empty_dirs_no_requirement() {
     let dir = tempfile::tempdir().unwrap();
-    let _repo = make_test_repo(dir.path());
+    make_test_repo(dir.path());
     // No crates/packages/modules directories
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 

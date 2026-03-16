@@ -142,15 +142,9 @@ pub fn run_file(path: &Path, lint_config: Option<&LintConfig>, format: OutputFor
 
 /// Validate all commits in a git revision range. Returns 0 if all valid, 1 if any invalid.
 pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFormat) -> i32 {
-    let repo = match git2::Repository::discover(".") {
-        Ok(r) => r,
-        Err(e) => {
-            ui::error(&format!("cannot open repository: {e}"));
-            return 2;
-        }
-    };
+    let dir = std::path::Path::new(".");
 
-    let commits = match walk_range(&repo, range) {
+    let commits = match crate::git::walk_range(dir, range) {
         Ok(c) => c,
         Err(e) => {
             ui::error(&format!("invalid range '{range}': {e}"));
@@ -170,7 +164,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
     let total = commits.len();
     let mut failures = 0;
     for (oid, message) in &commits {
-        let short = &oid.to_string()[..7];
+        let short = &oid[..7];
         let valid = if let Some(config) = lint_config {
             let errors = standard_commit::lint(message, config);
             if errors.is_empty() {
@@ -226,7 +220,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
 }
 
 /// Run range check with JSON output — outputs a JSON array.
-fn run_range_json(commits: &[(git2::Oid, String)], lint_config: Option<&LintConfig>) -> i32 {
+fn run_range_json(commits: &[(String, String)], lint_config: Option<&LintConfig>) -> i32 {
     let mut results = Vec::new();
     let mut any_invalid = false;
 
@@ -276,24 +270,6 @@ fn strip_comments(content: &str) -> String {
         .filter(|line| !line.starts_with('#'))
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-/// Walk a revision range and collect (oid, message) pairs.
-fn walk_range(
-    repo: &git2::Repository,
-    range: &str,
-) -> Result<Vec<(git2::Oid, String)>, git2::Error> {
-    let mut revwalk = repo.revwalk()?;
-    revwalk.push_range(range)?;
-
-    let mut commits = Vec::new();
-    for oid in revwalk {
-        let oid = oid?;
-        let commit = repo.find_commit(oid)?;
-        let message = commit.message().unwrap_or("").to_string();
-        commits.push((oid, message));
-    }
-    Ok(commits)
 }
 
 fn print_diagnostic(message: &str, error: &standard_commit::ParseError) {

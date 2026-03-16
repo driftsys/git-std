@@ -5,7 +5,6 @@ use inquire::{
     validator::{ErrorMessage, Validation},
 };
 use standard_commit::ConventionalCommit;
-use std::path::Path;
 
 /// Options passed from CLI flags to the commit flow.
 pub struct CommitOptions {
@@ -79,16 +78,18 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
         return 0;
     }
 
+    let dir = std::path::Path::new(".");
+
     // Stage all tracked modified files if --all is set.
     if opts.all
-        && let Err(e) = stage_tracked_modified(".")
+        && let Err(e) = crate::git::stage_tracked_modified(dir)
     {
         ui::error(&e.to_string());
         return 1;
     }
 
     if opts.sign {
-        match create_commit_signed(&message, opts.amend) {
+        match crate::git::create_signed_commit_amend(dir, &message, opts.amend) {
             Ok(()) => 0,
             Err(e) => {
                 ui::error(&e.to_string());
@@ -96,7 +97,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
             }
         }
     } else if opts.amend {
-        match amend_commit(".", &message) {
+        match crate::git::amend_commit(dir, &message) {
             Ok(()) => 0,
             Err(e) => {
                 ui::error(&e.to_string());
@@ -104,7 +105,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
             }
         }
     } else {
-        match create_commit(".", &message) {
+        match crate::git::create_commit(dir, &message) {
             Ok(()) => 0,
             Err(e) => {
                 ui::error(&e.to_string());
@@ -264,71 +265,6 @@ fn prompt_refs() -> Result<Vec<String>, Box<dyn std::error::Error>> {
     Ok(refs)
 }
 
-/// Stage all tracked modified files (equivalent to `git add -u`).
-fn stage_tracked_modified(path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
-    let repo = git2::Repository::discover(path)?;
-    let mut index = repo.index()?;
-    index.update_all(["*"].iter(), None)?;
-    index.write()?;
-    Ok(())
-}
-
-/// Create a new commit using git2.
-fn create_commit(path: impl AsRef<Path>, message: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let repo = git2::Repository::discover(path)?;
-    let sig = repo.signature()?;
-    let mut index = repo.index()?;
-    let tree_oid = index.write_tree()?;
-    let tree = repo.find_tree(tree_oid)?;
-
-    let parent = match repo.head() {
-        Ok(head) => Some(head.peel_to_commit()?),
-        Err(e) if e.code() == git2::ErrorCode::UnbornBranch => None,
-        Err(e) => return Err(e.into()),
-    };
-
-    let parents: Vec<&git2::Commit> = parent.iter().collect();
-    repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)?;
-
-    Ok(())
-}
-
-/// Amend the previous commit with a new message using git2.
-fn amend_commit(path: impl AsRef<Path>, message: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let repo = git2::Repository::discover(path)?;
-    let sig = repo.signature()?;
-    let mut index = repo.index()?;
-    let tree_oid = index.write_tree()?;
-    let tree = repo.find_tree(tree_oid)?;
-
-    let head = repo.head()?.peel_to_commit()?;
-    head.amend(
-        Some("HEAD"),
-        Some(&sig),
-        Some(&sig),
-        None,
-        Some(message),
-        Some(&tree),
-    )?;
-
-    Ok(())
-}
-
-/// Create a signed commit by shelling out to `git commit`.
-fn create_commit_signed(message: &str, amend: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let mut cmd = std::process::Command::new("git");
-    cmd.args(["commit", "-S", "-m", message]);
-    if amend {
-        cmd.arg("--amend");
-    }
-    let status = cmd.status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("git commit exited with status {status}").into())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -461,76 +397,78 @@ mod tests {
     }
 
     /// Helper: create a temp repo with one committed file.
-    fn init_test_repo() -> (tempfile::TempDir, git2::Repository) {
+    fn init_test_repo() -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
-        let repo = git2::Repository::init(dir.path()).unwrap();
+        let p = dir.path();
+        git(p, &["init"]);
+        git(p, &["config", "user.name", "Test"]);
+        git(p, &["config", "user.email", "test@test.com"]);
 
-        let mut config = repo.config().unwrap();
-        config.set_str("user.name", "Test").unwrap();
-        config.set_str("user.email", "test@test.com").unwrap();
+        std::fs::write(p.join("hello.txt"), "hello").unwrap();
+        git(p, &["add", "hello.txt"]);
+        git(p, &["commit", "-m", "feat: initial commit"]);
 
-        let file_path = dir.path().join("hello.txt");
-        std::fs::write(&file_path, "hello").unwrap();
-        let mut index = repo.index().unwrap();
-        index.add_path(std::path::Path::new("hello.txt")).unwrap();
-        index.write().unwrap();
+        dir
+    }
 
-        create_commit(dir.path(), "feat: initial commit").unwrap();
+    fn git(dir: &std::path::Path, args: &[&str]) -> String {
+        let output = std::process::Command::new("git")
+            .current_dir(dir)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    }
 
-        (dir, repo)
+    fn head_message(dir: &std::path::Path) -> String {
+        git(dir, &["log", "-1", "--format=%s"])
     }
 
     #[test]
     fn create_commit_writes_to_repo() {
         let dir = tempfile::tempdir().unwrap();
-        let repo = git2::Repository::init(dir.path()).unwrap();
+        let p = dir.path();
+        git(p, &["init"]);
+        git(p, &["config", "user.name", "Test"]);
+        git(p, &["config", "user.email", "test@test.com"]);
 
-        let mut config = repo.config().unwrap();
-        config.set_str("user.name", "Test").unwrap();
-        config.set_str("user.email", "test@test.com").unwrap();
+        std::fs::write(p.join("hello.txt"), "hello").unwrap();
+        git(p, &["add", "hello.txt"]);
+        git(p, &["commit", "-m", "feat: initial commit"]);
 
-        let file_path = dir.path().join("hello.txt");
-        std::fs::write(&file_path, "hello").unwrap();
-        let mut index = repo.index().unwrap();
-        index.add_path(std::path::Path::new("hello.txt")).unwrap();
-        index.write().unwrap();
-
-        let result = create_commit(dir.path(), "feat: initial commit");
-        assert!(result.is_ok());
-
-        let head = repo.head().unwrap().peel_to_commit().unwrap();
-        assert_eq!(head.message().unwrap(), "feat: initial commit");
+        assert_eq!(head_message(p), "feat: initial commit");
     }
 
     #[test]
     fn amend_commit_updates_message() {
-        let (dir, _repo) = init_test_repo();
+        let dir = init_test_repo();
+        let p = dir.path();
 
-        amend_commit(dir.path(), "fix: amended commit").unwrap();
-
-        let repo = git2::Repository::open(dir.path()).unwrap();
-        let head = repo.head().unwrap().peel_to_commit().unwrap();
-        assert_eq!(head.message().unwrap(), "fix: amended commit");
+        crate::git::amend_commit(p, "fix: amended commit").unwrap();
+        assert_eq!(head_message(p), "fix: amended commit");
     }
 
     #[test]
     fn stage_tracked_modified_adds_changes() {
-        let (dir, _repo) = init_test_repo();
+        let dir = init_test_repo();
+        let p = dir.path();
 
         // Modify the tracked file (without staging).
-        std::fs::write(dir.path().join("hello.txt"), "modified").unwrap();
+        std::fs::write(p.join("hello.txt"), "modified").unwrap();
 
         // stage_tracked_modified should pick it up.
-        stage_tracked_modified(dir.path()).unwrap();
+        crate::git::stage_tracked_modified(p).unwrap();
 
-        // Re-open repo to get a fresh index reflecting the staged changes.
-        let repo = git2::Repository::open(dir.path()).unwrap();
-        let index = repo.index().unwrap();
-        let entry = index
-            .get_path(std::path::Path::new("hello.txt"), 0)
-            .unwrap();
-        let blob = repo.find_blob(entry.id).unwrap();
-        assert_eq!(std::str::from_utf8(blob.content()).unwrap(), "modified");
+        // Verify it's staged by committing and checking the content.
+        git(p, &["commit", "-m", "chore: update"]);
+        let content = git(p, &["show", "HEAD:hello.txt"]);
+        assert_eq!(content, "modified");
     }
 
     #[test]

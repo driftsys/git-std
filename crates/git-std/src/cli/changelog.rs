@@ -17,33 +17,27 @@ pub struct ChangelogOptions {
 
 /// Run the changelog subcommand. Returns the exit code.
 pub fn run(config: &ChangelogConfig, opts: &ChangelogOptions) -> i32 {
-    let repo = match git2::Repository::discover(".") {
-        Ok(r) => r,
-        Err(e) => {
-            ui::error(&format!("cannot open repository: {e}"));
-            return 1;
-        }
-    };
+    let dir = std::path::Path::new(".");
 
-    let host = git::detect_host_from_repo(&repo);
+    let host = git::detect_host(dir);
 
     if let Some(ref range) = opts.range {
-        run_range(&repo, config, &host, opts, range)
+        run_range(dir, config, &host, opts, range)
     } else if opts.full {
-        run_full(&repo, config, &host, opts)
+        run_full(dir, config, &host, opts)
     } else {
-        run_incremental(&repo, config, &host, opts)
+        run_incremental(dir, config, &host, opts)
     }
 }
 
 /// Full regeneration: render all releases from git history.
 fn run_full(
-    repo: &git2::Repository,
+    dir: &std::path::Path,
     config: &ChangelogConfig,
     host: &RepoHost,
     opts: &ChangelogOptions,
 ) -> i32 {
-    let releases = match build_releases(repo, config) {
+    let releases = match build_releases(dir, config) {
         Ok(r) => r,
         Err(e) => {
             ui::error(&e.to_string());
@@ -62,12 +56,12 @@ fn run_full(
 
 /// Incremental: render only unreleased commits and prepend to existing file.
 fn run_incremental(
-    repo: &git2::Repository,
+    dir: &std::path::Path,
     config: &ChangelogConfig,
     host: &RepoHost,
     opts: &ChangelogOptions,
 ) -> i32 {
-    let release = match build_unreleased(repo, config) {
+    let release = match build_unreleased(dir, config) {
         Ok(Some(r)) => r,
         Ok(None) => {
             eprintln!("no unreleased changes found");
@@ -105,17 +99,17 @@ fn write_output(content: &str, opts: &ChangelogOptions) -> i32 {
     0
 }
 
-/// Convert raw `(git2::Oid, String)` commits to `(&str, &str)` pairs and call
+/// Convert raw `(String, String)` commits to `(&str, &str)` pairs and call
 /// `standard_changelog::build_release`.
-fn build_release_from_oid_commits(
-    commits: &[(git2::Oid, String)],
+pub(crate) fn build_release_from_commits(
+    commits: &[(String, String)],
     version: &str,
     prev_tag: Option<&str>,
     config: &ChangelogConfig,
 ) -> Option<VersionRelease> {
     let pairs: Vec<(String, &str)> = commits
         .iter()
-        .map(|(oid, msg)| (format!("{oid}")[..7].to_string(), msg.as_str()))
+        .map(|(oid, msg)| (oid[..7].to_string(), msg.as_str()))
         .collect();
     let refs: Vec<(&str, &str)> = pairs.iter().map(|(h, m)| (h.as_str(), *m)).collect();
     standard_changelog::build_release(&refs, version, prev_tag, config)
@@ -123,35 +117,34 @@ fn build_release_from_oid_commits(
 
 /// Build only the unreleased version (commits since the last tag).
 fn build_unreleased(
-    repo: &git2::Repository,
+    dir: &std::path::Path,
     config: &ChangelogConfig,
 ) -> Result<Option<VersionRelease>, Box<dyn std::error::Error>> {
-    let tags = git::collect_tags(repo)?;
+    let tags = git::collect_tags(dir)?;
 
-    let head_oid = repo.head()?.peel_to_commit()?.id();
-    let newest_tag_oid = tags.first().map(|(oid, _)| *oid);
+    let head_oid = git::head_oid(dir)?;
+    let newest_tag_oid = tags.first().map(|(oid, _)| oid.as_str());
 
-    if newest_tag_oid == Some(head_oid) {
+    if newest_tag_oid == Some(head_oid.as_str()) {
         return Ok(None);
     }
 
-    let commits = git::walk_commits(repo, head_oid, newest_tag_oid)?;
+    let commits = git::walk_commits(dir, &head_oid, newest_tag_oid)?;
     let newest_tag_name = tags.first().map(|(_, name)| name.as_str());
 
     let mut release =
-        match build_release_from_oid_commits(&commits, "Unreleased", newest_tag_name, config) {
+        match build_release_from_commits(&commits, "Unreleased", newest_tag_name, config) {
             Some(r) => r,
             None => return Ok(None),
         };
 
-    let head_commit = repo.find_commit(head_oid)?;
-    release.date = git::format_commit_date(&head_commit);
+    release.date = git::commit_date(dir, &head_oid)?;
     Ok(Some(release))
 }
 
 /// Render a changelog for a specific git revision range (e.g. `v1.0.0..v2.0.0`).
 fn run_range(
-    repo: &git2::Repository,
+    dir: &std::path::Path,
     config: &ChangelogConfig,
     host: &RepoHost,
     opts: &ChangelogOptions,
@@ -165,29 +158,23 @@ fn run_range(
         }
     };
 
-    let from_oid = match repo
-        .revparse_single(from_spec)
-        .and_then(|o| o.peel_to_commit())
-    {
-        Ok(c) => c.id(),
+    let from_oid = match git::resolve_rev(dir, from_spec) {
+        Ok(oid) => oid,
         Err(e) => {
             ui::error(&format!("cannot resolve '{from_spec}': {e}"));
             return 1;
         }
     };
 
-    let to_oid = match repo
-        .revparse_single(to_spec)
-        .and_then(|o| o.peel_to_commit())
-    {
-        Ok(c) => c.id(),
+    let to_oid = match git::resolve_rev(dir, to_spec) {
+        Ok(oid) => oid,
         Err(e) => {
             ui::error(&format!("cannot resolve '{to_spec}': {e}"));
             return 1;
         }
     };
 
-    let commits = match git::walk_commits(repo, to_oid, Some(from_oid)) {
+    let commits = match git::walk_commits(dir, &to_oid, Some(&from_oid)) {
         Ok(c) => c,
         Err(e) => {
             ui::error(&e.to_string());
@@ -198,11 +185,11 @@ fn run_range(
     // Use the "to" ref as the version label, stripping a leading 'v' if present.
     let version = to_spec.strip_prefix('v').unwrap_or(to_spec);
 
-    let release = match build_release_from_oid_commits(&commits, version, Some(from_spec), config) {
+    let release = match build_release_from_commits(&commits, version, Some(from_spec), config) {
         Some(mut r) => {
             // Use the commit date of the "to" ref.
-            if let Ok(commit) = repo.find_commit(to_oid) {
-                r.date = git::format_commit_date(&commit);
+            if let Ok(date) = git::commit_date(dir, &to_oid) {
+                r.date = date;
             }
             r
         }
@@ -225,41 +212,39 @@ fn run_range(
 
 /// Build version releases from git history.
 fn build_releases(
-    repo: &git2::Repository,
+    dir: &std::path::Path,
     config: &ChangelogConfig,
 ) -> Result<Vec<VersionRelease>, Box<dyn std::error::Error>> {
-    let tags = git::collect_tags(repo)?;
+    let tags = git::collect_tags(dir)?;
 
     let mut releases = Vec::new();
 
     // Collect commits between HEAD and the newest tag as "Unreleased".
-    let head_oid = repo.head()?.peel_to_commit()?.id();
-    let newest_tag_oid = tags.first().map(|(oid, _)| *oid);
-    if newest_tag_oid != Some(head_oid) {
-        let unreleased_commits = git::walk_commits(repo, head_oid, newest_tag_oid)?;
+    let head_oid = git::head_oid(dir)?;
+    let newest_tag_oid = tags.first().map(|(oid, _)| oid.as_str());
+    if newest_tag_oid != Some(head_oid.as_str()) {
+        let unreleased_commits = git::walk_commits(dir, &head_oid, newest_tag_oid)?;
         if let Some(release) =
-            build_release_from_oid_commits(&unreleased_commits, "Unreleased", None, config)
+            build_release_from_commits(&unreleased_commits, "Unreleased", None, config)
         {
-            let head_commit = repo.find_commit(head_oid)?;
             let mut release = release;
-            release.date = git::format_commit_date(&head_commit);
+            release.date = git::commit_date(dir, &head_oid)?;
             releases.push(release);
         }
     }
 
     for (i, (tag_oid, tag_name)) in tags.iter().enumerate() {
         let prev_tag = tags.get(i + 1).map(|(_, name)| name.clone());
-        let prev_oid = tags.get(i + 1).map(|(oid, _)| *oid);
+        let prev_oid = tags.get(i + 1).map(|(oid, _)| oid.as_str());
 
         let version = tag_name.strip_prefix('v').unwrap_or(tag_name);
 
-        let tag_commit = repo.find_commit(*tag_oid)?;
-        let date = git::format_commit_date(&tag_commit);
+        let date = git::commit_date(dir, tag_oid)?;
 
-        let commits = git::walk_commits(repo, *tag_oid, prev_oid)?;
+        let commits = git::walk_commits(dir, tag_oid, prev_oid)?;
 
         if let Some(mut release) =
-            build_release_from_oid_commits(&commits, version, prev_tag.as_deref(), config)
+            build_release_from_commits(&commits, version, prev_tag.as_deref(), config)
         {
             release.date = date;
             releases.push(release);

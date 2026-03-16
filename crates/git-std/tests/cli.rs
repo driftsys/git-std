@@ -48,7 +48,8 @@ fn unknown_subcommand_exits_2() {
 
 #[test]
 fn stub_subcommands_are_recognized() {
-    for sub in ["self-update"] {
+    {
+        let sub = "self-update";
         Command::cargo_bin("git-std")
             .unwrap()
             .arg(sub)
@@ -157,42 +158,84 @@ fn commit_short_flags() {
 
 // --- Commit integration tests (actual repo) ---
 
+/// Helper: run a git command and return stdout.
+fn git(dir: &Path, args: &[&str]) -> String {
+    let output = std::process::Command::new("git")
+        .current_dir(dir)
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {:?} failed: {}",
+        args,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
+/// Helper: get HEAD commit message.
+fn head_message(dir: &Path) -> String {
+    git(dir, &["log", "-1", "--format=%B"]).trim().to_string()
+}
+
+/// Helper: check if a tag exists.
+fn tag_exists(dir: &Path, tag: &str) -> bool {
+    std::process::Command::new("git")
+        .current_dir(dir)
+        .args(["rev-parse", "--verify", &format!("refs/tags/{tag}")])
+        .output()
+        .unwrap()
+        .status
+        .success()
+}
+
+/// Helper: check if a branch exists.
+fn branch_exists(dir: &Path, branch: &str) -> bool {
+    std::process::Command::new("git")
+        .current_dir(dir)
+        .args(["rev-parse", "--verify", &format!("refs/heads/{branch}")])
+        .output()
+        .unwrap()
+        .status
+        .success()
+}
+
+/// Helper: count commits in repo.
+fn commit_count(dir: &Path) -> usize {
+    let output = git(dir, &["rev-list", "--count", "HEAD"]);
+    output.parse().unwrap()
+}
+
+/// Helper: collect all tag names.
+fn collect_tag_names(dir: &Path) -> Vec<String> {
+    let output = git(dir, &["tag", "-l"]);
+    if output.is_empty() {
+        vec![]
+    } else {
+        output.lines().map(|s| s.to_string()).collect()
+    }
+}
+
 /// Helper: initialise a git repo with one committed file (for commit tests).
-fn init_commit_repo(dir: &Path) -> git2::Repository {
-    let repo = git2::Repository::init(dir).unwrap();
-    {
-        let mut config = repo.config().unwrap();
-        config.set_str("user.name", "Test").unwrap();
-        config.set_str("user.email", "test@test.com").unwrap();
-    }
+fn init_commit_repo(dir: &Path) {
+    git(dir, &["init"]);
+    git(dir, &["config", "user.name", "Test"]);
+    git(dir, &["config", "user.email", "test@test.com"]);
 
-    let file_path = dir.join("hello.txt");
-    std::fs::write(&file_path, "hello").unwrap();
-    {
-        let mut index = repo.index().unwrap();
-        index.add_path(Path::new("hello.txt")).unwrap();
-        index.write().unwrap();
-
-        let tree_oid = index.write_tree().unwrap();
-        let tree = repo.find_tree(tree_oid).unwrap();
-        let sig = repo.signature().unwrap();
-        repo.commit(Some("HEAD"), &sig, &sig, "chore: init", &tree, &[])
-            .unwrap();
-    }
-
-    repo
+    std::fs::write(dir.join("hello.txt"), "hello").unwrap();
+    git(dir, &["add", "hello.txt"]);
+    git(dir, &["commit", "-m", "chore: init"]);
 }
 
 #[test]
 fn commit_actual_execution() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_commit_repo(dir.path());
+    init_commit_repo(dir.path());
 
     // Stage a new file so the commit has content.
     std::fs::write(dir.path().join("feature.txt"), "feature").unwrap();
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new("feature.txt")).unwrap();
-    index.write().unwrap();
+    git(dir.path(), &["add", "feature.txt"]);
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -201,20 +244,16 @@ fn commit_actual_execution() {
         .assert()
         .success();
 
-    let repo = git2::Repository::open(dir.path()).unwrap();
-    let head = repo.head().unwrap().peel_to_commit().unwrap();
-    assert_eq!(head.message().unwrap(), "feat: add feature");
+    assert_eq!(head_message(dir.path()), "feat: add feature");
 }
 
 #[test]
 fn commit_with_scope() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_commit_repo(dir.path());
+    init_commit_repo(dir.path());
 
     std::fs::write(dir.path().join("login.txt"), "login").unwrap();
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new("login.txt")).unwrap();
-    index.write().unwrap();
+    git(dir.path(), &["add", "login.txt"]);
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -231,20 +270,16 @@ fn commit_with_scope() {
         .assert()
         .success();
 
-    let repo = git2::Repository::open(dir.path()).unwrap();
-    let head = repo.head().unwrap().peel_to_commit().unwrap();
-    assert_eq!(head.message().unwrap(), "feat(auth): add login");
+    assert_eq!(head_message(dir.path()), "feat(auth): add login");
 }
 
 #[test]
 fn commit_with_breaking() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_commit_repo(dir.path());
+    init_commit_repo(dir.path());
 
     std::fs::write(dir.path().join("api.txt"), "new api").unwrap();
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new("api.txt")).unwrap();
-    index.write().unwrap();
+    git(dir.path(), &["add", "api.txt"]);
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -261,9 +296,7 @@ fn commit_with_breaking() {
         .assert()
         .success();
 
-    let repo = git2::Repository::open(dir.path()).unwrap();
-    let head = repo.head().unwrap().peel_to_commit().unwrap();
-    let msg = head.message().unwrap();
+    let msg = git(dir.path(), &["log", "-1", "--format=%B"]);
     assert!(msg.starts_with("feat!: new auth"), "got: {msg}");
     assert!(
         msg.contains("BREAKING CHANGE: remove old API"),
@@ -274,13 +307,11 @@ fn commit_with_breaking() {
 #[test]
 fn commit_amend() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_commit_repo(dir.path());
+    init_commit_repo(dir.path());
 
     // Create a commit to amend.
     std::fs::write(dir.path().join("bug.txt"), "bug").unwrap();
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new("bug.txt")).unwrap();
-    index.write().unwrap();
+    git(dir.path(), &["add", "bug.txt"]);
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -297,18 +328,14 @@ fn commit_amend() {
         .assert()
         .success();
 
-    let repo = git2::Repository::open(dir.path()).unwrap();
-    let head = repo.head().unwrap().peel_to_commit().unwrap();
-    assert_eq!(head.message().unwrap(), "fix: corrected");
+    assert_eq!(head_message(dir.path()), "fix: corrected");
 
     // Verify amend didn't create an extra commit — should be 2 total (init + amended).
-    let mut count = 0;
-    let mut revwalk = repo.revwalk().unwrap();
-    revwalk.push_head().unwrap();
-    for _ in revwalk {
-        count += 1;
-    }
-    assert_eq!(count, 2, "amend should not create a new commit");
+    assert_eq!(
+        commit_count(dir.path()),
+        2,
+        "amend should not create a new commit"
+    );
 }
 
 #[test]
@@ -326,15 +353,11 @@ fn commit_all_flag() {
         .assert()
         .success();
 
-    let repo = git2::Repository::open(dir.path()).unwrap();
-    let head = repo.head().unwrap().peel_to_commit().unwrap();
-    assert_eq!(head.message().unwrap(), "fix: fix");
+    assert_eq!(head_message(dir.path()), "fix: fix");
 
     // Verify the modified content was committed.
-    let tree = head.tree().unwrap();
-    let entry = tree.get_name("hello.txt").unwrap();
-    let blob = repo.find_blob(entry.id()).unwrap();
-    assert_eq!(std::str::from_utf8(blob.content()).unwrap(), "modified");
+    let content = git(dir.path(), &["show", "HEAD:hello.txt"]);
+    assert_eq!(content, "modified");
 }
 
 #[test]
@@ -359,13 +382,10 @@ fn commit_combined_flags() {
 // --- Bump integration tests ---
 
 /// Helper: initialise a git repo with a Cargo.toml and one commit.
-fn init_bump_repo(dir: &Path) -> git2::Repository {
-    let repo = git2::Repository::init(dir).unwrap();
-    {
-        let mut config = repo.config().unwrap();
-        config.set_str("user.name", "Test").unwrap();
-        config.set_str("user.email", "test@test.com").unwrap();
-    }
+fn init_bump_repo(dir: &Path) {
+    git(dir, &["init"]);
+    git(dir, &["config", "user.name", "Test"]);
+    git(dir, &["config", "user.email", "test@test.com"]);
 
     // Write a minimal Cargo.toml.
     std::fs::write(
@@ -374,54 +394,20 @@ fn init_bump_repo(dir: &Path) -> git2::Repository {
     )
     .unwrap();
 
-    // Stage and commit.
-    {
-        let mut index = repo.index().unwrap();
-        index.add_path(Path::new("Cargo.toml")).unwrap();
-        index.write().unwrap();
-        let tree_oid = index.write_tree().unwrap();
-        let tree = repo.find_tree(tree_oid).unwrap();
-        let sig = repo.signature().unwrap();
-        repo.commit(Some("HEAD"), &sig, &sig, "chore: init", &tree, &[])
-            .unwrap();
-    }
-
-    repo
+    git(dir, &["add", "Cargo.toml"]);
+    git(dir, &["commit", "-m", "chore: init"]);
 }
 
 /// Helper: add a commit to a repo.
-fn add_commit(repo: &git2::Repository, dir: &Path, filename: &str, message: &str) {
+fn add_commit(dir: &Path, filename: &str, message: &str) {
     std::fs::write(dir.join(filename), message).unwrap();
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new(filename)).unwrap();
-    index.write().unwrap();
-    let tree_oid = index.write_tree().unwrap();
-    let tree = repo.find_tree(tree_oid).unwrap();
-    let sig = repo.signature().unwrap();
-    let parent = repo.head().unwrap().peel_to_commit().unwrap();
-    repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent])
-        .unwrap();
+    git(dir, &["add", filename]);
+    git(dir, &["commit", "-m", message]);
 }
 
 /// Helper: create an annotated tag.
-fn create_tag(repo: &git2::Repository, name: &str) {
-    let sig = repo.signature().unwrap();
-    let head = repo.head().unwrap().peel_to_commit().unwrap();
-    let obj = head.as_object();
-    repo.tag(name, obj, &sig, name, false).unwrap();
-}
-
-/// Helper: collect all tag names from a repo.
-fn collect_tag_names(repo: &git2::Repository) -> Vec<String> {
-    let mut names = Vec::new();
-    repo.tag_foreach(|_oid, name_bytes| {
-        let name = String::from_utf8_lossy(name_bytes).to_string();
-        let name = name.strip_prefix("refs/tags/").unwrap_or(&name).to_string();
-        names.push(name);
-        true
-    })
-    .unwrap();
-    names
+fn create_tag(dir: &Path, name: &str) {
+    git(dir, &["tag", "-a", name, "-m", name]);
 }
 
 #[test]
@@ -453,13 +439,13 @@ fn bump_help_shows_flags() {
 #[test]
 fn bump_dry_run_shows_plan() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
+    init_bump_repo(dir.path());
 
     // Tag v0.1.0 on the init commit.
-    create_tag(&repo, "v0.1.0");
+    create_tag(dir.path(), "v0.1.0");
 
     // Add a feat commit.
-    add_commit(&repo, dir.path(), "a.txt", "feat: add feature A");
+    add_commit(dir.path(), "a.txt", "feat: add feature A");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -475,9 +461,9 @@ fn bump_dry_run_shows_plan() {
 #[test]
 fn bump_dry_run_no_writes() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v0.1.0");
-    add_commit(&repo, dir.path(), "a.txt", "feat: add feature A");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v0.1.0");
+    add_commit(dir.path(), "a.txt", "feat: add feature A");
 
     // Read Cargo.toml before.
     let before = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
@@ -500,11 +486,11 @@ fn bump_dry_run_no_writes() {
 #[test]
 fn bump_performs_full_workflow() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
     // Add a fix commit.
-    add_commit(&repo, dir.path(), "b.txt", "fix: handle edge case");
+    add_commit(dir.path(), "b.txt", "fix: handle edge case");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -524,22 +510,20 @@ fn bump_performs_full_workflow() {
     assert!(dir.path().join("CHANGELOG.md").exists());
 
     // Verify the tag exists.
-    let tag = repo.find_reference("refs/tags/v1.0.1");
-    assert!(tag.is_ok(), "tag v1.0.1 should exist");
+    assert!(tag_exists(dir.path(), "v1.0.1"), "tag v1.0.1 should exist");
 
     // Verify commit message.
-    let head = repo.head().unwrap().peel_to_commit().unwrap();
-    assert_eq!(head.message().unwrap(), "chore(release): 1.0.1");
+    assert_eq!(head_message(dir.path()), "chore(release): 1.0.1");
 }
 
 #[test]
 fn bump_no_bump_worthy_commits() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
     // Add a non-bump commit.
-    add_commit(&repo, dir.path(), "c.txt", "chore: update deps");
+    add_commit(dir.path(), "c.txt", "chore: update deps");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -553,10 +537,10 @@ fn bump_no_bump_worthy_commits() {
 #[test]
 fn bump_major_on_breaking_change() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.2.3");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.2.3");
 
-    add_commit(&repo, dir.path(), "d.txt", "feat!: remove old API");
+    add_commit(dir.path(), "d.txt", "feat!: remove old API");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -570,9 +554,9 @@ fn bump_major_on_breaking_change() {
 #[test]
 fn bump_no_commit_flag() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
-    add_commit(&repo, dir.path(), "e.txt", "feat: new thing");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "e.txt", "feat: new thing");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -586,19 +570,18 @@ fn bump_no_commit_flag() {
     assert!(cargo.contains("version = \"1.1.0\""));
 
     // No release commit should exist.
-    let head = repo.head().unwrap().peel_to_commit().unwrap();
-    assert_ne!(head.message().unwrap(), "chore(release): 1.1.0");
+    assert_ne!(head_message(dir.path()), "chore(release): 1.1.0");
 
     // No tag should exist.
-    assert!(repo.find_reference("refs/tags/v1.1.0").is_err());
+    assert!(!tag_exists(dir.path(), "v1.1.0"));
 }
 
 #[test]
 fn bump_skip_changelog() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
-    add_commit(&repo, dir.path(), "f.txt", "fix: a fix");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "f.txt", "fix: a fix");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -614,9 +597,9 @@ fn bump_skip_changelog() {
 #[test]
 fn bump_release_as() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
-    add_commit(&repo, dir.path(), "g.txt", "fix: a fix");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "g.txt", "fix: a fix");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -633,9 +616,9 @@ fn bump_release_as() {
 #[test]
 fn bump_first_release() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
+    init_bump_repo(dir.path());
     // No tags — first release. Add a feat commit so the changelog has content.
-    add_commit(&repo, dir.path(), "init.txt", "feat: initial feature");
+    add_commit(dir.path(), "init.txt", "feat: initial feature");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -691,13 +674,13 @@ fn assert_calver_format(ver: &str) {
 #[test]
 fn bump_full_release_cycle() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
+    init_bump_repo(dir.path());
 
     // Write a .git-std.toml with calver scheme.
     std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"calver\"\n").unwrap();
 
     // Add a feat commit.
-    add_commit(&repo, dir.path(), "a.txt", "feat: first feature");
+    add_commit(dir.path(), "a.txt", "feat: first feature");
 
     // First release.
     Command::cargo_bin("git-std")
@@ -711,7 +694,7 @@ fn bump_full_release_cycle() {
         .stderr(predicate::str::contains("Tagged"));
 
     // Verify a tag was created.
-    let tags = collect_tag_names(&repo);
+    let tags = collect_tag_names(dir.path());
     assert!(!tags.is_empty(), "at least one tag should exist after bump");
 
     // Verify the first tag matches calver format: vYYYY.MM.PATCH
@@ -732,7 +715,7 @@ fn bump_full_release_cycle() {
     );
 
     // Second bump: add another commit, should increment patch.
-    add_commit(&repo, dir.path(), "b.txt", "fix: a bugfix");
+    add_commit(dir.path(), "b.txt", "fix: a bugfix");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -743,7 +726,7 @@ fn bump_full_release_cycle() {
         .stderr(predicate::str::contains("calver"));
 
     // Should now have two tags.
-    let tags2 = collect_tag_names(&repo);
+    let tags2 = collect_tag_names(dir.path());
     assert!(
         tags2.len() >= 2,
         "should have at least 2 tags after second bump, got: {}",
@@ -783,11 +766,11 @@ fn bump_full_release_cycle() {
 #[test]
 fn bump_prerelease_cycle() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
     // Add a feat commit.
-    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
 
     // First pre-release bump.
     Command::cargo_bin("git-std")
@@ -799,11 +782,13 @@ fn bump_prerelease_cycle() {
         .stderr(predicate::str::contains("1.0.0 → 1.1.0-rc.0"));
 
     // Verify tag.
-    let tag = repo.find_reference("refs/tags/v1.1.0-rc.0");
-    assert!(tag.is_ok(), "tag v1.1.0-rc.0 should exist");
+    assert!(
+        tag_exists(dir.path(), "v1.1.0-rc.0"),
+        "tag v1.1.0-rc.0 should exist"
+    );
 
     // Second pre-release bump.
-    add_commit(&repo, dir.path(), "b.txt", "fix: a fix");
+    add_commit(dir.path(), "b.txt", "fix: a fix");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -814,18 +799,19 @@ fn bump_prerelease_cycle() {
         .stderr(predicate::str::contains("1.1.0-rc.0 → 1.1.0-rc.1"));
 
     // Verify second tag.
-    let tag2 = repo.find_reference("refs/tags/v1.1.0-rc.1");
-    assert!(tag2.is_ok(), "tag v1.1.0-rc.1 should exist");
+    assert!(
+        tag_exists(dir.path(), "v1.1.0-rc.1"),
+        "tag v1.1.0-rc.1 should exist"
+    );
 }
 
 // --- Hooks install integration tests ---
 
 /// Helper: initialise a git repo for hooks tests.
 fn init_hooks_repo(dir: &Path) {
-    let repo = git2::Repository::init(dir).unwrap();
-    let mut config = repo.config().unwrap();
-    config.set_str("user.name", "Test").unwrap();
-    config.set_str("user.email", "test@test.com").unwrap();
+    git(dir, &["init"]);
+    git(dir, &["config", "user.name", "Test"]);
+    git(dir, &["config", "user.email", "test@test.com"]);
 }
 
 #[test]
@@ -1243,12 +1229,9 @@ fn hooks_run_commit_msg_good_message_passes() {
 #[test]
 fn hooks_full_install_cycle() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = git2::Repository::init(dir.path()).unwrap();
-    {
-        let mut config = repo.config().unwrap();
-        config.set_str("user.name", "Test").unwrap();
-        config.set_str("user.email", "test@test.com").unwrap();
-    }
+    git(dir.path(), &["init"]);
+    git(dir.path(), &["config", "user.name", "Test"]);
+    git(dir.path(), &["config", "user.email", "test@test.com"]);
 
     let hooks_dir = dir.path().join(".githooks");
     std::fs::create_dir_all(&hooks_dir).unwrap();
@@ -1279,8 +1262,7 @@ fn hooks_full_install_cycle() {
         .success();
 
     // Verify core.hooksPath is set.
-    let repo_config = repo.config().unwrap();
-    let hooks_path = repo_config.get_string("core.hooksPath").unwrap();
+    let hooks_path = git(dir.path(), &["config", "core.hooksPath"]);
     assert_eq!(hooks_path, ".githooks");
 
     // Verify shims exist and are executable.
@@ -1343,11 +1325,10 @@ fn hooks_full_install_cycle() {
     );
 
     // Verify the commit was created.
-    let head = repo.head().unwrap().peel_to_commit().unwrap();
+    let msg = head_message(dir.path());
     assert!(
-        head.message().unwrap().starts_with("feat: add hello"),
-        "commit message should start with 'feat: add hello', got: {:?}",
-        head.message().unwrap()
+        msg.starts_with("feat: add hello"),
+        "commit message should start with 'feat: add hello', got: {msg:?}",
     );
 }
 
@@ -1457,12 +1438,12 @@ fn hooks_run_fail_fast_prefix_overrides_collect_mode() {
 #[test]
 fn changelog_range_valid_between_two_tags() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
-    add_commit(&repo, dir.path(), "a.txt", "feat: add feature A");
-    add_commit(&repo, dir.path(), "b.txt", "fix: fix bug B");
-    create_tag(&repo, "v1.1.0");
+    add_commit(dir.path(), "a.txt", "feat: add feature A");
+    add_commit(dir.path(), "b.txt", "fix: fix bug B");
+    create_tag(dir.path(), "v1.1.0");
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
@@ -1489,7 +1470,7 @@ fn changelog_range_valid_between_two_tags() {
 #[test]
 fn changelog_range_invalid_missing_dotdot() {
     let dir = tempfile::tempdir().unwrap();
-    let _repo = init_bump_repo(dir.path());
+    init_bump_repo(dir.path());
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1503,7 +1484,7 @@ fn changelog_range_invalid_missing_dotdot() {
 #[test]
 fn changelog_range_invalid_ref() {
     let dir = tempfile::tempdir().unwrap();
-    let _repo = init_bump_repo(dir.path());
+    init_bump_repo(dir.path());
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1522,12 +1503,12 @@ fn changelog_range_invalid_ref() {
 #[test]
 fn changelog_range_no_conventional_commits() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
     // Add only non-conventional commits.
-    add_commit(&repo, dir.path(), "a.txt", "random message with no type");
-    create_tag(&repo, "v1.0.1");
+    add_commit(dir.path(), "a.txt", "random message with no type");
+    create_tag(dir.path(), "v1.0.1");
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
@@ -1548,14 +1529,14 @@ fn changelog_range_no_conventional_commits() {
 #[test]
 fn bump_patch_scheme_produces_patch_from_feat() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
     // Write a .git-std.toml with patch scheme.
     std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"patch\"\n").unwrap();
 
     // Add a feat commit — should still produce a patch bump.
-    add_commit(&repo, dir.path(), "a.txt", "feat: add feature A");
+    add_commit(dir.path(), "a.txt", "feat: add feature A");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1567,21 +1548,20 @@ fn bump_patch_scheme_produces_patch_from_feat() {
         .stderr(predicate::str::contains("patch"));
 
     // Verify tag was created.
-    let tag = repo.find_reference("refs/tags/v1.0.1");
-    assert!(tag.is_ok(), "tag v1.0.1 should exist");
+    assert!(tag_exists(dir.path(), "v1.0.1"), "tag v1.0.1 should exist");
 }
 
 #[test]
 fn bump_patch_scheme_rejects_breaking_without_force() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
     // Write a .git-std.toml with patch scheme.
     std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"patch\"\n").unwrap();
 
     // Add a breaking change commit.
-    add_commit(&repo, dir.path(), "a.txt", "feat!: remove old API");
+    add_commit(dir.path(), "a.txt", "feat!: remove old API");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1597,14 +1577,14 @@ fn bump_patch_scheme_rejects_breaking_without_force() {
 #[test]
 fn bump_patch_scheme_allows_breaking_with_force() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
     // Write a .git-std.toml with patch scheme.
     std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"patch\"\n").unwrap();
 
     // Add a breaking change commit.
-    add_commit(&repo, dir.path(), "a.txt", "feat!: remove old API");
+    add_commit(dir.path(), "a.txt", "feat!: remove old API");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1616,8 +1596,7 @@ fn bump_patch_scheme_allows_breaking_with_force() {
         .stderr(predicate::str::contains("patch"));
 
     // Verify tag was created.
-    let tag = repo.find_reference("refs/tags/v1.0.1");
-    assert!(tag.is_ok(), "tag v1.0.1 should exist");
+    assert!(tag_exists(dir.path(), "v1.0.1"), "tag v1.0.1 should exist");
 }
 
 // --- Stable branch integration tests (#139) ---
@@ -1625,9 +1604,9 @@ fn bump_patch_scheme_allows_breaking_with_force() {
 #[test]
 fn bump_stable_creates_branch_and_bumps_major() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
-    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1645,14 +1624,12 @@ fn bump_stable_creates_branch_and_bumps_major() {
 
     // Verify the stable branch was created.
     assert!(
-        repo.find_branch("stable-v1.0", git2::BranchType::Local)
-            .is_ok(),
+        branch_exists(dir.path(), "stable-v1.0"),
         "stable-v1.0 branch should exist"
     );
 
     // Verify HEAD is back on the original branch with the new tag.
-    let tag = repo.find_reference("refs/tags/v2.0.0");
-    assert!(tag.is_ok(), "tag v2.0.0 should exist");
+    assert!(tag_exists(dir.path(), "v2.0.0"), "tag v2.0.0 should exist");
 
     // Verify main was bumped in Cargo.toml.
     let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
@@ -1662,19 +1639,7 @@ fn bump_stable_creates_branch_and_bumps_major() {
     );
 
     // Verify the stable branch has .git-std.toml with scheme = "patch".
-    let stable_ref = repo
-        .find_branch("stable-v1.0", git2::BranchType::Local)
-        .unwrap();
-    let stable_commit = stable_ref.get().peel_to_commit().unwrap();
-    let stable_tree = stable_commit.tree().unwrap();
-    let config_entry = stable_tree.get_name(".git-std.toml");
-    assert!(
-        config_entry.is_some(),
-        ".git-std.toml should exist on stable branch"
-    );
-
-    let config_blob = config_entry.unwrap().to_object(&repo).unwrap();
-    let config_content = std::str::from_utf8(config_blob.as_blob().unwrap().content()).unwrap();
+    let config_content = git(dir.path(), &["show", "stable-v1.0:.git-std.toml"]);
     assert!(
         config_content.contains("scheme = \"patch\""),
         "stable branch config should have scheme = \"patch\", got: {config_content}"
@@ -1684,9 +1649,9 @@ fn bump_stable_creates_branch_and_bumps_major() {
 #[test]
 fn bump_stable_with_minor_flag() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
-    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1698,8 +1663,7 @@ fn bump_stable_with_minor_flag() {
         .stderr(predicate::str::contains("minor"));
 
     // Verify the tag.
-    let tag = repo.find_reference("refs/tags/v1.1.0");
-    assert!(tag.is_ok(), "tag v1.1.0 should exist");
+    assert!(tag_exists(dir.path(), "v1.1.0"), "tag v1.1.0 should exist");
 
     // Verify Cargo.toml.
     let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
@@ -1712,9 +1676,9 @@ fn bump_stable_with_minor_flag() {
 #[test]
 fn bump_stable_custom_branch_name() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
-    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1726,8 +1690,7 @@ fn bump_stable_custom_branch_name() {
 
     // Verify the custom branch was created.
     assert!(
-        repo.find_branch("my-release-branch", git2::BranchType::Local)
-            .is_ok(),
+        branch_exists(dir.path(), "my-release-branch"),
         "my-release-branch should exist"
     );
 }
@@ -1735,9 +1698,9 @@ fn bump_stable_custom_branch_name() {
 #[test]
 fn bump_stable_dry_run() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
-    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1754,14 +1717,13 @@ fn bump_stable_dry_run() {
 
     // No branch should be created.
     assert!(
-        repo.find_branch("stable-v1.0", git2::BranchType::Local)
-            .is_err(),
+        !branch_exists(dir.path(), "stable-v1.0"),
         "stable-v1.0 branch should NOT exist in dry-run"
     );
 
     // No tag should be created.
     assert!(
-        repo.find_reference("refs/tags/v2.0.0").is_err(),
+        !tag_exists(dir.path(), "v2.0.0"),
         "tag v2.0.0 should NOT exist in dry-run"
     );
 }
@@ -1769,13 +1731,12 @@ fn bump_stable_dry_run() {
 #[test]
 fn bump_stable_rejects_existing_branch() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
-    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
 
     // Pre-create the branch that --stable would try to create.
-    let head = repo.head().unwrap().peel_to_commit().unwrap();
-    repo.branch("stable-v1.0", &head, false).unwrap();
+    git(dir.path(), &["branch", "stable-v1.0"]);
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1791,12 +1752,12 @@ fn bump_stable_rejects_existing_branch() {
 #[test]
 fn bump_stable_rejects_calver_scheme() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
+    init_bump_repo(dir.path());
 
     // Write a .git-std.toml with calver scheme.
     std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"calver\"\n").unwrap();
 
-    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1812,9 +1773,9 @@ fn bump_stable_rejects_calver_scheme() {
 #[test]
 fn bump_stable_rejects_dirty_working_tree() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
-    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
 
     // Create an uncommitted file to make the working tree dirty.
     std::fs::write(dir.path().join("dirty.txt"), "uncommitted").unwrap();
@@ -1835,8 +1796,8 @@ fn bump_stable_rejects_dirty_working_tree() {
 #[test]
 fn bump_custom_regex_version_file() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
     // Write a custom version file.
     std::fs::write(dir.path().join("version.txt"), "version = \"1.0.0\"\n").unwrap();
@@ -1851,7 +1812,7 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
     )
     .unwrap();
 
-    add_commit(&repo, dir.path(), "a.txt", "feat: add feature");
+    add_commit(dir.path(), "a.txt", "feat: add feature");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1876,8 +1837,8 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
 #[test]
 fn bump_multiple_custom_files() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
     // Write two custom version files.
     std::fs::write(dir.path().join("version.txt"), "version = \"1.0.0\"\n").unwrap();
@@ -1901,7 +1862,7 @@ regex = 'version:\s*(\S+)'
     )
     .unwrap();
 
-    add_commit(&repo, dir.path(), "a.txt", "feat: add feature");
+    add_commit(dir.path(), "a.txt", "feat: add feature");
 
     Command::cargo_bin("git-std")
         .unwrap()
@@ -1928,8 +1889,8 @@ regex = 'version:\s*(\S+)'
 #[test]
 fn bump_custom_file_missing() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
     // Config points to a nonexistent file.
     std::fs::write(
@@ -1941,7 +1902,7 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
     )
     .unwrap();
 
-    add_commit(&repo, dir.path(), "a.txt", "feat: add feature");
+    add_commit(dir.path(), "a.txt", "feat: add feature");
 
     // Should still succeed — missing custom files are skipped silently.
     Command::cargo_bin("git-std")
@@ -1960,8 +1921,8 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
 #[test]
 fn bump_dry_run_shows_custom_files() {
     let dir = tempfile::tempdir().unwrap();
-    let repo = init_bump_repo(dir.path());
-    create_tag(&repo, "v1.0.0");
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
 
     // Write a custom version file.
     std::fs::write(dir.path().join("version.txt"), "version = \"1.0.0\"\n").unwrap();
@@ -1976,7 +1937,7 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
     )
     .unwrap();
 
-    add_commit(&repo, dir.path(), "a.txt", "feat: add feature");
+    add_commit(dir.path(), "a.txt", "feat: add feature");
 
     Command::cargo_bin("git-std")
         .unwrap()
