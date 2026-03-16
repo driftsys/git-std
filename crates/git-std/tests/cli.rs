@@ -155,6 +155,201 @@ fn commit_short_flags() {
         .stdout(predicate::str::contains("feat: short flag"));
 }
 
+// --- Commit integration tests (actual repo) ---
+
+/// Helper: initialise a git repo with one committed file (for commit tests).
+fn init_commit_repo(dir: &Path) -> git2::Repository {
+    let repo = git2::Repository::init(dir).unwrap();
+    {
+        let mut config = repo.config().unwrap();
+        config.set_str("user.name", "Test").unwrap();
+        config.set_str("user.email", "test@test.com").unwrap();
+    }
+
+    let file_path = dir.join("hello.txt");
+    std::fs::write(&file_path, "hello").unwrap();
+    {
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new("hello.txt")).unwrap();
+        index.write().unwrap();
+
+        let tree_oid = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_oid).unwrap();
+        let sig = repo.signature().unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "chore: init", &tree, &[])
+            .unwrap();
+    }
+
+    repo
+}
+
+#[test]
+fn commit_actual_execution() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_commit_repo(dir.path());
+
+    // Stage a new file so the commit has content.
+    std::fs::write(dir.path().join("feature.txt"), "feature").unwrap();
+    let mut index = repo.index().unwrap();
+    index.add_path(Path::new("feature.txt")).unwrap();
+    index.write().unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["commit", "--type", "feat", "-m", "add feature"])
+        .assert()
+        .success();
+
+    let repo = git2::Repository::open(dir.path()).unwrap();
+    let head = repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(head.message().unwrap(), "feat: add feature");
+}
+
+#[test]
+fn commit_with_scope() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_commit_repo(dir.path());
+
+    std::fs::write(dir.path().join("login.txt"), "login").unwrap();
+    let mut index = repo.index().unwrap();
+    index.add_path(Path::new("login.txt")).unwrap();
+    index.write().unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args([
+            "commit", "--type", "feat", "--scope", "auth", "-m", "add login",
+        ])
+        .assert()
+        .success();
+
+    let repo = git2::Repository::open(dir.path()).unwrap();
+    let head = repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(head.message().unwrap(), "feat(auth): add login");
+}
+
+#[test]
+fn commit_with_breaking() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_commit_repo(dir.path());
+
+    std::fs::write(dir.path().join("api.txt"), "new api").unwrap();
+    let mut index = repo.index().unwrap();
+    index.add_path(Path::new("api.txt")).unwrap();
+    index.write().unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args([
+            "commit",
+            "--type",
+            "feat",
+            "--breaking",
+            "remove old API",
+            "-m",
+            "new auth",
+        ])
+        .assert()
+        .success();
+
+    let repo = git2::Repository::open(dir.path()).unwrap();
+    let head = repo.head().unwrap().peel_to_commit().unwrap();
+    let msg = head.message().unwrap();
+    assert!(msg.starts_with("feat!: new auth"), "got: {msg}");
+    assert!(
+        msg.contains("BREAKING CHANGE: remove old API"),
+        "got: {msg}"
+    );
+}
+
+#[test]
+fn commit_amend() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_commit_repo(dir.path());
+
+    // Create a commit to amend.
+    std::fs::write(dir.path().join("bug.txt"), "bug").unwrap();
+    let mut index = repo.index().unwrap();
+    index.add_path(Path::new("bug.txt")).unwrap();
+    index.write().unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["commit", "--type", "fix", "-m", "original message"])
+        .assert()
+        .success();
+
+    // Now amend it.
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["commit", "--amend", "--type", "fix", "-m", "corrected"])
+        .assert()
+        .success();
+
+    let repo = git2::Repository::open(dir.path()).unwrap();
+    let head = repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(head.message().unwrap(), "fix: corrected");
+
+    // Verify amend didn't create an extra commit — should be 2 total (init + amended).
+    let mut count = 0;
+    let mut revwalk = repo.revwalk().unwrap();
+    revwalk.push_head().unwrap();
+    for _ in revwalk {
+        count += 1;
+    }
+    assert_eq!(count, 2, "amend should not create a new commit");
+}
+
+#[test]
+fn commit_all_flag() {
+    let dir = tempfile::tempdir().unwrap();
+    init_commit_repo(dir.path());
+
+    // Modify the tracked file without staging.
+    std::fs::write(dir.path().join("hello.txt"), "modified").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["commit", "--all", "--type", "fix", "-m", "fix"])
+        .assert()
+        .success();
+
+    let repo = git2::Repository::open(dir.path()).unwrap();
+    let head = repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(head.message().unwrap(), "fix: fix");
+
+    // Verify the modified content was committed.
+    let tree = head.tree().unwrap();
+    let entry = tree.get_name("hello.txt").unwrap();
+    let blob = repo.find_blob(entry.id()).unwrap();
+    assert_eq!(std::str::from_utf8(blob.content()).unwrap(), "modified");
+}
+
+#[test]
+fn commit_combined_flags() {
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args([
+            "commit",
+            "--type",
+            "feat",
+            "--scope",
+            "auth",
+            "-m",
+            "add login",
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("feat(auth): add login"));
+}
+
 // --- Bump integration tests ---
 
 /// Helper: initialise a git repo with a Cargo.toml and one commit.
