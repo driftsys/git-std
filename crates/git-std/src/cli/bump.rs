@@ -398,10 +398,11 @@ fn today_calver_date() -> standard_version::calver::CalverDate {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
+    calver_date_from_epoch_days(secs.div_euclid(86400) as i32)
+}
 
-    // Days since Unix epoch (floored).
-    let days = secs.div_euclid(86400) as i32;
-
+/// Compute a [`CalverDate`] from days since the Unix epoch.
+fn calver_date_from_epoch_days(days: i32) -> standard_version::calver::CalverDate {
     // Howard Hinnant's civil_from_days algorithm.
     let z = days + 719468;
     let era = z.div_euclid(146097);
@@ -488,6 +489,12 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let tag_prefix = &config.versioning.tag_prefix;
     let calver_format = &config.versioning.calver_format;
 
+    // Calver does not support pre-release versioning.
+    if opts.prerelease.is_some() {
+        eprintln!("error: --prerelease is not supported with scheme = \"calver\"");
+        return 1;
+    }
+
     // Validate the calver format.
     if let Err(e) = standard_version::calver::validate_format(calver_format) {
         eprintln!("error: invalid calver format: {e}");
@@ -529,7 +536,13 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let new_version = if let Some(ref forced) = opts.release_as {
         forced.clone()
     } else if opts.first_release {
-        prev_ver.unwrap_or("0.0.0").to_string()
+        match standard_version::calver::next_version(calver_format, date, None) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("error: {e}");
+                return 1;
+            }
+        }
     } else {
         match standard_version::calver::next_version(calver_format, date, prev_ver) {
             Ok(v) => v,
@@ -729,6 +742,62 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn today_calver_date_is_reasonable() {
+        let d = today_calver_date();
+        assert!(d.year >= 2024);
+        assert!((1..=12).contains(&d.month));
+        assert!((1..=31).contains(&d.day));
+        assert!((1..=53).contains(&d.iso_week));
+        assert!((1..=7).contains(&d.day_of_week));
+    }
+
+    #[test]
+    fn calver_date_2026_03_16() {
+        // 2026-03-16 is a Monday, ISO week 12
+        // Days since epoch: (2026-1970)*365 + leap days + day_of_year
+        let days = 20528; // 2026-03-16
+        let d = calver_date_from_epoch_days(days);
+        assert_eq!(d.year, 2026);
+        assert_eq!(d.month, 3);
+        assert_eq!(d.day, 16);
+        assert_eq!(d.day_of_week, 1); // Monday
+        assert_eq!(d.iso_week, 12);
+    }
+
+    #[test]
+    fn calver_date_dec31_to_jan1_boundary() {
+        // 2026-12-31 is a Thursday, ISO week 53
+        let dec31 = 20818; // 2026-12-31
+        let d = calver_date_from_epoch_days(dec31);
+        assert_eq!(d.year, 2026);
+        assert_eq!(d.month, 12);
+        assert_eq!(d.day, 31);
+        assert_eq!(d.day_of_week, 4); // Thursday
+
+        // 2027-01-01 is a Friday, ISO week 53 (still belongs to 2026's week 53)
+        let jan1 = 20819; // 2027-01-01
+        let d = calver_date_from_epoch_days(jan1);
+        assert_eq!(d.year, 2027);
+        assert_eq!(d.month, 1);
+        assert_eq!(d.day, 1);
+        assert_eq!(d.day_of_week, 5); // Friday
+    }
+
+    #[test]
+    fn calver_date_jan1_2024_monday() {
+        // 2024-01-01 is a Monday, ISO week 1
+        let days = 19723; // 2024-01-01
+        let d = calver_date_from_epoch_days(days);
+        assert_eq!(d.year, 2024);
+        assert_eq!(d.month, 1);
+        assert_eq!(d.day, 1);
+        assert_eq!(d.day_of_week, 1); // Monday
+        assert_eq!(d.iso_week, 1);
+    }
+
     #[test]
     fn chrono_date_format() {
         let secs = std::time::SystemTime::now()
