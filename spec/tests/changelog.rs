@@ -2,6 +2,7 @@
 mod support;
 
 use snapbox::cmd::Command;
+use snapbox::file;
 use support::TestRepo;
 
 /// `changelog --stdout` prints the changelog to stdout.
@@ -18,7 +19,7 @@ fn changelog_stdout_prints_to_stdout() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_eq("...\n## [..]\n...\n### [..]\n...");
+        .stdout_eq(file!["../snapshots/changelog/stdout_prints_to_stdout.stdout.expected"]);
 }
 
 /// `changelog --full` regenerates the entire changelog file.

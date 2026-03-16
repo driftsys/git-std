@@ -2,6 +2,7 @@
 mod support;
 
 use snapbox::cmd::Command;
+use snapbox::file;
 use support::TestRepo;
 
 /// `hooks list` displays configured hooks with their mode and commands.
@@ -17,7 +18,7 @@ fn hooks_list_shows_configured_hooks() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_eq("...\n[..] pre-commit (collect mode):[..]\n...");
+        .stdout_eq(file!["../snapshots/hooks/list_shows_configured_hooks.stdout.expected"]);
 }
 
 /// `hooks list` shows fail-fast mode for pre-push hooks.
@@ -33,7 +34,7 @@ fn hooks_list_fail_fast_mode() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_eq("...\n[..] pre-push (fail-fast mode):[..]\n...");
+        .stdout_eq(file!["../snapshots/hooks/list_fail_fast_mode.stdout.expected"]);
 }
 
 /// `hooks list` with no hooks configured prints a message to stderr.
@@ -46,7 +47,7 @@ fn hooks_list_no_hooks() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stderr_eq("[..] no hooks configured\n");
+        .stderr_eq(file!["../snapshots/hooks/list_no_hooks.stderr.expected"]);
 }
 
 /// `hooks install` creates shim scripts for each `.hooks` file.
@@ -59,7 +60,7 @@ fn hooks_install_creates_shims() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stderr_eq("...\n[..] core.hooksPath [..]\n...");
+        .stderr_eq(file!["../snapshots/hooks/install_creates_shims.stderr.expected"]);
 
     // Verify shim exists.
     let shim_path = repo.path().join(".githooks/pre-commit");
