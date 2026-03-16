@@ -6,7 +6,7 @@ mod cli;
 mod config;
 mod git;
 
-/// Standard git workflow — commits, versioning, hooks.
+/// Standard git workflow -- commits, versioning, hooks.
 #[derive(Parser)]
 #[command(name = "git-std", version, about)]
 struct Cli {
@@ -144,6 +144,17 @@ enum HooksCommand {
     List,
 }
 
+/// Load project config, printing an error and exiting on failure.
+fn load_config() -> config::ProjectConfig {
+    match config::load(&std::env::current_dir().unwrap_or_default()) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("error: invalid config: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -166,7 +177,7 @@ fn main() {
             strict,
             format,
         } => {
-            let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let project_config = load_config();
             let effective_strict = strict || project_config.strict;
             let lint_config = project_config.to_lint_config(strict);
             let lint_ref = if effective_strict {
@@ -197,7 +208,7 @@ fn main() {
             sign,
             all,
         } => {
-            let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let project_config = load_config();
             let opts = cli::commit::CommitOptions {
                 commit_type,
                 scope,
@@ -217,7 +228,7 @@ fn main() {
             output,
             range,
         } => {
-            let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let project_config = load_config();
             let changelog_config = project_config.to_changelog_config();
             let opts = cli::changelog::ChangelogOptions {
                 full,
@@ -238,7 +249,7 @@ fn main() {
             skip_changelog,
             sign,
         } => {
-            let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let project_config = load_config();
             let opts = cli::bump::BumpOptions {
                 dry_run,
                 prerelease,

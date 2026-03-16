@@ -123,12 +123,27 @@ fn default_types() -> Vec<String> {
     DEFAULT_TYPES.iter().map(|t| (*t).to_string()).collect()
 }
 
+/// Validate a calver format string.
+///
+/// Returns `Ok(())` when the format contains valid calver tokens with at
+/// least one date segment and a `PATCH` token, or an error message
+/// describing the problem.
+pub fn validate_calver_format(format: &str) -> Result<(), String> {
+    standard_version::calver::validate_format(format).map_err(|e| e.to_string())
+}
+
 /// Load configuration from `.git-std.toml` in the given directory, or return defaults.
-pub fn load(dir: &Path) -> ProjectConfig {
+///
+/// # Errors
+///
+/// Returns an error if the configuration is syntactically valid TOML but
+/// contains semantic errors (e.g. an invalid `calver_format` when
+/// `scheme = "calver"`).
+pub fn load(dir: &Path) -> Result<ProjectConfig, String> {
     let path = dir.join(CONFIG_FILE);
     match std::fs::read_to_string(&path) {
         Ok(content) => parse_config(&content),
-        Err(_) => ProjectConfig {
+        Err(_) => Ok(ProjectConfig {
             types: default_types(),
             scopes: ScopesConfig::None,
             strict: false,
@@ -136,15 +151,15 @@ pub fn load(dir: &Path) -> ProjectConfig {
             changelog: ChangelogConfig::default(),
             versioning: VersioningConfig::default(),
             version_files: Vec::new(),
-        },
+        }),
     }
 }
 
-fn parse_config(content: &str) -> ProjectConfig {
+fn parse_config(content: &str) -> Result<ProjectConfig, String> {
     let table: toml::Table = match content.parse() {
         Ok(t) => t,
         Err(_) => {
-            return ProjectConfig {
+            return Ok(ProjectConfig {
                 types: default_types(),
                 scopes: ScopesConfig::None,
                 strict: false,
@@ -152,7 +167,7 @@ fn parse_config(content: &str) -> ProjectConfig {
                 changelog: ChangelogConfig::default(),
                 versioning: VersioningConfig::default(),
                 version_files: Vec::new(),
-            };
+            });
         }
     };
 
@@ -201,7 +216,12 @@ fn parse_config(content: &str) -> ProjectConfig {
     let versioning = parse_versioning_config(&table);
     let version_files = parse_version_files(&table);
 
-    ProjectConfig {
+    // Validate calver_format when scheme is calver.
+    if scheme == Scheme::Calver {
+        validate_calver_format(&versioning.calver_format)?;
+    }
+
+    Ok(ProjectConfig {
         types,
         scopes,
         strict,
@@ -209,7 +229,7 @@ fn parse_config(content: &str) -> ProjectConfig {
         changelog,
         versioning,
         version_files,
-    }
+    })
 }
 
 fn parse_versioning_config(table: &toml::Table) -> VersioningConfig {
@@ -309,7 +329,7 @@ mod tests {
     #[test]
     fn default_types_when_no_config() {
         let dir = tempfile::tempdir().unwrap();
-        let config = load(dir.path());
+        let config = load(dir.path()).unwrap();
         assert_eq!(config.types.len(), DEFAULT_TYPES.len());
         assert!(config.types.contains(&"feat".to_string()));
         assert_eq!(config.scopes, ScopesConfig::None);
@@ -317,13 +337,13 @@ mod tests {
 
     #[test]
     fn custom_types() {
-        let config = parse_config(r#"types = ["feat", "fix", "custom"]"#);
+        let config = parse_config(r#"types = ["feat", "fix", "custom"]"#).unwrap();
         assert_eq!(config.types, vec!["feat", "fix", "custom"]);
     }
 
     #[test]
     fn scopes_explicit_list() {
-        let config = parse_config("scopes = [\"auth\", \"api\"]\n");
+        let config = parse_config("scopes = [\"auth\", \"api\"]\n").unwrap();
         assert_eq!(
             config.scopes,
             ScopesConfig::List(vec!["auth".to_string(), "api".to_string()])
@@ -332,19 +352,19 @@ mod tests {
 
     #[test]
     fn scopes_auto() {
-        let config = parse_config("scopes = \"auto\"\n");
+        let config = parse_config("scopes = \"auto\"\n").unwrap();
         assert_eq!(config.scopes, ScopesConfig::Auto);
     }
 
     #[test]
     fn no_scopes_means_none() {
-        let config = parse_config(r#"types = ["feat"]"#);
+        let config = parse_config(r#"types = ["feat"]"#).unwrap();
         assert_eq!(config.scopes, ScopesConfig::None);
     }
 
     #[test]
     fn invalid_toml_uses_defaults() {
-        let config = parse_config("not valid toml {{{{");
+        let config = parse_config("not valid toml {{{{").unwrap();
         assert_eq!(config.types.len(), DEFAULT_TYPES.len());
     }
 
@@ -388,13 +408,13 @@ mod tests {
 
     #[test]
     fn strict_from_config() {
-        let config = parse_config("strict = true\n");
+        let config = parse_config("strict = true\n").unwrap();
         assert!(config.strict);
     }
 
     #[test]
     fn strict_default_false() {
-        let config = parse_config(r#"types = ["feat"]"#);
+        let config = parse_config(r#"types = ["feat"]"#).unwrap();
         assert!(!config.strict);
     }
 
@@ -406,7 +426,7 @@ mod tests {
             strict: true,
             ..Default::default()
         };
-        // strict=true in config, flag=false → still strict
+        // strict=true in config, flag=false -- still strict
         let lint = config.to_lint_config(false);
         assert_eq!(lint.types, Some(vec!["feat".into()]));
         assert_eq!(lint.scopes, Some(vec!["auth".into()]));
@@ -416,16 +436,9 @@ mod tests {
     #[test]
     fn version_files_parsed() {
         let config = parse_config(
-            r#"
-[[version_files]]
-path = "pom.xml"
-regex = '<version>([^<]+)</version>'
-
-[[version_files]]
-path = "Chart.yaml"
-regex = 'version:\s*(.+)'
-"#,
-        );
+            "[[version_files]]\npath = \"pom.xml\"\nregex = '<version>([^<]+)</version>'\n\n[[version_files]]\npath = \"Chart.yaml\"\nregex = 'version:\\s*(.+)'\n",
+        )
+        .unwrap();
         assert_eq!(config.version_files.len(), 2);
         assert_eq!(config.version_files[0].path, "pom.xml");
         assert_eq!(config.version_files[0].regex, "<version>([^<]+)</version>");
@@ -434,31 +447,31 @@ regex = 'version:\s*(.+)'
 
     #[test]
     fn version_files_default_empty() {
-        let config = parse_config(r#"types = ["feat"]"#);
+        let config = parse_config(r#"types = ["feat"]"#).unwrap();
         assert!(config.version_files.is_empty());
     }
 
     #[test]
     fn scheme_defaults_to_semver() {
-        let config = parse_config(r#"types = ["feat"]"#);
+        let config = parse_config(r#"types = ["feat"]"#).unwrap();
         assert_eq!(config.scheme, Scheme::Semver);
     }
 
     #[test]
     fn scheme_calver_parsed() {
-        let config = parse_config("scheme = \"calver\"\n");
+        let config = parse_config("scheme = \"calver\"\n").unwrap();
         assert_eq!(config.scheme, Scheme::Calver);
     }
 
     #[test]
     fn scheme_unknown_falls_back_to_semver() {
-        let config = parse_config("scheme = \"unknown\"\n");
+        let config = parse_config("scheme = \"unknown\"\n").unwrap();
         assert_eq!(config.scheme, Scheme::Semver);
     }
 
     #[test]
     fn calver_format_default() {
-        let config = parse_config(r#"types = ["feat"]"#);
+        let config = parse_config(r#"types = ["feat"]"#).unwrap();
         assert_eq!(
             config.versioning.calver_format,
             standard_version::calver::DEFAULT_FORMAT
@@ -468,11 +481,62 @@ regex = 'version:\s*(.+)'
     #[test]
     fn calver_format_custom() {
         let config = parse_config(
-            r#"
-[versioning]
-calver_format = "YYYY.0M.PATCH"
-"#,
-        );
+            "scheme = \"calver\"\n\n[versioning]\ncalver_format = \"YYYY.0M.PATCH\"\n",
+        )
+        .unwrap();
         assert_eq!(config.versioning.calver_format, "YYYY.0M.PATCH");
+    }
+
+    // -- Calver format validation --
+
+    #[test]
+    fn calver_format_invalid_rejects_at_parse_time() {
+        let err = parse_config(
+            "scheme = \"calver\"\n\n[versioning]\ncalver_format = \"INVALID.PATCH\"\n",
+        );
+        assert!(err.is_err());
+        assert!(err.unwrap_err().contains("unknown calver format token"));
+    }
+
+    #[test]
+    fn calver_format_no_patch_rejects_at_parse_time() {
+        let err = parse_config(
+            "scheme = \"calver\"\n\n[versioning]\ncalver_format = \"YYYY.MM\"\n",
+        );
+        assert!(err.is_err());
+        assert!(err.unwrap_err().contains("PATCH"));
+    }
+
+    #[test]
+    fn calver_format_no_date_segment_rejects_at_parse_time() {
+        let err = parse_config(
+            "scheme = \"calver\"\n\n[versioning]\ncalver_format = \"PATCH\"\n",
+        );
+        assert!(err.is_err());
+        assert!(err.unwrap_err().contains("date segment"));
+    }
+
+    #[test]
+    fn calver_format_not_validated_for_semver() {
+        let config = parse_config(
+            "[versioning]\ncalver_format = \"TOTALLY_INVALID\"\n",
+        )
+        .unwrap();
+        assert_eq!(config.versioning.calver_format, "TOTALLY_INVALID");
+    }
+
+    #[test]
+    fn validate_calver_format_valid() {
+        assert!(validate_calver_format("YYYY.MM.PATCH").is_ok());
+        assert!(validate_calver_format("YY.0W.PATCH").is_ok());
+        assert!(validate_calver_format("0Y.0M.0D.PATCH").is_ok());
+    }
+
+    #[test]
+    fn validate_calver_format_invalid() {
+        assert!(validate_calver_format("").is_err());
+        assert!(validate_calver_format("YYYY.MM").is_err());
+        assert!(validate_calver_format("PATCH").is_err());
+        assert!(validate_calver_format("INVALID").is_err());
     }
 }

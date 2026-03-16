@@ -34,6 +34,9 @@ pub const DEFAULT_FORMAT: &str = "YYYY.MM.PATCH";
 pub enum CalverError {
     /// The format string contains no `PATCH` token.
     NoPatchToken,
+    /// The format string contains no date segment placeholder.
+    #[error("calver format must contain at least one date segment (YYYY, YY, 0Y, MM, 0M, DD, 0D, WW, 0W)")]
+    NoDateSegment,
     /// The format string contains an unrecognised token.
     UnknownToken(String),
     /// The format string is empty.
@@ -65,14 +68,20 @@ enum Token {
     FullYear,
     /// Short year (e.g. `26`).
     ShortYear,
+    /// Zero-padded short year (e.g. `06`).
+    ZeroPaddedShortYear,
     /// Zero-padded month (e.g. `03`).
     ZeroPaddedMonth,
     /// Month without padding (e.g. `3`).
     Month,
     /// ISO week number (e.g. `11`).
     IsoWeek,
+    /// Zero-padded ISO week number (e.g. `02`).
+    ZeroPaddedIsoWeek,
     /// Day of month (e.g. `13`).
     Day,
+    /// Zero-padded day of month (e.g. `03`).
+    ZeroPaddedDay,
     /// Auto-incrementing patch counter.
     Patch,
     /// A literal separator (e.g. `.`).
@@ -96,14 +105,23 @@ fn parse_format(format: &str) -> Result<Vec<Token>, CalverError> {
         } else if let Some(rest) = remaining.strip_prefix("YY") {
             tokens.push(Token::ShortYear);
             remaining = rest;
+        } else if let Some(rest) = remaining.strip_prefix("0Y") {
+            tokens.push(Token::ZeroPaddedShortYear);
+            remaining = rest;
         } else if let Some(rest) = remaining.strip_prefix("0M") {
             tokens.push(Token::ZeroPaddedMonth);
             remaining = rest;
         } else if let Some(rest) = remaining.strip_prefix("MM") {
             tokens.push(Token::Month);
             remaining = rest;
+        } else if let Some(rest) = remaining.strip_prefix("0W") {
+            tokens.push(Token::ZeroPaddedIsoWeek);
+            remaining = rest;
         } else if let Some(rest) = remaining.strip_prefix("WW") {
             tokens.push(Token::IsoWeek);
+            remaining = rest;
+        } else if let Some(rest) = remaining.strip_prefix("0D") {
+            tokens.push(Token::ZeroPaddedDay);
             remaining = rest;
         } else if let Some(rest) = remaining.strip_prefix("DD") {
             tokens.push(Token::Day);
@@ -134,6 +152,25 @@ fn parse_format(format: &str) -> Result<Vec<Token>, CalverError> {
         return Err(CalverError::NoPatchToken);
     }
 
+    // Validate that at least one date segment is present.
+    let has_date = tokens.iter().any(|t| {
+        matches!(
+            t,
+            Token::FullYear
+                | Token::ShortYear
+                | Token::ZeroPaddedShortYear
+                | Token::ZeroPaddedMonth
+                | Token::Month
+                | Token::IsoWeek
+                | Token::ZeroPaddedIsoWeek
+                | Token::Day
+                | Token::ZeroPaddedDay
+        )
+    });
+    if !has_date {
+        return Err(CalverError::NoDateSegment);
+    }
+
     Ok(tokens)
 }
 
@@ -146,10 +183,13 @@ fn build_date_prefix(tokens: &[Token], date: CalverDate) -> String {
             Token::Patch => break,
             Token::FullYear => prefix.push_str(&date.year.to_string()),
             Token::ShortYear => prefix.push_str(&format!("{}", date.year % 100)),
+            Token::ZeroPaddedShortYear => prefix.push_str(&format!("{:02}", date.year % 100)),
             Token::ZeroPaddedMonth => prefix.push_str(&format!("{:02}", date.month)),
             Token::Month => prefix.push_str(&date.month.to_string()),
             Token::IsoWeek => prefix.push_str(&date.iso_week.to_string()),
+            Token::ZeroPaddedIsoWeek => prefix.push_str(&format!("{:02}", date.iso_week)),
             Token::Day => prefix.push_str(&date.day.to_string()),
+            Token::ZeroPaddedDay => prefix.push_str(&format!("{:02}", date.day)),
             Token::Separator(s) => prefix.push_str(s),
         }
     }
@@ -171,10 +211,13 @@ fn build_date_suffix(tokens: &[Token], date: CalverDate) -> String {
         match token {
             Token::FullYear => suffix.push_str(&date.year.to_string()),
             Token::ShortYear => suffix.push_str(&format!("{}", date.year % 100)),
+            Token::ZeroPaddedShortYear => suffix.push_str(&format!("{:02}", date.year % 100)),
             Token::ZeroPaddedMonth => suffix.push_str(&format!("{:02}", date.month)),
             Token::Month => suffix.push_str(&date.month.to_string()),
             Token::IsoWeek => suffix.push_str(&date.iso_week.to_string()),
+            Token::ZeroPaddedIsoWeek => suffix.push_str(&format!("{:02}", date.iso_week)),
             Token::Day => suffix.push_str(&date.day.to_string()),
+            Token::ZeroPaddedDay => suffix.push_str(&format!("{:02}", date.day)),
             Token::Separator(s) => suffix.push_str(s),
             Token::Patch => {} // only one PATCH allowed, already past it
         }
@@ -323,7 +366,7 @@ mod tests {
         }
     }
 
-    // ── Format parsing ──────────────────────────────────────────────
+    // -- Format parsing --
 
     #[test]
     fn parse_default_format() {
@@ -370,7 +413,7 @@ mod tests {
         assert!(matches!(err, CalverError::UnknownToken(_)));
     }
 
-    // ── First release ───────────────────────────────────────────────
+    // -- First release --
 
     #[test]
     fn first_release_default_format() {
@@ -402,7 +445,7 @@ mod tests {
         assert_eq!(v, "26.12.0");
     }
 
-    // ── Patch increment (same period) ───────────────────────────────
+    // -- Patch increment (same period) --
 
     #[test]
     fn patch_increments_same_month() {
@@ -428,7 +471,7 @@ mod tests {
         assert_eq!(v, "2026.3.16.1");
     }
 
-    // ── Patch reset (new period) ────────────────────────────────────
+    // -- Patch reset (new period) --
 
     #[test]
     fn patch_resets_new_month() {
@@ -475,7 +518,7 @@ mod tests {
         assert_eq!(v, "26.13.0");
     }
 
-    // ── Format validation ───────────────────────────────────────────
+    // -- Format validation --
 
     #[test]
     fn validate_valid_format() {
@@ -483,6 +526,9 @@ mod tests {
         assert!(validate_format("YYYY.0M.PATCH").is_ok());
         assert!(validate_format("YY.WW.PATCH").is_ok());
         assert!(validate_format("YYYY.MM.DD.PATCH").is_ok());
+        assert!(validate_format("0Y.0M.PATCH").is_ok());
+        assert!(validate_format("YYYY.0M.0D.PATCH").is_ok());
+        assert!(validate_format("YY.0W.PATCH").is_ok());
     }
 
     #[test]
@@ -491,18 +537,16 @@ mod tests {
         assert!(validate_format("").is_err());
     }
 
-    // ── Edge cases ──────────────────────────────────────────────────
+    // -- Edge cases --
 
     #[test]
     fn previous_version_is_completely_different() {
-        // Previous version from a totally different format/period.
         let v = next_version("YYYY.MM.PATCH", date_2026_03(), Some("1.2.3")).unwrap();
         assert_eq!(v, "2026.3.0");
     }
 
     #[test]
     fn previous_version_unparseable_patch() {
-        // If the patch segment isn't a number, treat as 0 and reset.
         let v = next_version("YYYY.MM.PATCH", date_2026_03(), Some("2026.3.abc")).unwrap();
         assert_eq!(v, "2026.3.1");
     }
@@ -519,7 +563,55 @@ mod tests {
         assert_eq!(v, "2026-3-3");
     }
 
-    // ── CalverError Display ─────────────────────────────────────────
+    // -- Zero-padded tokens --
+
+    #[test]
+    fn zero_padded_short_year() {
+        let v = next_version("0Y.MM.PATCH", date_2026_03(), None).unwrap();
+        assert_eq!(v, "26.3.0");
+    }
+
+    #[test]
+    fn zero_padded_day() {
+        let date = CalverDate {
+            year: 2026,
+            month: 3,
+            day: 5,
+            iso_week: 10,
+            day_of_week: 4,
+        };
+        let v = next_version("YYYY.0M.0D.PATCH", date, None).unwrap();
+        assert_eq!(v, "2026.03.05.0");
+    }
+
+    #[test]
+    fn zero_padded_week() {
+        let date = CalverDate {
+            year: 2026,
+            month: 1,
+            day: 5,
+            iso_week: 2,
+            day_of_week: 1,
+        };
+        let v = next_version("YY.0W.PATCH", date, None).unwrap();
+        assert_eq!(v, "26.02.0");
+    }
+
+    // -- No date segment --
+
+    #[test]
+    fn error_no_date_segment() {
+        let err = parse_format("PATCH").unwrap_err();
+        assert_eq!(err, CalverError::NoDateSegment);
+    }
+
+    #[test]
+    fn error_patch_only_with_separator() {
+        let err = parse_format(".PATCH").unwrap_err();
+        assert_eq!(err, CalverError::NoDateSegment);
+    }
+
+    // -- CalverError Display --
 
     #[test]
     fn error_display() {
@@ -536,5 +628,8 @@ mod tests {
                 .to_string()
                 .contains("unknown calver format token")
         );
+        assert!(CalverError::NoDateSegment
+            .to_string()
+            .contains("at least one date segment"));
     }
 }
