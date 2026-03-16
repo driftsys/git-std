@@ -53,5 +53,9 @@ pub fn heading(label: &str, value: &str) {
 ///
 /// The label is left-aligned to [`LABEL_WIDTH`] columns.
 pub fn item(label: &str, value: &str) {
-    eprintln!("{DETAIL_INDENT}{:<width$} {value}", label, width = LABEL_WIDTH);
+    eprintln!(
+        "{DETAIL_INDENT}{:<width$} {value}",
+        label,
+        width = LABEL_WIDTH
+    );
 }
