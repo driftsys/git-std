@@ -93,7 +93,13 @@ fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
     };
 
     let code = if result.valid { 0 } else { 1 };
-    println!("{}", serde_json::to_string(&result).unwrap());
+    match serde_json::to_string(&result) {
+        Ok(json) => println!("{json}"),
+        Err(e) => {
+            eprintln!("error: failed to serialize JSON output: {e}");
+            return 2;
+        }
+    }
     code
 }
 
@@ -138,6 +144,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
         Ok(r) => r,
         Err(e) => {
             eprintln!("error: cannot open repository: {e}");
+            eprintln!("  hint: run this command from inside a git repository");
             return 2;
         }
     };
@@ -151,7 +158,8 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
     };
 
     if commits.is_empty() {
-        eprintln!("error: no commits in range '{range}'");
+        eprintln!("error: no commits found in range '{range}'");
+        eprintln!("  hint: check that the range is valid (e.g. origin/main..HEAD)");
         return 2;
     }
 
@@ -249,7 +257,13 @@ fn run_range_json(commits: &[(git2::Oid, String)], lint_config: Option<&LintConf
         results.push(result);
     }
 
-    println!("{}", serde_json::to_string(&results).unwrap());
+    match serde_json::to_string(&results) {
+        Ok(json) => println!("{json}"),
+        Err(e) => {
+            eprintln!("error: failed to serialize JSON output: {e}");
+            return 2;
+        }
+    }
     if any_invalid { 1 } else { 0 }
 }
 

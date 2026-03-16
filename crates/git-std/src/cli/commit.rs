@@ -82,7 +82,8 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
     if opts.all
         && let Err(e) = stage_tracked_modified(".")
     {
-        eprintln!("error: {e}");
+        eprintln!("error: failed to stage files: {e}");
+        eprintln!("  hint: run this command from inside a git repository");
         return 1;
     }
 
@@ -90,7 +91,8 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
         match create_commit_signed(&message, opts.amend) {
             Ok(()) => 0,
             Err(e) => {
-                eprintln!("error: {e}");
+                eprintln!("error: failed to create signed commit: {e}");
+                eprintln!("  hint: ensure GPG is configured (git config user.signingkey)");
                 1
             }
         }
@@ -98,7 +100,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
         match amend_commit(".", &message) {
             Ok(()) => 0,
             Err(e) => {
-                eprintln!("error: {e}");
+                eprintln!("error: failed to amend commit: {e}");
                 1
             }
         }
@@ -106,7 +108,8 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
         match create_commit(".", &message) {
             Ok(()) => 0,
             Err(e) => {
-                eprintln!("error: {e}");
+                eprintln!("error: failed to create commit: {e}");
+                eprintln!("  hint: ensure you have staged changes and user.name/user.email are set");
                 1
             }
         }
