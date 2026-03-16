@@ -168,8 +168,10 @@ Initiative (label only — initiative:git-workflow)
 
 ### Rules for agents
 
-1. Every story/task/debt must have `Epic: #<number>`
-   as the first non-blank line of the body.
+1. Every story/task/debt must have an `Epic:` line as
+   the first non-blank line of the body. Use
+   `Epic: #<number>` for repo-local epics or
+   `Epic: <org>/<repo>#<number>` for org-level epics.
 2. Every story/task/debt carries exactly one
    `epic:<name>` label plus its type label (`story`,
    `task`, or `debt`).
@@ -177,8 +179,9 @@ Initiative (label only — initiative:git-workflow)
    title and epic.
 4. When creating a story/task/debt, update the parent
    epic's task list to include the new issue.
-5. Use only repo-local references (`#<number>`), not
-   org-level (`driftsys/.github#N`).
+5. Epics live at org level (`driftsys/.github`) for
+   cross-repo concerns or at repo level for
+   repo-specific work (e.g. #96).
 6. Epics are created by humans. Agents create stories,
    tasks, and debt issues.
 
