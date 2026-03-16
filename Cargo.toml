@@ -5,6 +5,7 @@ members = [
     "crates/standard-githooks",
     "crates/standard-changelog",
     "crates/git-std",
+    "spec",
 ]
 resolver = "3"
 

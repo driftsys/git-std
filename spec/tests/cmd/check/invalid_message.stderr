@@ -1,0 +1,3 @@
+[..]invalid[..]
+  Expected: <type>(<scope>): <description>
+  Got:      bad message

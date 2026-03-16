@@ -1,0 +1,3 @@
+bin.name = "git-std"
+args = ["does-not-exist"]
+status.code = 2
