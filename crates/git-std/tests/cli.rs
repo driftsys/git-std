@@ -448,6 +448,41 @@ fn bump_first_release() {
     assert!(cargo.contains("version = \"0.0.0\""));
 }
 
+/// Assert that a version string matches calver format: YYYY.MM.PATCH
+/// where YYYY is a 4-digit year, MM is a 1-2 digit month (1-12),
+/// and PATCH is a non-negative integer.
+fn assert_calver_format(ver: &str) {
+    let parts: Vec<&str> = ver.split('.').collect();
+    assert_eq!(
+        parts.len(),
+        3,
+        "calver should have 3 dot-separated parts, got: {ver}"
+    );
+
+    // Year: exactly 4 digits, >= 2020
+    let year: u32 = parts[0]
+        .parse()
+        .unwrap_or_else(|_| panic!("year should be numeric, got: {}", parts[0]));
+    assert!(
+        (2020..=2100).contains(&year),
+        "year should be a plausible 4-digit year, got: {year}"
+    );
+
+    // Month: 1-2 digits, 1-12
+    let month: u32 = parts[1]
+        .parse()
+        .unwrap_or_else(|_| panic!("month should be numeric, got: {}", parts[1]));
+    assert!(
+        (1..=12).contains(&month),
+        "month should be 1-12, got: {month}"
+    );
+
+    // Patch: non-negative integer
+    let _patch: u32 = parts[2]
+        .parse()
+        .unwrap_or_else(|_| panic!("patch should be numeric, got: {}", parts[2]));
+}
+
 /// Full calver release cycle: first release, then a second bump in the same month.
 #[test]
 fn bump_full_release_cycle() {
@@ -475,16 +510,21 @@ fn bump_full_release_cycle() {
     let tags = collect_tag_names(&repo);
     assert!(!tags.is_empty(), "at least one tag should exist after bump");
 
-    // Verify the tag starts with "v" and contains a dot-separated version.
+    // Verify the first tag matches calver format: vYYYY.MM.PATCH
     let tag_name = &tags[0];
     assert!(
         tag_name.starts_with('v'),
         "tag should start with 'v', got: {tag_name}"
     );
     let ver = tag_name.strip_prefix('v').unwrap();
-    assert!(
-        ver.contains('.'),
-        "calver version should contain dots, got: {ver}"
+    assert_calver_format(ver);
+
+    // The first release should have patch == 0.
+    let parts: Vec<&str> = ver.split('.').collect();
+    assert_eq!(
+        parts[2], "0",
+        "first calver release should have patch 0, got: {}",
+        parts[2]
     );
 
     // Second bump: add another commit, should increment patch.
@@ -504,6 +544,33 @@ fn bump_full_release_cycle() {
         tags2.len() >= 2,
         "should have at least 2 tags after second bump, got: {}",
         tags2.len()
+    );
+
+    // Verify both tags match calver format.
+    for t in &tags2 {
+        let v = t.strip_prefix('v').unwrap_or(t);
+        assert_calver_format(v);
+    }
+
+    // The second tag should share the same YYYY.MM prefix and have patch == 1.
+    let first_ver = tags2[0].strip_prefix('v').unwrap();
+    let second_ver = tags2[1].strip_prefix('v').unwrap();
+    let first_parts: Vec<&str> = first_ver.split('.').collect();
+    let second_parts: Vec<&str> = second_ver.split('.').collect();
+    assert_eq!(
+        first_parts[0], second_parts[0],
+        "year should match between bumps: {} vs {}",
+        first_parts[0], second_parts[0]
+    );
+    assert_eq!(
+        first_parts[1], second_parts[1],
+        "month should match between bumps: {} vs {}",
+        first_parts[1], second_parts[1]
+    );
+    let patch: u32 = second_parts[2].parse().expect("patch should be numeric");
+    assert_eq!(
+        patch, 1,
+        "second calver bump should have patch 1, got: {patch}"
     );
 }
 
