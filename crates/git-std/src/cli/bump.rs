@@ -149,6 +149,42 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         INDENT = ui::INDENT,
     );
 
+    let prev_ver_str = current_version
+        .as_ref()
+        .map(|(_, v)| v.to_string());
+
+    let ctx = FinalizeContext {
+        new_version: new_version.to_string(),
+        prev_version: prev_ver_str.as_deref(),
+        raw_commits: &raw_commits,
+    };
+
+    finalize_bump(&repo, config, opts, &ctx)
+}
+
+/// Context passed from the version-computation phase to the shared finalize logic.
+struct FinalizeContext<'a> {
+    /// The new version string (semver or calver).
+    new_version: String,
+    /// The previous version string, if any (used for changelog compare links).
+    prev_version: Option<&'a str>,
+    /// Raw commits since the last tag, used for changelog generation.
+    raw_commits: &'a [(git2::Oid, String)],
+}
+
+/// Shared finalize logic for both semver and calver bump paths.
+///
+/// Handles workdir resolution, custom version files, dry-run output,
+/// version file updates, changelog generation, commit creation, and tagging.
+fn finalize_bump(
+    repo: &git2::Repository,
+    config: &ProjectConfig,
+    opts: &BumpOptions,
+    ctx: &FinalizeContext<'_>,
+) -> i32 {
+    let tag_prefix = &config.versioning.tag_prefix;
+    let new_version = &ctx.new_version;
+
     let workdir = match repo.workdir() {
         Some(w) => w,
         None => {
@@ -185,7 +221,10 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
                 }
             }
             Err(e) => {
-                eprintln!("{INDENT}warning: cannot detect version files: {e}", INDENT = ui::INDENT);
+                eprintln!(
+                    "{INDENT}warning: cannot detect version files: {e}",
+                    INDENT = ui::INDENT,
+                );
             }
         }
 
@@ -197,11 +236,17 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
 
         if !opts.no_commit {
-            eprintln!("{INDENT}Would commit: chore(release): {new_version}", INDENT = ui::INDENT);
+            eprintln!(
+                "{INDENT}Would commit: chore(release): {new_version}",
+                INDENT = ui::INDENT,
+            );
         }
 
         if !opts.no_commit && !opts.no_tag {
-            eprintln!("{INDENT}Would tag:    {tag_prefix}{new_version}", INDENT = ui::INDENT);
+            eprintln!(
+                "{INDENT}Would tag:    {tag_prefix}{new_version}",
+                INDENT = ui::INDENT,
+            );
         }
 
         ui::blank();
@@ -210,18 +255,15 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     // --- Actual execution ---
 
-    // Step 7: Update all detected version files.
-    let version_results: Vec<UpdateResult> = match standard_version::update_version_files(
-        workdir,
-        &new_version.to_string(),
-        &custom_files,
-    ) {
-        Ok(r) => r,
-        Err(e) => {
-            ui::error(&format!("cannot update version files: {e}"));
-            return 1;
-        }
-    };
+    // Update all detected version files.
+    let version_results: Vec<UpdateResult> =
+        match standard_version::update_version_files(workdir, new_version, &custom_files) {
+            Ok(r) => r,
+            Err(e) => {
+                ui::error(&format!("cannot update version files: {e}"));
+                return 1;
+            }
+        };
 
     // Sync Cargo.lock only when a Cargo.toml was actually updated.
     let cargo_updated = version_results.iter().any(|r| r.name == "Cargo.toml");
@@ -234,19 +276,16 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     }
 
-    // Step 8: Generate/update changelog.
+    // Generate/update changelog.
     if !opts.skip_changelog {
         let changelog_config = config.to_changelog_config();
-        let host = git::detect_host_from_repo(&repo);
+        let host = git::detect_host_from_repo(repo);
         let changelog_path = workdir.join("CHANGELOG.md");
 
         let release = build_version_release(
-            &raw_commits,
-            &new_version.to_string(),
-            current_version
-                .as_ref()
-                .map(|(_, v)| v.to_string())
-                .as_deref(),
+            ctx.raw_commits,
+            new_version,
+            ctx.prev_version,
             &changelog_config,
         );
 
@@ -286,9 +325,8 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         );
     }
 
-    // Step 9: Create commit.
+    // Create commit.
     if !opts.no_commit {
-        // Collect paths to stage: all updated version files + changelog + Cargo.lock.
         let rel_paths: Vec<String> = version_results
             .iter()
             .filter_map(|r| {
@@ -306,7 +344,7 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
             paths_to_stage.push("Cargo.lock");
         }
 
-        if let Err(e) = git::stage_files(&repo, &paths_to_stage) {
+        if let Err(e) = git::stage_files(repo, &paths_to_stage) {
             ui::error(&format!("cannot stage files: {e}"));
             return 1;
         }
@@ -318,35 +356,46 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
                 ui::error(&e.to_string());
                 return 1;
             }
-        } else if let Err(e) = git::create_commit(&repo, &commit_msg) {
+        } else if let Err(e) = git::create_commit(repo, &commit_msg) {
             ui::error(&format!("cannot create commit: {e}"));
             return 1;
         }
 
         ui::blank();
-        eprintln!("{INDENT}Committed: {}", commit_msg.green(), INDENT = ui::INDENT);
+        eprintln!(
+            "{INDENT}Committed: {}",
+            commit_msg.green(),
+            INDENT = ui::INDENT,
+        );
     }
 
-    // Step 10: Create annotated tag.
+    // Create annotated tag.
     if !opts.no_commit && !opts.no_tag {
         let tag_name = format!("{tag_prefix}{new_version}");
-        let tag_msg = format!("{new_version}");
+        let tag_msg = new_version.to_string();
 
         if opts.sign {
             if let Err(e) = git::create_signed_tag(&tag_name, &tag_msg) {
                 ui::error(&e.to_string());
                 return 1;
             }
-        } else if let Err(e) = git::create_annotated_tag(&repo, &tag_name, &tag_msg) {
+        } else if let Err(e) = git::create_annotated_tag(repo, &tag_name, &tag_msg) {
             ui::error(&format!("cannot create tag: {e}"));
             return 1;
         }
 
-        eprintln!("{INDENT}Tagged:    {}", tag_name.green(), INDENT = ui::INDENT);
+        eprintln!(
+            "{INDENT}Tagged:    {}",
+            tag_name.green(),
+            INDENT = ui::INDENT,
+        );
     }
 
     ui::blank();
-    eprintln!("{INDENT}Push with: git push --follow-tags", INDENT = ui::INDENT);
+    eprintln!(
+        "{INDENT}Push with: git push --follow-tags",
+        INDENT = ui::INDENT,
+    );
     ui::blank();
 
     0
@@ -569,189 +618,13 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         INDENT = ui::INDENT,
     );
 
-    let workdir = match repo.workdir() {
-        Some(w) => w,
-        None => {
-            ui::error("bare repository not supported");
-            return 1;
-        }
+    let ctx = FinalizeContext {
+        new_version: new_version.clone(),
+        prev_version: prev_ver,
+        raw_commits: &raw_commits,
     };
 
-    let custom_files: Vec<CustomVersionFile> = config
-        .version_files
-        .iter()
-        .map(|vf| CustomVersionFile {
-            path: PathBuf::from(&vf.path),
-            pattern: vf.regex.clone(),
-        })
-        .collect();
-
-    // Dry run.
-    if opts.dry_run {
-        ui::blank();
-        match standard_version::detect_version_files(workdir, &custom_files) {
-            Ok(detected) if detected.is_empty() => {
-                eprintln!("{INDENT}No version files detected", INDENT = ui::INDENT);
-            }
-            Ok(detected) => {
-                eprintln!("{INDENT}Would update:", INDENT = ui::INDENT);
-                for f in &detected {
-                    let rel = f.path.strip_prefix(workdir).unwrap_or(&f.path).display();
-                    ui::item(
-                        &rel.to_string(),
-                        &format!("{} \u{2192} {new_version}", f.old_version),
-                    );
-                }
-            }
-            Err(e) => {
-                eprintln!("{INDENT}warning: cannot detect version files: {e}", INDENT = ui::INDENT);
-            }
-        }
-
-        if !opts.skip_changelog {
-            eprintln!(
-                "{INDENT}Would update: CHANGELOG.md         prepend {tag_prefix}{new_version} section",
-                INDENT = ui::INDENT,
-            );
-        }
-        if !opts.no_commit {
-            eprintln!("{INDENT}Would commit: chore(release): {new_version}", INDENT = ui::INDENT);
-        }
-        if !opts.no_commit && !opts.no_tag {
-            eprintln!("{INDENT}Would tag:    {tag_prefix}{new_version}", INDENT = ui::INDENT);
-        }
-        ui::blank();
-        return 0;
-    }
-
-    // Update version files.
-    let version_results: Vec<UpdateResult> =
-        match standard_version::update_version_files(workdir, &new_version, &custom_files) {
-            Ok(r) => r,
-            Err(e) => {
-                ui::error(&format!("cannot update version files: {e}"));
-                return 1;
-            }
-        };
-
-    let cargo_updated = version_results.iter().any(|r| r.name == "Cargo.toml");
-    if cargo_updated {
-        let status = std::process::Command::new("cargo")
-            .args(["update", "--workspace"])
-            .status();
-        if let Err(e) = status {
-            ui::warning(&format!("failed to update Cargo.lock: {e}"));
-        }
-    }
-
-    // Generate changelog.
-    if !opts.skip_changelog {
-        let changelog_config = config.to_changelog_config();
-        let host = git::detect_host_from_repo(&repo);
-        let changelog_path = workdir.join("CHANGELOG.md");
-
-        let release =
-            build_version_release(&raw_commits, &new_version, prev_ver, &changelog_config);
-
-        if let Some(release) = release {
-            let existing = std::fs::read_to_string(&changelog_path).unwrap_or_default();
-            let output =
-                standard_changelog::prepend_release(&existing, &release, &changelog_config, &host);
-            if let Err(e) = std::fs::write(&changelog_path, &output) {
-                ui::error(&format!("cannot write CHANGELOG.md: {e}"));
-                return 1;
-            }
-        }
-    }
-
-    // Print updated files.
-    if !version_results.is_empty() {
-        ui::blank();
-        eprintln!("{INDENT}Updated:", INDENT = ui::INDENT);
-        for r in &version_results {
-            let rel = r.path.strip_prefix(workdir).unwrap_or(&r.path).display();
-            ui::item(
-                &rel.to_string(),
-                &format!("{} \u{2192} {}", r.old_version, r.new_version),
-            );
-            if let Some(ref extra) = r.extra {
-                ui::item("", extra);
-            }
-        }
-    }
-
-    if !opts.skip_changelog {
-        ui::blank();
-        eprintln!("{INDENT}Changelog:", INDENT = ui::INDENT);
-        ui::item(
-            "CHANGELOG.md",
-            &format!("prepended {tag_prefix}{new_version} section"),
-        );
-    }
-
-    // Commit.
-    if !opts.no_commit {
-        let rel_paths: Vec<String> = version_results
-            .iter()
-            .filter_map(|r| {
-                r.path
-                    .strip_prefix(workdir)
-                    .ok()
-                    .map(|p| p.to_string_lossy().into_owned())
-            })
-            .collect();
-        let mut paths_to_stage: Vec<&str> = rel_paths.iter().map(|s| s.as_str()).collect();
-        if !opts.skip_changelog {
-            paths_to_stage.push("CHANGELOG.md");
-        }
-        if cargo_updated {
-            paths_to_stage.push("Cargo.lock");
-        }
-
-        if let Err(e) = git::stage_files(&repo, &paths_to_stage) {
-            ui::error(&format!("cannot stage files: {e}"));
-            return 1;
-        }
-
-        let commit_msg = format!("chore(release): {new_version}");
-
-        if opts.sign {
-            if let Err(e) = git::create_signed_commit(&commit_msg) {
-                ui::error(&e.to_string());
-                return 1;
-            }
-        } else if let Err(e) = git::create_commit(&repo, &commit_msg) {
-            ui::error(&format!("cannot create commit: {e}"));
-            return 1;
-        }
-
-        ui::blank();
-        eprintln!("{INDENT}Committed: {}", commit_msg.green(), INDENT = ui::INDENT);
-    }
-
-    // Tag.
-    if !opts.no_commit && !opts.no_tag {
-        let tag_name = format!("{tag_prefix}{new_version}");
-        let tag_msg = new_version.to_string();
-
-        if opts.sign {
-            if let Err(e) = git::create_signed_tag(&tag_name, &tag_msg) {
-                ui::error(&e.to_string());
-                return 1;
-            }
-        } else if let Err(e) = git::create_annotated_tag(&repo, &tag_name, &tag_msg) {
-            ui::error(&format!("cannot create tag: {e}"));
-            return 1;
-        }
-
-        eprintln!("{INDENT}Tagged:    {}", tag_name.green(), INDENT = ui::INDENT);
-    }
-
-    ui::blank();
-    eprintln!("{INDENT}Push with: git push --follow-tags", INDENT = ui::INDENT);
-    ui::blank();
-
-    0
+    finalize_bump(&repo, config, opts, &ctx)
 }
 
 #[cfg(test)]
