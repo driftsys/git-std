@@ -21,9 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install mdbook
-        run: |
-          curl -sSfL https://github.com/rust-lang/mdBook/releases/latest/download/mdbook-v0.4.44-x86_64-unknown-linux-gnu.tar.gz \
-            | tar -xz -C /usr/local/bin
+        run: cargo install mdbook --no-default-features
       - name: Build book
         run: mdbook build
       - name: Upload Pages artifact
