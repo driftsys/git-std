@@ -30,7 +30,9 @@
 mod format;
 mod lint;
 mod parse;
+mod process;
 
 pub use format::format;
 pub use lint::{LintConfig, LintError, lint};
 pub use parse::{ConventionalCommit, Footer, ParseError, parse};
+pub use process::is_process_commit;
