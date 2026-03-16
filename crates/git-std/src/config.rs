@@ -5,7 +5,7 @@ const CONFIG_FILE: &str = ".git-std.toml";
 
 /// Default conventional commit types used when `.git-std.toml` has no `types` list.
 const DEFAULT_TYPES: &[&str] = &[
-    "feat", "fix", "docs", "style", "refactor", "perf", "test", "chore", "ci", "build",
+    "feat", "fix", "docs", "style", "refactor", "perf", "test", "chore", "ci", "build", "revert",
 ];
 
 /// Versioning scheme.

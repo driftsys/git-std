@@ -103,6 +103,7 @@ impl Default for ChangelogConfig {
                 ("perf".to_string(), "Performance".to_string()),
                 ("refactor".to_string(), "Refactoring".to_string()),
                 ("docs".to_string(), "Documentation".to_string()),
+                ("revert".to_string(), "Reverts".to_string()),
             ],
             hidden: vec![
                 "chore".to_string(),
@@ -1379,6 +1380,7 @@ mod tests {
                 ("perf".to_string(), "Performance".to_string()),
                 ("refactor".to_string(), "Refactoring".to_string()),
                 ("docs".to_string(), "Documentation".to_string()),
+                ("revert".to_string(), "Reverts".to_string()),
             ]
         );
         assert_eq!(

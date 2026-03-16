@@ -77,7 +77,7 @@ pub enum BumpLevel {
 /// Bump rules follow the [Conventional Commits](https://www.conventionalcommits.org/)
 /// specification:
 /// - `feat` → [`BumpLevel::Minor`]
-/// - `fix` or `perf` → [`BumpLevel::Patch`]
+/// - `fix`, `perf`, or `revert` → [`BumpLevel::Patch`]
 /// - `BREAKING CHANGE` footer or `!` suffix → [`BumpLevel::Major`]
 ///
 /// Returns `None` when no bump-worthy commits exist (e.g. only `chore`,
@@ -112,7 +112,7 @@ fn commit_bump(commit: &ConventionalCommit) -> Option<BumpLevel> {
 
     match commit.r#type.as_str() {
         "feat" => Some(BumpLevel::Minor),
-        "fix" | "perf" => Some(BumpLevel::Patch),
+        "fix" | "perf" | "revert" => Some(BumpLevel::Patch),
         _ => None,
     }
 }
@@ -296,6 +296,12 @@ mod tests {
     #[test]
     fn perf_yields_patch() {
         let commits = vec![commit("perf", false)];
+        assert_eq!(determine_bump(&commits), Some(BumpLevel::Patch));
+    }
+
+    #[test]
+    fn revert_yields_patch() {
+        let commits = vec![commit("revert", false)];
         assert_eq!(determine_bump(&commits), Some(BumpLevel::Patch));
     }
 
