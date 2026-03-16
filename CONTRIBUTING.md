@@ -128,6 +128,21 @@ Pull request guidelines:
 4. Open a PR with a clear description referencing the issue.
 5. Every PR ships implementation, tests, and updated documentation together.
 
+## Pull request workflow
+
+- **Single commit per PR.** One conventional commit per
+  story/task. Fixup or squash cleanup commits before
+  pushing.
+- **Merge commit.** Merge with `gh pr merge --merge`
+  (not squash). Preserves the PR reference in `git log`.
+- **Work in isolation.** Use a git worktree, not the
+  main working directory.
+- **Review before merge.** After CI passes, review every
+  PR. Post findings via
+  `gh api repos/{owner}/{repo}/pulls/{n}/reviews` with
+  `event=COMMENT`. Classify by severity (K0/K1/K2).
+  Fix K0 in the PR. Open debt issues for K1/K2.
+
 ## Code review
 
 Reviews should check for:
@@ -138,5 +153,115 @@ Reviews should check for:
 - **Tests** — are there correct, well-designed tests?
 - **Documentation** — is relevant documentation updated?
 
-Be respectful — assume competence and goodwill, explain your reasoning, and
-mention positives.
+Be respectful — assume competence and goodwill, explain
+your reasoning, and mention positives.
+
+## Issue model
+
+### Hierarchy
+
+```text
+Initiative (label only — initiative:git-workflow)
+  └── Epic (issue + epic + epic:<name> labels)
+        ├── Story  — user-facing requirement
+        ├── Task   — technical requirement
+        └── Debt   — refactoring / review findings
+```
+
+### Issue types
+
+| Type  | Label   | Purpose                                         |
+| ----- | ------- | ----------------------------------------------- |
+| Epic  | `epic`  | Tracking issue grouping stories/tasks/debt      |
+| Story | `story` | User-facing requirement from the spec           |
+| Task  | `task`  | Technical requirement (not user-visible)        |
+| Debt  | `debt`  | Refactoring, should-fix or nice-to-have finding |
+| Bug   | `bug`   | Defect. K0 bugs are must-fix immediately        |
+
+### Severity
+
+| Label | Meaning      |
+| ----- | ------------ |
+| `K0`  | Must-have    |
+| `K1`  | Should-fix   |
+| `K2`  | Nice-to-have |
+
+### Effort
+
+| Label | Size                             |
+| ----- | -------------------------------- |
+| `XS`  | Trivial — typo, one-liner        |
+| `S`   | Small — single file, < 1 hour    |
+| `M`   | Medium — a few files, half a day |
+| `L`   | Large — cross-cutting, full day  |
+| `XL`  | Extra large — multi-day          |
+
+### Priority lookup
+
+|    | XS | S  | M  | L    | XL   |
+| -- | -- | -- | -- | ---- | ---- |
+| K0 | P0 | P0 | P0 | P1   | P1   |
+| K1 | P0 | P1 | P1 | P2   | drop |
+| K2 | P1 | P2 | P2 | drop | drop |
+
+- **P0:** do now. **P1:** do next. **P2:** do when
+  convenient. **Drop:** close as won't-fix.
+- K0 never drops — must-haves always get done.
+
+### Review findings
+
+- **K0** → fix in the PR, or open a `bug` issue.
+- **K1 / K2** → open a `debt` issue with severity,
+  effort, and priority labels.
+
+### Issue rules
+
+1. Every story/task/debt has `Epic:` as first non-blank
+   body line (`Epic: #N` or `Epic: org/repo#N`).
+2. One `epic:<name>` label plus type label per issue.
+3. No domain labels — domain is implicit from title.
+4. When creating an issue, update the parent epic's
+   task list.
+5. Epics live at org level (`driftsys/.github`) for
+   cross-repo concerns or repo level for repo-specific
+   work.
+6. Epics are created by humans. Agents create stories,
+   tasks, and debt.
+
+### Templates
+
+**Epic:**
+
+```markdown
+## Goal
+
+## Spec reference
+
+## Stories
+
+- [ ] #N — title
+
+## Tasks
+
+- [ ] #N — title
+
+## Debt
+
+- [ ] #N — title
+```
+
+Labels: `epic`, `epic:<name>`, `initiative:git-workflow`
+
+**Story / Task / Debt:**
+
+```markdown
+Epic: #<epic-number>
+
+## Context
+
+## Acceptance criteria
+
+## Spec reference (story only)
+```
+
+Labels: type + `epic:<name>` + severity + effort
