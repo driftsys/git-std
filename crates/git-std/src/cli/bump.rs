@@ -909,10 +909,7 @@ fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         .any(|c| c.is_breaking);
 
     if has_breaking && !opts.force {
-        ui::error(
-            "breaking change detected — patch-only scheme does not allow major bumps. \
-             Use --force to override.",
-        );
+        ui::error("breaking change not allowed on patch-only branch (use --force to override)");
         return 1;
     }
 
