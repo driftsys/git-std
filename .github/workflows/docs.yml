@@ -3,10 +3,7 @@ name: Docs
 on:
   push:
     branches: [main]
-    paths:
-      - "docs/**"
-      - "book.toml"
-      - ".github/workflows/docs.yml"
+    tags: ["v*"]
 
 permissions:
   contents: read
