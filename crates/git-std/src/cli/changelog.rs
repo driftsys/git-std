@@ -10,6 +10,8 @@ pub struct ChangelogOptions {
     pub stdout: bool,
     /// Output file path.
     pub output: String,
+    /// Optional git revision range (e.g. `v1.0.0..v2.0.0`).
+    pub range: Option<String>,
 }
 
 /// Run the changelog subcommand. Returns the exit code.
@@ -24,7 +26,9 @@ pub fn run(config: &ChangelogConfig, opts: &ChangelogOptions) -> i32 {
 
     let host = git::detect_host_from_repo(&repo);
 
-    if opts.full {
+    if let Some(ref range) = opts.range {
+        run_range(&repo, config, &host, opts, range)
+    } else if opts.full {
         run_full(&repo, config, &host, opts)
     } else {
         run_incremental(&repo, config, &host, opts)
@@ -142,6 +146,80 @@ fn build_unreleased(
     let head_commit = repo.find_commit(head_oid)?;
     release.date = git::format_commit_date(&head_commit);
     Ok(Some(release))
+}
+
+/// Render a changelog for a specific git revision range (e.g. `v1.0.0..v2.0.0`).
+fn run_range(
+    repo: &git2::Repository,
+    config: &ChangelogConfig,
+    host: &RepoHost,
+    opts: &ChangelogOptions,
+    range: &str,
+) -> i32 {
+    let (from_spec, to_spec) = match range.split_once("..") {
+        Some(pair) => pair,
+        None => {
+            eprintln!("error: range must contain '..' (e.g. v1.0.0..v2.0.0)");
+            return 1;
+        }
+    };
+
+    let from_oid = match repo
+        .revparse_single(from_spec)
+        .and_then(|o| o.peel_to_commit())
+    {
+        Ok(c) => c.id(),
+        Err(e) => {
+            eprintln!("error: cannot resolve '{from_spec}': {e}");
+            return 1;
+        }
+    };
+
+    let to_oid = match repo
+        .revparse_single(to_spec)
+        .and_then(|o| o.peel_to_commit())
+    {
+        Ok(c) => c.id(),
+        Err(e) => {
+            eprintln!("error: cannot resolve '{to_spec}': {e}");
+            return 1;
+        }
+    };
+
+    let commits = match git::walk_commits(repo, to_oid, Some(from_oid)) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return 1;
+        }
+    };
+
+    // Use the "to" ref as the version label, stripping a leading 'v' if present.
+    let version = to_spec.strip_prefix('v').unwrap_or(to_spec);
+
+    let release = match build_release_from_oid_commits(&commits, version, Some(from_spec), config) {
+        Some(mut r) => {
+            // Use the commit date of the "to" ref.
+            if let Ok(commit) = repo.find_commit(to_oid) {
+                r.date = git::format_commit_date(&commit);
+            }
+            r
+        }
+        None => {
+            eprintln!("no conventional commits found in range {range}");
+            return 0;
+        }
+    };
+
+    if opts.stdout {
+        let section = standard_changelog::render_version(&release, config, host);
+        print!("{section}");
+        return 0;
+    }
+
+    let existing = std::fs::read_to_string(&opts.output).unwrap_or_default();
+    let output = standard_changelog::prepend_release(&existing, &release, config, host);
+    write_output(&output, opts)
 }
 
 /// Build version releases from git history.

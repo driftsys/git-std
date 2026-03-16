@@ -210,6 +210,19 @@ fn create_tag(repo: &git2::Repository, name: &str) {
     repo.tag(name, obj, &sig, name, false).unwrap();
 }
 
+/// Helper: collect all tag names from a repo.
+fn collect_tag_names(repo: &git2::Repository) -> Vec<String> {
+    let mut names = Vec::new();
+    repo.tag_foreach(|_oid, name_bytes| {
+        let name = String::from_utf8_lossy(name_bytes).to_string();
+        let name = name.strip_prefix("refs/tags/").unwrap_or(&name).to_string();
+        names.push(name);
+        true
+    })
+    .unwrap();
+    names
+}
+
 #[test]
 fn bump_help_shows_flags() {
     let assert = Command::cargo_bin("git-std")
@@ -433,6 +446,105 @@ fn bump_first_release() {
     // Version should stay at 0.0.0 (first-release doesn't bump).
     let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
     assert!(cargo.contains("version = \"0.0.0\""));
+}
+
+/// Full calver release cycle: first release, then a second bump in the same month.
+#[test]
+fn bump_full_release_cycle() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+
+    // Write a .git-std.toml with calver scheme.
+    std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"calver\"\n").unwrap();
+
+    // Add a feat commit.
+    add_commit(&repo, dir.path(), "a.txt", "feat: first feature");
+
+    // First release.
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("calver"))
+        .stderr(predicate::str::contains("Committed"))
+        .stderr(predicate::str::contains("Tagged"));
+
+    // Verify a tag was created.
+    let tags = collect_tag_names(&repo);
+    assert!(!tags.is_empty(), "at least one tag should exist after bump");
+
+    // Verify the tag starts with "v" and contains a dot-separated version.
+    let tag_name = &tags[0];
+    assert!(
+        tag_name.starts_with('v'),
+        "tag should start with 'v', got: {tag_name}"
+    );
+    let ver = tag_name.strip_prefix('v').unwrap();
+    assert!(
+        ver.contains('.'),
+        "calver version should contain dots, got: {ver}"
+    );
+
+    // Second bump: add another commit, should increment patch.
+    add_commit(&repo, dir.path(), "b.txt", "fix: a bugfix");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("calver"));
+
+    // Should now have two tags.
+    let tags2 = collect_tag_names(&repo);
+    assert!(
+        tags2.len() >= 2,
+        "should have at least 2 tags after second bump, got: {}",
+        tags2.len()
+    );
+}
+
+/// Pre-release cycle: first bump with --prerelease creates -rc.0 style tag,
+/// second bump increments it.
+#[test]
+fn bump_prerelease_cycle() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+
+    // Add a feat commit.
+    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+
+    // First pre-release bump.
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--prerelease"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.0.0 → 1.1.0-rc.0"));
+
+    // Verify tag.
+    let tag = repo.find_reference("refs/tags/v1.1.0-rc.0");
+    assert!(tag.is_ok(), "tag v1.1.0-rc.0 should exist");
+
+    // Second pre-release bump.
+    add_commit(&repo, dir.path(), "b.txt", "fix: a fix");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--prerelease"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.1.0-rc.0 → 1.1.0-rc.1"));
+
+    // Verify second tag.
+    let tag2 = repo.find_reference("refs/tags/v1.1.0-rc.1");
+    assert!(tag2.is_ok(), "tag v1.1.0-rc.1 should exist");
 }
 
 // --- Hooks install integration tests ---

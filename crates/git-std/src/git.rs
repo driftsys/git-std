@@ -101,6 +101,40 @@ pub fn find_latest_version_tag(
     Ok(tags.into_iter().next().map(|(oid, ver, _)| (oid, ver)))
 }
 
+/// Find the latest calver-style tag matching `<prefix><version>`.
+///
+/// Unlike semver tags, calver tags are sorted by commit time (newest first)
+/// since the version string itself may not sort correctly as a semver value.
+pub fn find_latest_calver_tag(
+    repo: &git2::Repository,
+    prefix: &str,
+) -> Result<Option<(git2::Oid, String)>, Box<dyn std::error::Error>> {
+    let mut tags: Vec<(git2::Oid, String, i64)> = Vec::new();
+
+    repo.tag_foreach(|oid, name_bytes| {
+        let name = String::from_utf8_lossy(name_bytes).to_string();
+        let name = name.strip_prefix("refs/tags/").unwrap_or(&name).to_string();
+
+        if let Some(ver_str) = name.strip_prefix(prefix) {
+            // Accept any tag that starts with the prefix and has a digit after it.
+            if ver_str.starts_with(|c: char| c.is_ascii_digit()) {
+                let target_oid = repo.find_tag(oid).map(|t| t.target_id()).unwrap_or(oid);
+                let time = repo
+                    .find_commit(target_oid)
+                    .map(|c| c.time().seconds())
+                    .unwrap_or(0);
+                tags.push((target_oid, ver_str.to_string(), time));
+            }
+        }
+        true
+    })?;
+
+    // Sort by commit time (newest first).
+    tags.sort_by(|a, b| b.2.cmp(&a.2));
+
+    Ok(tags.into_iter().next().map(|(oid, ver, _)| (oid, ver)))
+}
+
 /// Format a commit's time as `YYYY-MM-DD`.
 pub fn format_commit_date(commit: &git2::Commit) -> String {
     let time = commit.time();

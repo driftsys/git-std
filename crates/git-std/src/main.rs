@@ -114,6 +114,9 @@ enum Command {
         /// Output file path.
         #[arg(long, default_value = "CHANGELOG.md")]
         output: String,
+        /// Git revision range (e.g. `v1.0.0..v2.0.0`).
+        #[arg(long)]
+        range: Option<String>,
     },
     /// Git hooks management.
     Hooks {
@@ -212,6 +215,7 @@ fn main() {
             full,
             stdout,
             output,
+            range,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
             let changelog_config = project_config.to_changelog_config();
@@ -219,6 +223,7 @@ fn main() {
                 full,
                 stdout,
                 output,
+                range,
             };
             let code = cli::changelog::run(&changelog_config, &opts);
             std::process::exit(code);
