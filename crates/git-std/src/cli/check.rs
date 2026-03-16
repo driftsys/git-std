@@ -21,6 +21,8 @@ pub enum OutputFormat {
 struct CheckResult {
     valid: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    skipped: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     r#type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     scope: Option<String>,
@@ -72,6 +74,7 @@ fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
         } else {
             CheckResult {
                 valid: false,
+                skipped: None,
                 r#type: None,
                 scope: None,
                 description: None,
@@ -84,6 +87,7 @@ fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
             Ok(_) => build_valid_result(message),
             Err(e) => CheckResult {
                 valid: false,
+                skipped: None,
                 r#type: None,
                 scope: None,
                 description: None,
@@ -103,6 +107,7 @@ fn build_valid_result(message: &str) -> CheckResult {
     match standard_commit::parse(message) {
         Ok(commit) => CheckResult {
             valid: true,
+            skipped: None,
             r#type: Some(commit.r#type),
             scope: commit.scope,
             description: Some(commit.description),
@@ -111,6 +116,7 @@ fn build_valid_result(message: &str) -> CheckResult {
         },
         Err(_) => CheckResult {
             valid: true,
+            skipped: None,
             r#type: None,
             scope: None,
             description: None,
@@ -162,7 +168,12 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
 
     let total = commits.len();
     let mut failures = 0;
+    let mut skipped = 0;
     for (oid, message) in &commits {
+        if standard_commit::is_process_commit(message) {
+            skipped += 1;
+            continue;
+        }
         let short = &oid.to_string()[..7];
         let valid = if let Some(config) = lint_config {
             let errors = standard_commit::lint(message, config);
@@ -219,9 +230,13 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
         }
     }
 
-    let valid_count = total - failures;
+    let checked = total - skipped;
+    let valid_count = checked - failures;
     ui::blank();
-    eprintln!("{}/{} valid", valid_count, total);
+    if skipped > 0 {
+        eprintln!("{skipped} process commit(s) skipped");
+    }
+    eprintln!("{valid_count}/{checked} valid");
 
     if failures > 0 { 1 } else { 0 }
 }
@@ -232,6 +247,19 @@ fn run_range_json(commits: &[(git2::Oid, String)], lint_config: Option<&LintConf
     let mut any_invalid = false;
 
     for (_oid, message) in commits {
+        if standard_commit::is_process_commit(message) {
+            results.push(CheckResult {
+                valid: true,
+                skipped: Some(true),
+                r#type: None,
+                scope: None,
+                description: None,
+                breaking: None,
+                errors: vec![],
+            });
+            continue;
+        }
+
         let result = if let Some(config) = lint_config {
             let errors = standard_commit::lint(message, config);
             if errors.is_empty() {
@@ -239,6 +267,7 @@ fn run_range_json(commits: &[(git2::Oid, String)], lint_config: Option<&LintConf
             } else {
                 CheckResult {
                     valid: false,
+                    skipped: None,
                     r#type: None,
                     scope: None,
                     description: None,
@@ -251,6 +280,7 @@ fn run_range_json(commits: &[(git2::Oid, String)], lint_config: Option<&LintConf
                 Ok(_) => build_valid_result(message),
                 Err(e) => CheckResult {
                     valid: false,
+                    skipped: None,
                     r#type: None,
                     scope: None,
                     description: None,
