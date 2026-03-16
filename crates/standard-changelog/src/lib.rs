@@ -611,7 +611,7 @@ pub fn build_release(
 ) -> Option<VersionRelease> {
     use std::collections::{HashMap, HashSet};
 
-    let section_map: HashMap<&str, &str> = config
+    let section_map: Vec<(&str, &str)> = config
         .sections
         .iter()
         .map(|(k, v)| (k.as_str(), v.as_str()))
@@ -632,8 +632,11 @@ pub fn build_release(
             continue;
         }
 
-        let section_title = match section_map.get(parsed.r#type.as_str()) {
-            Some(title) => (*title).to_string(),
+        let section_title = match section_map
+            .iter()
+            .find(|(k, _)| *k == parsed.r#type.as_str())
+        {
+            Some((_, title)) => (*title).to_string(),
             None => continue,
         };
 
@@ -673,8 +676,7 @@ pub fn build_release(
     }
 
     // Order groups by section config order.
-    let sections: Vec<(&str, &str)> = section_map.iter().map(|(k, v)| (*k, *v)).collect();
-    let groups: Vec<(String, Vec<ChangelogEntry>)> = sections
+    let groups: Vec<(String, Vec<ChangelogEntry>)> = section_map
         .iter()
         .filter_map(|(_, title)| {
             groups_map
