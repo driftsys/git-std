@@ -88,6 +88,38 @@ fn hooks_run_pass_fail_advisory() {
         ]);
 }
 
+/// `hooks run` skips execution when GIT_STD_SKIP_HOOKS=1 is set.
+#[test]
+fn hooks_run_skip_via_env_var() {
+    let repo = TestRepo::new().with_hooks_file("pre-commit", "false\n");
+
+    Command::new(TestRepo::bin_path())
+        .args(["hooks", "run", "pre-commit"])
+        .env("GIT_STD_SKIP_HOOKS", "1")
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stderr_eq(file![
+            "../snapshots/hooks/run_skip_via_env_var.stderr.expected"
+        ]);
+}
+
+/// `hooks run` skips execution when GIT_STD_SKIP_HOOKS=true is set.
+#[test]
+fn hooks_run_skip_via_env_var_true() {
+    let repo = TestRepo::new().with_hooks_file("pre-commit", "false\n");
+
+    Command::new(TestRepo::bin_path())
+        .args(["hooks", "run", "pre-commit"])
+        .env("GIT_STD_SKIP_HOOKS", "true")
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stderr_eq(file![
+            "../snapshots/hooks/run_skip_via_env_var.stderr.expected"
+        ]);
+}
+
 /// `hooks run` displays glob patterns and skips commands that don't match.
 #[test]
 fn hooks_run_glob_filtering() {
