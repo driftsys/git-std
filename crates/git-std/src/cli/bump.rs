@@ -445,7 +445,8 @@ fn build_version_release(
     prev_tag: Option<&str>,
     config: &standard_changelog::ChangelogConfig,
 ) -> Option<VersionRelease> {
-    let mut release = super::changelog::build_release_from_commits(commits, version, prev_tag, config)?;
+    let mut release =
+        super::changelog::build_release_from_commits(commits, version, prev_tag, config)?;
 
     // Use today's date.
     let secs = std::time::SystemTime::now()

@@ -103,7 +103,11 @@ pub fn collect_tags(dir: &Path) -> Result<Vec<(String, String)>, GitError> {
             continue;
         }
         // Use dereferenced OID for annotated tags, otherwise the tag OID itself.
-        let oid = if parts[1].is_empty() { parts[0] } else { parts[1] };
+        let oid = if parts[1].is_empty() {
+            parts[0]
+        } else {
+            parts[1]
+        };
         let name = parts[2];
         tags.push((oid.to_string(), name.to_string()));
     }
