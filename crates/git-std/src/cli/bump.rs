@@ -394,10 +394,13 @@ fn build_version_release(
 /// Compute today's [`standard_version::calver::CalverDate`] using the Howard
 /// Hinnant civil_from_days algorithm (no external date crate needed).
 fn today_calver_date() -> standard_version::calver::CalverDate {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
+    let secs = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => d.as_secs() as i64,
+        Err(e) => {
+            eprintln!("warning: system clock failure ({e}), falling back to Unix epoch");
+            0
+        }
+    };
     calver_date_from_epoch_days(secs.div_euclid(86400) as i32)
 }
 
