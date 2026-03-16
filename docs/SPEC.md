@@ -480,12 +480,12 @@ using `standard-changelog`.
 
 **Flags:**
 
-| Flag               | Description                                           |
-| ------------------ | ----------------------------------------------------- |
-| `--full`           | Regenerate the entire changelog from the first commit |
-| `--range <range>`  | Generate changelog for a tag range (e.g. `v1.0..v2.0`)|
-| `--stdout`         | Print to stdout instead of file                       |
-| `--output <file>`  | Write to file (default: `CHANGELOG.md`)               |
+| Flag              | Description                                            |
+| ----------------- | ------------------------------------------------------ |
+| `--full`          | Regenerate the entire changelog from the first commit  |
+| `--range <range>` | Generate changelog for a tag range (e.g. `v1.0..v2.0`) |
+| `--stdout`        | Print to stdout instead of file                        |
+| `--output <file>` | Write to file (default: `CHANGELOG.md`)                |
 
 Without `--full` or `--range`, generates an incremental
 changelog (unreleased commits since the last tag) and
@@ -583,7 +583,7 @@ Display all configured hooks and their commands:
 ```text
 $ git std hooks list
 
-  pre-commit (complete mode):
+  pre-commit (collect mode):
       dprint check
       shellcheck scripts/*.sh
       cargo clippy --workspace -- -D warnings    *.rs

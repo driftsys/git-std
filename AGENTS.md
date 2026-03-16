@@ -33,13 +33,13 @@ The full specification lives in `docs/SPEC.md`.
 
 **Workspace structure — five crates:**
 
-| Crate                | Role                                                                 |
-| -------------------- | -------------------------------------------------------------------- |
-| `git-std`            | CLI binary — orchestrates I/O, git, config, dispatch                 |
-| `standard-commit`    | Conventional commit parsing, linting, formatting                     |
-| `standard-version`   | Version bump (semver + calver), version file detection and update    |
-| `standard-changelog` | Changelog generation from conventional commits                       |
-| `standard-githooks`  | Hook file format parsing, shim generation                            |
+| Crate                | Role                                                              |
+| -------------------- | ----------------------------------------------------------------- |
+| `git-std`            | CLI binary — orchestrates I/O, git, config, dispatch              |
+| `standard-commit`    | Conventional commit parsing, linting, formatting                  |
+| `standard-version`   | Version bump (semver + calver), version file detection and update |
+| `standard-changelog` | Changelog generation from conventional commits                    |
+| `standard-githooks`  | Hook file format parsing, shim generation                         |
 
 Library crates are pure — no git2, no I/O, no terminal
 output — except `standard-version`, which performs file
