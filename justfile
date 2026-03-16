@@ -42,6 +42,10 @@ doc:
 book:
     mdbook serve
 
+# Bump version, update changelog, commit, and tag
+release:
+    git std bump
+
 # Publish all crates to crates.io (dependency order)
 # Skips separate dry-run — cargo publish already verifies
 # each package before uploading.

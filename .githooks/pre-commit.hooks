@@ -1,0 +1,2 @@
+cargo fmt -- --check  *.rs
+cargo clippy --workspace -- -D warnings  *.rs

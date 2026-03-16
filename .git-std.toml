@@ -1,0 +1,8 @@
+[versioning]
+scheme = "semver"
+tag_prefix = "v"
+
+[commits]
+strict = true
+types = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"]
+scopes = "auto"
