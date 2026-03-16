@@ -15,6 +15,7 @@ regex = "1"
 semver = "1"
 serde_json = "1"
 standard-commit = { version = "0.2.0", path = "../standard-commit" }
+thiserror = "2"
 
 [dev-dependencies]
 tempfile = "3"
