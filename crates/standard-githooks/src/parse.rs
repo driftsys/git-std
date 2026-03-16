@@ -305,4 +305,106 @@ cargo test --workspace --lib *.rs
         assert_ne!(Prefix::Default, Prefix::Advisory);
         assert_ne!(Prefix::FailFast, Prefix::Advisory);
     }
+
+    // --- Edge-case tests (#115) ---
+
+    #[test]
+    fn prefix_only_bang_produces_empty_command() {
+        let commands = parse("!\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].prefix, Prefix::FailFast);
+        assert_eq!(commands[0].command, "");
+        assert_eq!(commands[0].glob, None);
+    }
+
+    #[test]
+    fn prefix_only_question_mark_produces_empty_command() {
+        let commands = parse("?\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].prefix, Prefix::Advisory);
+        assert_eq!(commands[0].command, "");
+        assert_eq!(commands[0].glob, None);
+    }
+
+    #[test]
+    fn whitespace_only_lines_are_skipped() {
+        let commands = parse("   \n\t\n  \t  \n");
+        assert!(commands.is_empty());
+    }
+
+    #[test]
+    fn lines_with_only_tabs() {
+        let commands = parse("\t\t\t\n");
+        assert!(commands.is_empty());
+    }
+
+    #[test]
+    fn malformed_glob_no_star_or_bracket() {
+        // A trailing token without glob metacharacters is treated as part
+        // of the command, not a glob.
+        let commands = parse("cargo test src/main.rs\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].command, "cargo test src/main.rs");
+        assert_eq!(commands[0].glob, None);
+    }
+
+    #[test]
+    fn braces_without_comma_are_not_glob() {
+        // `{msg}` has no comma, so it's not treated as a brace-expansion glob.
+        let commands = parse("echo {msg}\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].command, "echo {msg}");
+        assert_eq!(commands[0].glob, None);
+    }
+
+    #[test]
+    fn braces_with_comma_are_glob() {
+        let commands = parse("lint src/*.{js,ts}\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].command, "lint");
+        assert_eq!(commands[0].glob, Some("src/*.{js,ts}".to_string()));
+    }
+
+    #[test]
+    fn empty_braces_are_not_glob() {
+        let commands = parse("echo {}\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].command, "echo {}");
+        assert_eq!(commands[0].glob, None);
+    }
+
+    #[test]
+    fn prefix_with_space_before_command() {
+        // `! ` (prefix + space) should work the same as `!`
+        let commands = parse("! cargo test\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].prefix, Prefix::FailFast);
+        assert_eq!(commands[0].command, "cargo test");
+    }
+
+    #[test]
+    fn comment_after_whitespace() {
+        // Indented comment should still be skipped.
+        let commands = parse("    # indented comment\n");
+        assert!(commands.is_empty());
+    }
+
+    #[test]
+    fn mixed_edge_cases() {
+        let input = "\n\
+            !\n\
+            ?\n\
+            #comment\n\
+            \n\
+            cargo test\n\
+            \t\n";
+        let commands = parse(input);
+        assert_eq!(commands.len(), 3);
+        assert_eq!(commands[0].prefix, Prefix::FailFast);
+        assert_eq!(commands[0].command, "");
+        assert_eq!(commands[1].prefix, Prefix::Advisory);
+        assert_eq!(commands[1].command, "");
+        assert_eq!(commands[2].prefix, Prefix::Default);
+        assert_eq!(commands[2].command, "cargo test");
+    }
 }

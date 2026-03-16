@@ -1146,3 +1146,104 @@ fn hooks_full_install_cycle() {
         head.message().unwrap()
     );
 }
+
+// --- Fail-fast mode integration test (#114) ---
+
+/// #114 — Fail-fast mode stops on first failure and skips remaining commands.
+///
+/// Uses `pre-push` which defaults to fail-fast mode. The first command
+/// succeeds, the second fails, and the third should be skipped.
+#[test]
+fn hooks_run_fail_fast_skips_remaining_on_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // pre-push defaults to fail-fast mode:
+    //   1. `true`  — succeeds
+    //   2. `false` — fails  (should trigger abort)
+    //   3. `echo should-not-run` — should be skipped
+    std::fs::write(
+        hooks_dir.join("pre-push.hooks"),
+        "true\nfalse\necho should-not-run\n",
+    )
+    .unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-push"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1);
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let combined = format!("{stdout}{stderr}");
+
+    // The first command should pass.
+    assert!(
+        combined.contains('\u{2713}'),
+        "should contain check mark for passing command, got: {combined}"
+    );
+    // The second command should fail.
+    assert!(
+        combined.contains('\u{2717}'),
+        "should contain cross mark for failing command, got: {combined}"
+    );
+    // The runner should report that remaining commands were skipped.
+    assert!(
+        combined.contains("skipped (fail-fast)"),
+        "should report skipped commands, got: {combined}"
+    );
+    // The skipped command should NOT have run.
+    assert!(
+        !combined.contains("should-not-run"),
+        "skipped command output should not appear, got: {combined}"
+    );
+}
+
+/// #114 — Fail-fast with explicit `!` prefix on a collect-mode hook.
+///
+/// Uses `pre-commit` (collect mode by default) but the failing command
+/// has a `!` prefix, forcing fail-fast for that command.
+#[test]
+fn hooks_run_fail_fast_prefix_overrides_collect_mode() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // pre-commit defaults to collect mode, but `!false` forces fail-fast
+    // for that specific command:
+    //   1. `true`  — succeeds
+    //   2. `!false` — fails with fail-fast prefix (should abort)
+    //   3. `echo should-not-run` — should be skipped
+    std::fs::write(
+        hooks_dir.join("pre-commit.hooks"),
+        "true\n!false\necho should-not-run\n",
+    )
+    .unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1);
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let combined = format!("{stdout}{stderr}");
+
+    // Should report skipped commands due to fail-fast.
+    assert!(
+        combined.contains("skipped (fail-fast)"),
+        "should report skipped commands when ! prefix triggers fail-fast, got: {combined}"
+    );
+    // The skipped command should NOT have run.
+    assert!(
+        !combined.contains("should-not-run"),
+        "skipped command output should not appear, got: {combined}"
+    );
+}
