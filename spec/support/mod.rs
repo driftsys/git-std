@@ -62,6 +62,16 @@ impl TestRepo {
         self
     }
 
+    /// Write a minimal `package.json` with the given version.
+    pub fn with_package_json(self, version: &str) -> Self {
+        std::fs::write(
+            self.dir.path().join("package.json"),
+            format!("{{\n  \"name\": \"test-pkg\",\n  \"version\": \"{version}\"\n}}\n"),
+        )
+        .expect("failed to write package.json");
+        self
+    }
+
     /// Create a file, stage it, and commit with the given message.
     pub fn add_commit(&mut self, message: &str) -> &mut Self {
         self.file_counter += 1;
