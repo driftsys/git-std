@@ -146,9 +146,7 @@ fn parse_config(content: &str) -> ProjectConfig {
     let table: toml::Table = match content.parse() {
         Ok(t) => t,
         Err(e) => {
-            eprintln!(
-                "warning: invalid .git-std.toml, using defaults: {e}"
-            );
+            eprintln!("warning: invalid .git-std.toml, using defaults: {e}");
             return ProjectConfig {
                 types: default_types(),
                 scopes: ScopesConfig::None,
@@ -206,6 +204,24 @@ fn parse_config(content: &str) -> ProjectConfig {
     let changelog = parse_changelog_config(&table);
     let versioning = parse_versioning_config(&table);
     let version_files = parse_version_files(&table);
+
+    // Validate calver_format when scheme is calver.
+    let versioning = if scheme == Scheme::Calver {
+        if let Err(e) = standard_version::calver::validate_format(&versioning.calver_format) {
+            eprintln!(
+                "warning: invalid calver_format '{}': {e} — using default",
+                versioning.calver_format
+            );
+            VersioningConfig {
+                calver_format: standard_version::calver::DEFAULT_FORMAT.to_string(),
+                ..versioning
+            }
+        } else {
+            versioning
+        }
+    } else {
+        versioning
+    };
 
     ProjectConfig {
         types,
@@ -486,5 +502,51 @@ calver_format = "YYYY.0M.PATCH"
 "#,
         );
         assert_eq!(config.versioning.calver_format, "YYYY.0M.PATCH");
+    }
+
+    #[test]
+    fn calver_format_valid_no_fallback() {
+        let config = parse_config(
+            r#"
+scheme = "calver"
+
+[versioning]
+calver_format = "YYYY.0M.PATCH"
+"#,
+        );
+        assert_eq!(config.scheme, Scheme::Calver);
+        assert_eq!(config.versioning.calver_format, "YYYY.0M.PATCH");
+    }
+
+    #[test]
+    fn calver_format_invalid_falls_back_to_default() {
+        let config = parse_config(
+            r#"
+scheme = "calver"
+
+[versioning]
+calver_format = "YYYY.INVALID"
+"#,
+        );
+        assert_eq!(config.scheme, Scheme::Calver);
+        assert_eq!(
+            config.versioning.calver_format,
+            standard_version::calver::DEFAULT_FORMAT
+        );
+    }
+
+    #[test]
+    fn non_calver_scheme_ignores_invalid_format() {
+        let config = parse_config(
+            r#"
+scheme = "semver"
+
+[versioning]
+calver_format = "YYYY.INVALID"
+"#,
+        );
+        assert_eq!(config.scheme, Scheme::Semver);
+        // Invalid format is kept as-is because scheme is not calver.
+        assert_eq!(config.versioning.calver_format, "YYYY.INVALID");
     }
 }

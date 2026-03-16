@@ -379,6 +379,11 @@ Common formats: `YYYY.MM.PATCH` (monthly),
 `YYYY.0M.PATCH` (zero-padded month), `YY.WW.DP`
 (weekly with day-of-week), `YYYY.MM.DD.PATCH` (daily).
 
+**Early validation:** when `scheme = "calver"`, the
+`calver_format` is validated at config parse time. If
+the format is invalid, a warning is printed and the
+default format (`YYYY.MM.PATCH`) is used instead.
+
 #### 2.3.1 Built-in Version Files
 
 Auto-detected from root markers. No config needed.
