@@ -1,6 +1,7 @@
 use std::io::IsTerminal;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use clap_complete::Shell;
 
 mod cli;
 mod config;
@@ -132,6 +133,11 @@ enum Command {
     Hooks {
         #[command(subcommand)]
         subcommand: HooksCommand,
+    },
+    /// Generate shell completion scripts.
+    Completions {
+        /// Target shell.
+        shell: Shell,
     },
     /// Update git-std to the latest version.
     SelfUpdate,
@@ -281,6 +287,10 @@ fn main() {
             };
             std::process::exit(code);
         }
+        Command::Completions { shell } => {
+            let mut cmd = Cli::command();
+            clap_complete::generate(shell, &mut cmd, "git-std", &mut std::io::stdout());
+        }
         other => {
             let name = match other {
                 Command::Commit { .. } => unreachable!(),
@@ -288,6 +298,7 @@ fn main() {
                 Command::Changelog { .. } => unreachable!(),
                 Command::Bump { .. } => unreachable!(),
                 Command::Hooks { .. } => unreachable!(),
+                Command::Completions { .. } => unreachable!(),
                 Command::SelfUpdate => "self-update",
             };
             eprintln!("git-std {name}: not yet implemented");
