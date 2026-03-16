@@ -42,27 +42,18 @@ doc:
 book:
     mdbook serve
 
-[private]
-pre-publish: check
-    @echo "==> Dry-run publish all crates..."
-    cargo publish --dry-run -p standard-commit
-    cargo publish --dry-run -p standard-changelog
-    cargo publish --dry-run -p standard-version
-    cargo publish --dry-run -p standard-githooks
-    cargo publish --dry-run -p git-std
-
 # Publish all crates to crates.io (dependency order)
-publish: pre-publish
+# Skips separate dry-run — cargo publish already verifies
+# each package before uploading.
+publish: check
     @echo "==> 1/5 standard-commit"
     cargo publish -p standard-commit
-    sleep 5
     @echo "==> 2/5 standard-changelog"
     cargo publish -p standard-changelog
     @echo "==> 3/5 standard-version"
     cargo publish -p standard-version
     @echo "==> 4/5 standard-githooks"
     cargo publish -p standard-githooks
-    sleep 5
     @echo "==> 5/5 git-std"
     cargo publish -p git-std
     @echo ""
