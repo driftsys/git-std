@@ -103,6 +103,9 @@ enum Command {
         /// GPG-sign the release commit and annotated tag.
         #[arg(short = 'S', long)]
         sign: bool,
+        /// Allow breaking changes in patch-only scheme.
+        #[arg(long)]
+        force: bool,
     },
     /// Generate a changelog (incremental by default, --full to regenerate).
     Changelog {
@@ -241,6 +244,7 @@ fn main() {
             no_commit,
             skip_changelog,
             sign,
+            force,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
             let opts = cli::bump::BumpOptions {
@@ -252,6 +256,7 @@ fn main() {
                 no_commit,
                 skip_changelog,
                 sign,
+                force,
             };
             let code = cli::bump::run(&project_config, &opts);
             std::process::exit(code);

@@ -16,6 +16,8 @@ pub enum Scheme {
     Semver,
     /// Calendar versioning.
     Calver,
+    /// Patch-only bumps (always increment patch, reject breaking without --force).
+    Patch,
 }
 
 /// How scopes are resolved.
@@ -197,6 +199,7 @@ fn parse_config(content: &str) -> ProjectConfig {
 
     let scheme = match table.get("scheme").and_then(|v| v.as_str()) {
         Some("calver") => Scheme::Calver,
+        Some("patch") => Scheme::Patch,
         _ => Scheme::Semver,
     };
 
@@ -451,6 +454,12 @@ regex = 'version:\s*(.+)'
     fn scheme_calver_parsed() {
         let config = parse_config("scheme = \"calver\"\n");
         assert_eq!(config.scheme, Scheme::Calver);
+    }
+
+    #[test]
+    fn scheme_patch_parsed() {
+        let config = parse_config("scheme = \"patch\"\n");
+        assert_eq!(config.scheme, Scheme::Patch);
     }
 
     #[test]
