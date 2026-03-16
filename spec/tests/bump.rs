@@ -281,9 +281,7 @@ fn bump_calver_scheme() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stderr_eq(file![
-            "../snapshots/bump/calver_scheme.stderr.expected"
-        ]);
+        .stderr_eq(file!["../snapshots/bump/calver_scheme.stderr.expected"]);
 }
 
 /// `--skip-changelog` dry-run omits the CHANGELOG.md line from the plan.

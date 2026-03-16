@@ -90,7 +90,11 @@ fn check_strict_json_rejects_unknown_type() {
 
     Command::new(TestRepo::bin_path())
         .args([
-            "check", "--strict", "--format", "json", "docs: update readme",
+            "check",
+            "--strict",
+            "--format",
+            "json",
+            "docs: update readme",
         ])
         .current_dir(repo.path())
         .assert()
