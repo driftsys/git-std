@@ -1,0 +1,3 @@
+bin.name = "git-std"
+args = ["check", "--format", "json", "feat: add login"]
+status = "success"
