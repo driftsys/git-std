@@ -1,5 +1,8 @@
 # standard-commit
 
+[![crates.io](https://img.shields.io/crates/v/standard-commit.svg)](https://crates.io/crates/standard-commit)
+[![docs.rs](https://docs.rs/standard-commit/badge.svg)](https://docs.rs/standard-commit)
+
 Conventional commit parsing, validation, and formatting.
 
 Implements the [Conventional Commits][cc] specification as a

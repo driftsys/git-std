@@ -1,5 +1,10 @@
 # git-std
 
+[![CI](https://github.com/driftsys/git-std/actions/workflows/ci.yml/badge.svg)](https://github.com/driftsys/git-std/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/git-std.svg)](https://crates.io/crates/git-std)
+[![docs.rs](https://docs.rs/git-std/badge.svg)](https://docs.rs/git-std)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 From commit to release. One tool for
 [conventional commits][cc], [versioning][semver],
 [changelog][keep-changelog], and [git hooks][githooks]
@@ -60,10 +65,15 @@ terminal output.
 
 MIT
 
+## Documentation
+
+- [User guide](https://driftsys.github.io/git-std/) (mdbook)
+- [CLI usage](docs/USAGE.md)
+- [Specification](docs/SPEC.md)
+- [API docs](https://docs.rs/git-std) (docs.rs)
+
 ## References
 
-- [CLI usage guide](docs/USAGE.md)
-- [Full specification](docs/SPEC.md)
 - [Conventional Commits v1.0.0][cc]
 - [Semantic Versioning v2.0.0][semver]
 - [Calendar Versioning][calver]

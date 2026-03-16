@@ -18,7 +18,9 @@ fn hooks_list_shows_configured_hooks() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_eq(file!["../snapshots/hooks/list_shows_configured_hooks.stdout.expected"]);
+        .stdout_eq(file![
+            "../snapshots/hooks/list_shows_configured_hooks.stdout.expected"
+        ]);
 }
 
 /// `hooks list` shows fail-fast mode for pre-push hooks.
@@ -34,7 +36,9 @@ fn hooks_list_fail_fast_mode() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_eq(file!["../snapshots/hooks/list_fail_fast_mode.stdout.expected"]);
+        .stdout_eq(file![
+            "../snapshots/hooks/list_fail_fast_mode.stdout.expected"
+        ]);
 }
 
 /// `hooks list` with no hooks configured prints a message to stderr.
@@ -60,7 +64,9 @@ fn hooks_install_creates_shims() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stderr_eq(file!["../snapshots/hooks/install_creates_shims.stderr.expected"]);
+        .stderr_eq(file![
+            "../snapshots/hooks/install_creates_shims.stderr.expected"
+        ]);
 
     // Verify shim exists.
     let shim_path = repo.path().join(".githooks/pre-commit");

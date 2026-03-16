@@ -1,5 +1,8 @@
 # standard-changelog
 
+[![crates.io](https://img.shields.io/crates/v/standard-changelog.svg)](https://crates.io/crates/standard-changelog)
+[![docs.rs](https://docs.rs/standard-changelog/badge.svg)](https://docs.rs/standard-changelog)
+
 Changelog generation from conventional commits.
 
 Groups parsed commits by type, renders markdown sections, and

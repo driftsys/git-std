@@ -19,7 +19,9 @@ fn changelog_stdout_prints_to_stdout() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_eq(file!["../snapshots/changelog/stdout_prints_to_stdout.stdout.expected"]);
+        .stdout_eq(file![
+            "../snapshots/changelog/stdout_prints_to_stdout.stdout.expected"
+        ]);
 }
 
 /// `changelog --full` regenerates the entire changelog file.

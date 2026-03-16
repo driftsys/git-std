@@ -6,6 +6,7 @@ description = "Git hooks file format parsing, shim generation, and execution mod
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/driftsys/git-std"
+documentation = "https://docs.rs/standard-githooks"
 keywords = ["git", "hooks", "pre-commit", "commit-msg"]
 categories = ["development-tools"]
 

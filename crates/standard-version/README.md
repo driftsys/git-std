@@ -1,5 +1,8 @@
 # standard-version
 
+[![crates.io](https://img.shields.io/crates/v/standard-version.svg)](https://crates.io/crates/standard-version)
+[![docs.rs](https://docs.rs/standard-version/badge.svg)](https://docs.rs/standard-version)
+
 Version bump calculation from conventional commits — supports
 semver and calendar versioning (calver).
 

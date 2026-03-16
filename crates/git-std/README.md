@@ -1,5 +1,10 @@
 # git-std
 
+[![crates.io](https://img.shields.io/crates/v/git-std.svg)](https://crates.io/crates/git-std)
+[![docs.rs](https://docs.rs/git-std/badge.svg)](https://docs.rs/git-std)
+[![CI](https://github.com/driftsys/git-std/actions/workflows/ci.yml/badge.svg)](https://github.com/driftsys/git-std/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/driftsys/git-std/blob/main/LICENSE)
+
 From commit to release. One tool for
 [conventional commits][cc], [versioning][semver],
 [changelog][keep-changelog], and [git hooks][githooks]
@@ -62,7 +67,8 @@ hidden = ["chore", "ci"]
 All fields are optional — sensible defaults apply when the
 file is absent.
 
-See the full [documentation][docs] for details.
+See the [user guide](https://driftsys.github.io/git-std/) for
+full documentation.
 
 ## License
 
@@ -72,4 +78,3 @@ MIT
 [semver]: https://semver.org/spec/v2.0.0.html
 [keep-changelog]: https://keepachangelog.com/en/1.1.0/
 [githooks]: https://git-scm.com/docs/githooks
-[docs]: https://github.com/driftsys/git-std/blob/main/docs/USAGE.md

@@ -6,6 +6,7 @@ description = "Conventional commit parsing, validation, and formatting"
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/driftsys/git-std"
+documentation = "https://docs.rs/standard-commit"
 keywords = ["conventional-commits", "commit", "lint", "git", "validation"]
 categories = ["development-tools", "parser-implementations"]
 

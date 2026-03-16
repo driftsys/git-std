@@ -1,5 +1,8 @@
 # standard-githooks
 
+[![crates.io](https://img.shields.io/crates/v/standard-githooks.svg)](https://crates.io/crates/standard-githooks)
+[![docs.rs](https://docs.rs/standard-githooks/badge.svg)](https://docs.rs/standard-githooks)
+
 Git hooks file format parsing, shim generation, and execution
 model.
 

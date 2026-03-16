@@ -18,7 +18,9 @@ fn bump_dry_run_shows_plan() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stderr_eq(file!["../snapshots/bump/dry_run_shows_plan.stderr.expected"]);
+        .stderr_eq(file![
+            "../snapshots/bump/dry_run_shows_plan.stderr.expected"
+        ]);
 }
 
 /// Bump with no bump-worthy commits reports that and exits 0.
@@ -34,7 +36,9 @@ fn bump_no_bump_worthy_commits() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stderr_eq(file!["../snapshots/bump/no_bump_worthy_commits.stderr.expected"]);
+        .stderr_eq(file![
+            "../snapshots/bump/no_bump_worthy_commits.stderr.expected"
+        ]);
 }
 
 /// Bump with a breaking change produces a major version bump.
@@ -50,7 +54,9 @@ fn bump_breaking_change_major() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stderr_eq(file!["../snapshots/bump/breaking_change_major.stderr.expected"]);
+        .stderr_eq(file![
+            "../snapshots/bump/breaking_change_major.stderr.expected"
+        ]);
 }
 
 /// First release uses current version without bumping.

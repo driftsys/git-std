@@ -6,6 +6,7 @@ description = "Semantic and calendar version bump calculation"
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/driftsys/git-std"
+documentation = "https://docs.rs/standard-version"
 keywords = ["semver", "calver", "version", "bump", "git"]
 categories = ["development-tools"]
 
