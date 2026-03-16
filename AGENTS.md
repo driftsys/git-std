@@ -87,9 +87,20 @@ I/O for version file detection and updates.
   with the code changes.
 - **Single commit.** Squash work into one conventional
   commit per task.
+- **Work in isolation.** Always work in a git worktree
+  (not the main working directory). This prevents conflicts
+  with other agents running in parallel and protects the
+  user's in-progress work.
 - **Before PR.** Run `just verify` (commitlint + build) —
   all must pass. Then ask for approval before creating the
   pull request.
+- **Review before merge.** After CI passes, review every PR
+  before merging. Post findings as a PR review via
+  `gh api repos/{owner}/{repo}/pulls/{n}/reviews` with
+  `event=COMMENT`. Prioritize findings as must-fix,
+  should-fix, and nice-to-have. Fix must-fix items directly
+  in the PR. Open a debt issue for should-fix and
+  nice-to-have items so they are tracked and not lost.
 
 ## Conventions
 
