@@ -1,0 +1,11 @@
+
+  Analysing commits since v1.0.0...
+    1 feat
+
+  1.0.0 → 1.1.0 (minor — new feature)
+
+  Would update:
+    Cargo.toml           1.0.0 → 1.1.0
+  Would commit: chore(release): 1.1.0
+  Would tag:    v1.1.0
+

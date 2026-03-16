@@ -267,3 +267,59 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
             "../snapshots/bump/dry_run_custom_version_file.stderr.expected"
         ]);
 }
+
+/// Calver scheme produces a date-based version (YYYY.MM.PATCH).
+#[test]
+fn bump_calver_scheme() {
+    let mut repo = TestRepo::new()
+        .with_cargo_toml("0.0.0")
+        .with_config("scheme = \"calver\"\n");
+    repo.add_commit("feat: initial feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--dry-run"])
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stderr_eq(file![
+            "../snapshots/bump/calver_scheme.stderr.expected"
+        ]);
+}
+
+/// `--skip-changelog` dry-run omits the CHANGELOG.md line from the plan.
+#[test]
+fn bump_skip_changelog_dry_run() {
+    let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: new feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--skip-changelog", "--dry-run"])
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stderr_eq(file![
+            "../snapshots/bump/skip_changelog_dry_run.stderr.expected"
+        ]);
+}
+
+/// `--skip-changelog` actually skips writing CHANGELOG.md.
+#[test]
+fn bump_skip_changelog_no_file() {
+    let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: new feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--skip-changelog"])
+        .current_dir(repo.path())
+        .assert()
+        .success();
+
+    assert!(
+        !repo.path().join("CHANGELOG.md").exists(),
+        "CHANGELOG.md should not be created when --skip-changelog is used"
+    );
+}
