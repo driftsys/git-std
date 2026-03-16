@@ -583,7 +583,7 @@ Display all configured hooks and their commands:
 ```text
 $ git std hooks list
 
-  pre-commit (complete mode):
+  pre-commit (collect mode):
       dprint check
       shellcheck scripts/*.sh
       cargo clippy --workspace -- -D warnings    *.rs
