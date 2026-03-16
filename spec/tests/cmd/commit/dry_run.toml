@@ -1,0 +1,3 @@
+bin.name = "git-std"
+args = ["commit", "--dry-run", "--type", "feat", "-m", "add login"]
+status = "success"
