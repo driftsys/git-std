@@ -4,7 +4,18 @@
 //! `serde_json`) and [`DenoVersionFile`] for Deno manifests (handled with
 //! line-level regex to support JSONC comments).
 
+use std::sync::LazyLock;
+
 use crate::version_file::{VersionFile, VersionFileError};
+
+/// Regex pattern matching a JSON `"version"` field value.
+///
+/// Captures the version string in group 1.
+const VERSION_PATTERN: &str = r#""version"\s*:\s*"([^"]+)""#;
+
+/// Lazily compiled regex for `"version": "..."` fields in JSON files.
+static VERSION_RE: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(VERSION_PATTERN).expect("valid regex"));
 
 // ---------------------------------------------------------------------------
 // JsonVersionFile (package.json)
@@ -12,8 +23,8 @@ use crate::version_file::{VersionFile, VersionFileError};
 
 /// Version file engine for `package.json`.
 ///
-/// Uses `serde_json` to parse and rewrite the file, producing consistent
-/// 2-space-indented output with a trailing newline.
+/// Uses `serde_json` for detection and reading, and a line-level regex for
+/// writing to preserve key order and formatting.
 #[derive(Debug, Clone, Copy)]
 pub struct JsonVersionFile;
 
@@ -42,26 +53,30 @@ impl VersionFile for JsonVersionFile {
     }
 
     fn write_version(&self, content: &str, new_version: &str) -> Result<String, VersionFileError> {
-        let mut value: serde_json::Value =
-            serde_json::from_str(content).map_err(|_| VersionFileError::NoVersionField)?;
-
-        let obj = value
-            .as_object_mut()
-            .ok_or(VersionFileError::NoVersionField)?;
-
-        if !obj.contains_key("version") {
+        let re = &*VERSION_RE;
+        if !re.is_match(content) {
             return Err(VersionFileError::NoVersionField);
         }
 
-        obj.insert(
-            "version".to_string(),
-            serde_json::Value::String(new_version.to_string()),
-        );
+        // Replace only the first occurrence, preserving surrounding text.
+        let mut replaced = false;
+        let result = re.replace(content, |caps: &regex::Captures<'_>| {
+            if replaced {
+                return caps[0].to_string();
+            }
+            replaced = true;
+            let full = &caps[0];
+            let version_start = caps.get(1).unwrap().start() - caps.get(0).unwrap().start();
+            let version_end = caps.get(1).unwrap().end() - caps.get(0).unwrap().start();
+            format!(
+                "{}{}{}",
+                &full[..version_start],
+                new_version,
+                &full[version_end..],
+            )
+        });
 
-        let mut serialized =
-            serde_json::to_string_pretty(&value).map_err(|_| VersionFileError::NoVersionField)?;
-        serialized.push('\n');
-        Ok(serialized)
+        Ok(result.into_owned())
     }
 }
 
@@ -77,18 +92,6 @@ impl VersionFile for JsonVersionFile {
 #[derive(Debug, Clone, Copy)]
 pub struct DenoVersionFile;
 
-/// Regex pattern matching a JSON `"version"` field value.
-///
-/// Captures the version string in group 1.
-const VERSION_PATTERN: &str = r#""version"\s*:\s*"([^"]+)""#;
-
-impl DenoVersionFile {
-    /// Compile the version-matching regex (infallible for a known-good pattern).
-    fn regex() -> regex::Regex {
-        regex::Regex::new(VERSION_PATTERN).expect("valid regex")
-    }
-}
-
 impl VersionFile for DenoVersionFile {
     fn name(&self) -> &str {
         "deno.json"
@@ -99,18 +102,18 @@ impl VersionFile for DenoVersionFile {
     }
 
     fn detect(&self, content: &str) -> bool {
-        Self::regex().is_match(content)
+        VERSION_RE.is_match(content)
     }
 
     fn read_version(&self, content: &str) -> Option<String> {
-        let re = Self::regex();
-        re.captures(content)
+        VERSION_RE
+            .captures(content)
             .and_then(|caps| caps.get(1))
             .map(|m| m.as_str().to_string())
     }
 
     fn write_version(&self, content: &str, new_version: &str) -> Result<String, VersionFileError> {
-        let re = Self::regex();
+        let re = &*VERSION_RE;
         if !re.is_match(content) {
             return Err(VersionFileError::NoVersionField);
         }
@@ -212,6 +215,27 @@ mod tests {
             .unwrap();
         assert!(result.contains(r#""name": "my-app""#));
         assert!(result.contains(r#""description": "An example package""#));
+    }
+
+    #[test]
+    fn json_write_version_preserves_key_order() {
+        let input = r#"{
+  "name": "my-app",
+  "version": "1.0.0",
+  "description": "example",
+  "main": "index.js"
+}
+"#;
+        let result = JsonVersionFile.write_version(input, "2.0.0").unwrap();
+        // Key order must be identical to the input.
+        let expected = r#"{
+  "name": "my-app",
+  "version": "2.0.0",
+  "description": "example",
+  "main": "index.js"
+}
+"#;
+        assert_eq!(result, expected);
     }
 
     #[test]
