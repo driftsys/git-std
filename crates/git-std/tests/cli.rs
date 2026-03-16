@@ -1338,3 +1338,79 @@ fn changelog_range_no_conventional_commits() {
         "should report no conventional commits, got stderr: {stderr}"
     );
 }
+
+// --- Patch scheme integration tests (#138) ---
+
+#[test]
+fn bump_patch_scheme_produces_patch_from_feat() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+
+    // Write a .git-std.toml with patch scheme.
+    std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"patch\"\n").unwrap();
+
+    // Add a feat commit — should still produce a patch bump.
+    add_commit(&repo, dir.path(), "a.txt", "feat: add feature A");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.0.0 \u{2192} 1.0.1"))
+        .stderr(predicate::str::contains("patch"));
+
+    // Verify tag was created.
+    let tag = repo.find_reference("refs/tags/v1.0.1");
+    assert!(tag.is_ok(), "tag v1.0.1 should exist");
+}
+
+#[test]
+fn bump_patch_scheme_rejects_breaking_without_force() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+
+    // Write a .git-std.toml with patch scheme.
+    std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"patch\"\n").unwrap();
+
+    // Add a breaking change commit.
+    add_commit(&repo, dir.path(), "a.txt", "feat!: remove old API");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("breaking change detected"))
+        .stderr(predicate::str::contains("--force"));
+}
+
+#[test]
+fn bump_patch_scheme_allows_breaking_with_force() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+
+    // Write a .git-std.toml with patch scheme.
+    std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"patch\"\n").unwrap();
+
+    // Add a breaking change commit.
+    add_commit(&repo, dir.path(), "a.txt", "feat!: remove old API");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--force"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.0.0 \u{2192} 1.0.1"))
+        .stderr(predicate::str::contains("patch"));
+
+    // Verify tag was created.
+    let tag = repo.find_reference("refs/tags/v1.0.1");
+    assert!(tag.is_ok(), "tag v1.0.1 should exist");
+}

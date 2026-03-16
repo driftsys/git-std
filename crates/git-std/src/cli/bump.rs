@@ -26,12 +26,17 @@ pub struct BumpOptions {
     pub skip_changelog: bool,
     /// GPG-sign the commit and tag.
     pub sign: bool,
+    /// Allow breaking changes in patch-only scheme.
+    pub force: bool,
 }
 
 /// Run the bump subcommand. Returns the exit code.
 pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     if config.scheme == Scheme::Calver {
         return run_calver(config, opts);
+    }
+    if config.scheme == Scheme::Patch {
+        return run_patch(config, opts);
     }
 
     let repo = match git2::Repository::discover(".") {
@@ -532,6 +537,91 @@ fn calver_date_from_epoch_days(days: i32) -> standard_version::calver::CalverDat
         iso_week: iso_week as u32,
         day_of_week: dow,
     }
+}
+
+/// Run the bump subcommand in patch-only mode.
+///
+/// Always increments the patch version. Rejects breaking changes unless
+/// `--force` is passed.
+fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
+    let repo = match git2::Repository::discover(".") {
+        Ok(r) => r,
+        Err(e) => {
+            ui::error(&format!("cannot open repository: {e}"));
+            return 1;
+        }
+    };
+
+    let tag_prefix = &config.versioning.tag_prefix;
+
+    // Find latest semver tag.
+    let current_version = match git::find_latest_version_tag(&repo, tag_prefix) {
+        Ok(Some((oid, ver))) => Some((oid, ver)),
+        Ok(None) => None,
+        Err(e) => {
+            ui::error(&e.to_string());
+            return 1;
+        }
+    };
+
+    // Collect commits since that tag.
+    let head_oid = match repo.head().and_then(|h| h.peel_to_commit().map(|c| c.id())) {
+        Ok(oid) => oid,
+        Err(e) => {
+            ui::error(&format!("cannot resolve HEAD: {e}"));
+            return 1;
+        }
+    };
+
+    let tag_oid = current_version.as_ref().map(|(oid, _)| *oid);
+    let raw_commits = match git::walk_commits(&repo, head_oid, tag_oid) {
+        Ok(c) => c,
+        Err(e) => {
+            ui::error(&e.to_string());
+            return 1;
+        }
+    };
+
+    // Parse commits and check for breaking changes.
+    let has_breaking = raw_commits
+        .iter()
+        .filter_map(|(_, msg)| standard_commit::parse(msg).ok())
+        .any(|c| c.is_breaking);
+
+    if has_breaking && !opts.force {
+        ui::error(
+            "breaking change detected — patch-only scheme does not allow major bumps. \
+             Use --force to override.",
+        );
+        return 1;
+    }
+
+    let cur_ver = current_version
+        .as_ref()
+        .map(|(_, v)| v.clone())
+        .unwrap_or_else(|| semver::Version::new(0, 0, 0));
+
+    // Always bump patch.
+    let new_version = semver::Version::new(cur_ver.major, cur_ver.minor, cur_ver.patch + 1);
+
+    ui::blank();
+    eprintln!(
+        "{INDENT}{} (patch)",
+        format!("{cur_ver} \u{2192} {new_version}").bold(),
+        INDENT = ui::INDENT,
+    );
+
+    let prev_ver_str = current_version
+        .as_ref()
+        .map(|(_, v)| v.to_string());
+
+    let ctx = FinalizeContext {
+        new_version: new_version.to_string(),
+        prev_version: prev_ver_str.as_deref(),
+        raw_commits: &raw_commits,
+    };
+
+    finalize_bump(&repo, config, opts, &ctx)
 }
 
 /// Run the bump subcommand in calver mode.
