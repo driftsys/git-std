@@ -113,6 +113,14 @@ fn execute_and_print(cmd: &HookCommand, msg_path: &str) -> (CommandResult, bool)
 /// according to the hook's default mode and per-command prefix
 /// overrides, and prints a summary.
 pub fn run(hook: &str, args: &[String]) -> i32 {
+    // Allow skipping all hook execution via environment variable.
+    if let Ok(val) = std::env::var("GIT_STD_SKIP_HOOKS")
+        && (val == "1" || val.eq_ignore_ascii_case("true"))
+    {
+        eprintln!("  \u{26a0} hooks skipped (GIT_STD_SKIP_HOOKS)");
+        return 0;
+    }
+
     let commands = match read_and_parse_hooks(hook) {
         Ok(c) => c,
         Err(code) => return code,
