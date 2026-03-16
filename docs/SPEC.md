@@ -480,15 +480,17 @@ using `standard-changelog`.
 
 **Flags:**
 
-| Flag              | Description                                           |
-| ----------------- | ----------------------------------------------------- |
-| `--full`          | Regenerate the entire changelog from the first commit |
-| `--stdout`        | Print to stdout instead of file                       |
-| `--output <file>` | Write to file (default: `CHANGELOG.md`)               |
+| Flag               | Description                                           |
+| ------------------ | ----------------------------------------------------- |
+| `--full`           | Regenerate the entire changelog from the first commit |
+| `--range <range>`  | Generate changelog for a tag range (e.g. `v1.0..v2.0`)|
+| `--stdout`         | Print to stdout instead of file                       |
+| `--output <file>`  | Write to file (default: `CHANGELOG.md`)               |
 
-Without `--full`, generates an incremental changelog
-(unreleased commits since the last tag) and prepends to
-the output file.
+Without `--full` or `--range`, generates an incremental
+changelog (unreleased commits since the last tag) and
+prepends to the output file. `--range` and `--full` are
+mutually exclusive.
 
 ### 2.5 `git std hooks`
 

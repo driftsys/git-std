@@ -7,8 +7,8 @@ Instructions for AI coding agents working in this repository.
 git-std is a single Rust CLI binary that consolidates
 conventional commits, version bumping, changelog generation,
 and git hooks management. It replaces commitizen, commitlint,
-standard-version, git-cliff (CLI), husky, and lefthook with
-one statically-linked tool and zero runtime dependencies.
+standard-version, husky, and lefthook with one
+statically-linked tool and zero runtime dependencies.
 
 Invoked as `git std` via git's subcommand discovery
 (binary name `git-std`).
@@ -37,7 +37,7 @@ The full specification lives in `docs/SPEC.md`.
 | -------------------- | -------------------------------------------------------------------- |
 | `git-std`            | CLI binary — orchestrates I/O, git, config, dispatch                 |
 | `standard-commit`    | Conventional commit parsing, linting, formatting                     |
-| `standard-version`   | Semantic version bump calculation, version file detection and update |
+| `standard-version`   | Version bump (semver + calver), version file detection and update    |
 | `standard-changelog` | Changelog generation from conventional commits                       |
 | `standard-githooks`  | Hook file format parsing, shim generation                            |
 
