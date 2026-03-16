@@ -4,6 +4,7 @@ use clap::ValueEnum;
 use serde::Serialize;
 use yansi::Paint;
 
+use crate::ui;
 use standard_commit::LintConfig;
 
 /// Output format for the check subcommand.
@@ -39,20 +40,20 @@ pub fn run(message: &str, lint_config: Option<&LintConfig>, format: OutputFormat
     if let Some(config) = lint_config {
         let errors = standard_commit::lint(message, config);
         if errors.is_empty() {
-            eprintln!("{} {}", "\u{2713}".green(), "valid".green());
+            eprintln!("{} {}", ui::pass(), "valid".green());
             return 0;
         }
         for error in &errors {
-            eprintln!("{} {}", "\u{2717}".red(), error.to_string().red());
+            eprintln!("{} {}", ui::fail(), error.to_string().red());
         }
-        eprintln!("  Expected: <type>(<scope>): <description>");
-        eprintln!("  Got:      {}", first_line(message));
+        eprintln!("{INDENT}Expected: <type>(<scope>): <description>", INDENT = ui::INDENT);
+        eprintln!("{INDENT}Got:      {}", first_line(message), INDENT = ui::INDENT);
         return 1;
     }
 
     match standard_commit::parse(message) {
         Ok(_) => {
-            eprintln!("{} {}", "\u{2713}".green(), "valid".green());
+            eprintln!("{} {}", ui::pass(), "valid".green());
             0
         }
         Err(e) => {
@@ -93,13 +94,7 @@ fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
     };
 
     let code = if result.valid { 0 } else { 1 };
-    match serde_json::to_string(&result) {
-        Ok(json) => println!("{json}"),
-        Err(e) => {
-            eprintln!("error: failed to serialize JSON output: {e}");
-            return 2;
-        }
-    }
+    println!("{}", serde_json::to_string(&result).unwrap());
     code
 }
 
@@ -130,7 +125,7 @@ pub fn run_file(path: &Path, lint_config: Option<&LintConfig>, format: OutputFor
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("error: cannot read {}: {e}", path.display());
+            ui::error(&format!("cannot read {}: {e}", path.display()));
             return 2;
         }
     };
@@ -143,8 +138,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
     let repo = match git2::Repository::discover(".") {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("error: cannot open repository: {e}");
-            eprintln!("  hint: run this command from inside a git repository");
+            ui::error(&format!("cannot open repository: {e}"));
             return 2;
         }
     };
@@ -152,14 +146,13 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
     let commits = match walk_range(&repo, range) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("error: invalid range '{range}': {e}");
+            ui::error(&format!("invalid range '{range}': {e}"));
             return 2;
         }
     };
 
     if commits.is_empty() {
-        eprintln!("error: no commits found in range '{range}'");
-        eprintln!("  hint: check that the range is valid (e.g. origin/main..HEAD)");
+        ui::error(&format!("no commits in range '{range}'"));
         return 2;
     }
 
@@ -167,6 +160,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
         return run_range_json(&commits, lint_config);
     }
 
+    let total = commits.len();
     let mut failures = 0;
     for (oid, message) in &commits {
         let short = &oid.to_string()[..7];
@@ -176,13 +170,18 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
                 true
             } else {
                 eprintln!(
-                    "{} {} {}",
-                    "\u{2717}".red(),
+                    "{INDENT}{} {} {}",
+                    ui::fail(),
                     short,
-                    first_line(message).red()
+                    first_line(message).red(),
+                    INDENT = ui::INDENT,
                 );
                 for error in &errors {
-                    eprintln!("  {}", error.to_string().red());
+                    eprintln!(
+                        "{DETAIL}\u{2192} {}",
+                        error,
+                        DETAIL = ui::DETAIL_INDENT,
+                    );
                 }
                 false
             }
@@ -191,12 +190,17 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
                 Ok(_) => true,
                 Err(e) => {
                     eprintln!(
-                        "{} {} {}",
-                        "\u{2717}".red(),
+                        "{INDENT}{} {} {}",
+                        ui::fail(),
                         short,
-                        first_line(message).red()
+                        first_line(message).red(),
+                        INDENT = ui::INDENT,
                     );
-                    eprintln!("  {}", e.to_string().red());
+                    eprintln!(
+                        "{DETAIL}\u{2192} {}",
+                        e,
+                        DETAIL = ui::DETAIL_INDENT,
+                    );
                     false
                 }
             }
@@ -204,15 +208,20 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
 
         if valid {
             eprintln!(
-                "{} {} {}",
-                "\u{2713}".green(),
+                "{INDENT}{} {} {}",
+                ui::pass(),
                 short,
-                first_line(message).green()
+                first_line(message).green(),
+                INDENT = ui::INDENT,
             );
         } else {
             failures += 1;
         }
     }
+
+    let valid_count = total - failures;
+    ui::blank();
+    eprintln!("{}/{} valid", valid_count, total);
 
     if failures > 0 { 1 } else { 0 }
 }
@@ -257,13 +266,7 @@ fn run_range_json(commits: &[(git2::Oid, String)], lint_config: Option<&LintConf
         results.push(result);
     }
 
-    match serde_json::to_string(&results) {
-        Ok(json) => println!("{json}"),
-        Err(e) => {
-            eprintln!("error: failed to serialize JSON output: {e}");
-            return 2;
-        }
-    }
+    println!("{}", serde_json::to_string(&results).unwrap());
     if any_invalid { 1 } else { 0 }
 }
 
@@ -295,9 +298,9 @@ fn walk_range(
 }
 
 fn print_diagnostic(message: &str, error: &standard_commit::ParseError) {
-    eprintln!("{} {}", "\u{2717}".red(), format!("invalid: {error}").red());
-    eprintln!("  Expected: <type>(<scope>): <description>");
-    eprintln!("  Got:      {}", first_line(message));
+    eprintln!("{} {}", ui::fail(), format!("invalid: {error}").red());
+    eprintln!("{INDENT}Expected: <type>(<scope>): <description>", INDENT = ui::INDENT);
+    eprintln!("{INDENT}Got:      {}", first_line(message), INDENT = ui::INDENT);
 }
 
 fn first_line(s: &str) -> &str {

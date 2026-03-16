@@ -6,6 +6,7 @@ use yansi::Paint;
 
 use crate::config::{ProjectConfig, Scheme};
 use crate::git;
+use crate::ui;
 
 /// Options for the bump subcommand.
 pub struct BumpOptions {
@@ -27,14 +28,6 @@ pub struct BumpOptions {
     pub sign: bool,
 }
 
-/// Context passed to [`finalize_bump`] after version computation.
-struct FinalizeContext {
-    /// The computed new version string (e.g. "1.2.3" or "2026.03.1").
-    new_version: String,
-    /// The previous version string, if any (used for changelog compare links).
-    prev_version: Option<String>,
-}
-
 /// Run the bump subcommand. Returns the exit code.
 pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     if config.scheme == Scheme::Calver {
@@ -44,7 +37,7 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let repo = match git2::Repository::discover(".") {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("error: cannot open repository: {e}");
+            ui::error(&format!("cannot open repository: {e}"));
             return 1;
         }
     };
@@ -56,7 +49,7 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         Ok(Some((oid, ver))) => Some((oid, ver)),
         Ok(None) => None,
         Err(e) => {
-            eprintln!("error: {e}");
+            ui::error(&e.to_string());
             return 1;
         }
     };
@@ -65,7 +58,7 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let head_oid = match repo.head().and_then(|h| h.peel_to_commit().map(|c| c.id())) {
         Ok(oid) => oid,
         Err(e) => {
-            eprintln!("error: cannot resolve HEAD: {e}");
+            ui::error(&format!("cannot resolve HEAD: {e}"));
             return 1;
         }
     };
@@ -74,7 +67,7 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let raw_commits = match git::walk_commits(&repo, head_oid, tag_oid) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("error: {e}");
+            ui::error(&e.to_string());
             return 1;
         }
     };
@@ -100,7 +93,7 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         match semver::Version::parse(forced) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("error: invalid --release-as version '{forced}': {e}");
+                ui::error(&format!("invalid --release-as version '{forced}': {e}"));
                 return 1;
             }
         }
@@ -111,16 +104,16 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         let bump_level = match standard_version::determine_bump(&parsed) {
             Some(level) => level,
             None => {
-                eprintln!();
-                eprintln!("  Analysing commits since {}...", cur_ver_str.bold());
-                eprintln!("    no bump-worthy commits found");
-                eprintln!();
+                ui::blank();
+                ui::heading("Analysing commits since ", &format!("{}...", cur_ver_str.bold()));
+                eprintln!("{DETAIL}no bump-worthy commits found", DETAIL = ui::DETAIL_INDENT);
+                ui::blank();
                 return 0;
             }
         };
 
-        eprintln!();
-        eprintln!("  Analysing commits since {}...", cur_ver_str.bold());
+        ui::blank();
+        ui::heading("Analysing commits since ", &format!("{}...", cur_ver_str.bold()));
         print_summary(&summary);
 
         if let Some(ref pre_tag) = opts.prerelease {
@@ -149,40 +142,17 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         reason.to_string()
     };
 
-    eprintln!();
+    ui::blank();
     eprintln!(
-        "  {} ({bump_reason})",
-        format!("{cur_ver} \u{2192} {new_version}").bold()
+        "{INDENT}{} ({bump_reason})",
+        format!("{cur_ver} \u{2192} {new_version}").bold(),
+        INDENT = ui::INDENT,
     );
-
-    let ctx = FinalizeContext {
-        new_version: new_version.to_string(),
-        prev_version: current_version
-            .as_ref()
-            .map(|(_, v)| v.to_string()),
-    };
-
-    finalize_bump(&repo, config, opts, &raw_commits, &ctx)
-}
-
-/// Shared finalize logic for both semver and calver paths.
-///
-/// Handles version file updates, changelog generation, commit creation,
-/// and tag creation. Called after the new version has been computed.
-fn finalize_bump(
-    repo: &git2::Repository,
-    config: &ProjectConfig,
-    opts: &BumpOptions,
-    raw_commits: &[(git2::Oid, String)],
-    ctx: &FinalizeContext,
-) -> i32 {
-    let tag_prefix = &config.versioning.tag_prefix;
-    let new_version = &ctx.new_version;
 
     let workdir = match repo.workdir() {
         Some(w) => w,
         None => {
-            eprintln!("error: bare repository not supported");
+            ui::error("bare repository not supported");
             return 1;
         }
     };
@@ -198,53 +168,60 @@ fn finalize_bump(
 
     // --- Dry run: print plan and exit ---
     if opts.dry_run {
-        eprintln!();
+        ui::blank();
 
         match standard_version::detect_version_files(workdir, &custom_files) {
             Ok(detected) if detected.is_empty() => {
-                eprintln!("  No version files detected");
+                eprintln!("{INDENT}No version files detected", INDENT = ui::INDENT);
             }
             Ok(detected) => {
-                eprintln!("  Would update:");
+                eprintln!("{INDENT}Would update:", INDENT = ui::INDENT);
                 for f in &detected {
                     let rel = f.path.strip_prefix(workdir).unwrap_or(&f.path).display();
-                    eprintln!("    {:<20} {} \u{2192} {new_version}", rel, f.old_version);
+                    ui::item(
+                        &rel.to_string(),
+                        &format!("{} \u{2192} {new_version}", f.old_version),
+                    );
                 }
             }
             Err(e) => {
-                eprintln!("  warning: cannot detect version files: {e}");
+                eprintln!("{INDENT}warning: cannot detect version files: {e}", INDENT = ui::INDENT);
             }
         }
 
         if !opts.skip_changelog {
             eprintln!(
-                "  Would update: CHANGELOG.md         prepend {tag_prefix}{new_version} section"
+                "{INDENT}Would update: CHANGELOG.md         prepend {tag_prefix}{new_version} section",
+                INDENT = ui::INDENT,
             );
         }
 
         if !opts.no_commit {
-            eprintln!("  Would commit: chore(release): {new_version}");
+            eprintln!("{INDENT}Would commit: chore(release): {new_version}", INDENT = ui::INDENT);
         }
 
         if !opts.no_commit && !opts.no_tag {
-            eprintln!("  Would tag:    {tag_prefix}{new_version}");
+            eprintln!("{INDENT}Would tag:    {tag_prefix}{new_version}", INDENT = ui::INDENT);
         }
 
-        eprintln!();
+        ui::blank();
         return 0;
     }
 
     // --- Actual execution ---
 
-    // Update all detected version files.
-    let version_results: Vec<UpdateResult> =
-        match standard_version::update_version_files(workdir, new_version, &custom_files) {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("error: cannot update version files: {e}");
-                return 1;
-            }
-        };
+    // Step 7: Update all detected version files.
+    let version_results: Vec<UpdateResult> = match standard_version::update_version_files(
+        workdir,
+        &new_version.to_string(),
+        &custom_files,
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            ui::error(&format!("cannot update version files: {e}"));
+            return 1;
+        }
+    };
 
     // Sync Cargo.lock only when a Cargo.toml was actually updated.
     let cargo_updated = version_results.iter().any(|r| r.name == "Cargo.toml");
@@ -253,20 +230,23 @@ fn finalize_bump(
             .args(["update", "--workspace"])
             .status();
         if let Err(e) = status {
-            eprintln!("warning: failed to update Cargo.lock: {e}");
+            ui::warning(&format!("failed to update Cargo.lock: {e}"));
         }
     }
 
-    // Generate/update changelog.
+    // Step 8: Generate/update changelog.
     if !opts.skip_changelog {
         let changelog_config = config.to_changelog_config();
-        let host = git::detect_host_from_repo(repo);
+        let host = git::detect_host_from_repo(&repo);
         let changelog_path = workdir.join("CHANGELOG.md");
 
         let release = build_version_release(
-            raw_commits,
-            new_version,
-            ctx.prev_version.as_deref(),
+            &raw_commits,
+            &new_version.to_string(),
+            current_version
+                .as_ref()
+                .map(|(_, v)| v.to_string())
+                .as_deref(),
             &changelog_config,
         );
 
@@ -275,7 +255,7 @@ fn finalize_bump(
             let output =
                 standard_changelog::prepend_release(&existing, &release, &changelog_config, &host);
             if let Err(e) = std::fs::write(&changelog_path, &output) {
-                eprintln!("error: cannot write CHANGELOG.md: {e}");
+                ui::error(&format!("cannot write CHANGELOG.md: {e}"));
                 return 1;
             }
         }
@@ -283,30 +263,30 @@ fn finalize_bump(
 
     // Print updated files.
     if !version_results.is_empty() {
-        eprintln!();
-        eprintln!("  Updated:");
+        ui::blank();
+        eprintln!("{INDENT}Updated:", INDENT = ui::INDENT);
         for r in &version_results {
             let rel = r.path.strip_prefix(workdir).unwrap_or(&r.path).display();
-            eprintln!(
-                "    {:<20} {} \u{2192} {}",
-                rel, r.old_version, r.new_version
+            ui::item(
+                &rel.to_string(),
+                &format!("{} \u{2192} {}", r.old_version, r.new_version),
             );
             if let Some(ref extra) = r.extra {
-                eprintln!("    {:<20} {extra}", "");
+                ui::item("", extra);
             }
         }
     }
 
     if !opts.skip_changelog {
-        eprintln!();
-        eprintln!("  Changelog:");
-        eprintln!(
-            "    {:<20} prepended {tag_prefix}{new_version} section",
-            "CHANGELOG.md"
+        ui::blank();
+        eprintln!("{INDENT}Changelog:", INDENT = ui::INDENT);
+        ui::item(
+            "CHANGELOG.md",
+            &format!("prepended {tag_prefix}{new_version} section"),
         );
     }
 
-    // Create commit.
+    // Step 9: Create commit.
     if !opts.no_commit {
         // Collect paths to stage: all updated version files + changelog + Cargo.lock.
         let rel_paths: Vec<String> = version_results
@@ -326,8 +306,8 @@ fn finalize_bump(
             paths_to_stage.push("Cargo.lock");
         }
 
-        if let Err(e) = git::stage_files(repo, &paths_to_stage) {
-            eprintln!("error: cannot stage files: {e}");
+        if let Err(e) = git::stage_files(&repo, &paths_to_stage) {
+            ui::error(&format!("cannot stage files: {e}"));
             return 1;
         }
 
@@ -335,39 +315,39 @@ fn finalize_bump(
 
         if opts.sign {
             if let Err(e) = git::create_signed_commit(&commit_msg) {
-                eprintln!("error: {e}");
+                ui::error(&e.to_string());
                 return 1;
             }
-        } else if let Err(e) = git::create_commit(repo, &commit_msg) {
-            eprintln!("error: cannot create commit: {e}");
+        } else if let Err(e) = git::create_commit(&repo, &commit_msg) {
+            ui::error(&format!("cannot create commit: {e}"));
             return 1;
         }
 
-        eprintln!();
-        eprintln!("  Committed: {}", commit_msg.green());
+        ui::blank();
+        eprintln!("{INDENT}Committed: {}", commit_msg.green(), INDENT = ui::INDENT);
     }
 
-    // Create annotated tag.
+    // Step 10: Create annotated tag.
     if !opts.no_commit && !opts.no_tag {
         let tag_name = format!("{tag_prefix}{new_version}");
-        let tag_msg = new_version.to_string();
+        let tag_msg = format!("{new_version}");
 
         if opts.sign {
             if let Err(e) = git::create_signed_tag(&tag_name, &tag_msg) {
-                eprintln!("error: {e}");
+                ui::error(&e.to_string());
                 return 1;
             }
-        } else if let Err(e) = git::create_annotated_tag(repo, &tag_name, &tag_msg) {
-            eprintln!("error: cannot create tag: {e}");
+        } else if let Err(e) = git::create_annotated_tag(&repo, &tag_name, &tag_msg) {
+            ui::error(&format!("cannot create tag: {e}"));
             return 1;
         }
 
-        eprintln!("  Tagged:    {}", tag_name.green());
+        eprintln!("{INDENT}Tagged:    {}", tag_name.green(), INDENT = ui::INDENT);
     }
 
-    eprintln!();
-    eprintln!("  Push with: git push --follow-tags");
-    eprintln!();
+    ui::blank();
+    eprintln!("{INDENT}Push with: git push --follow-tags", INDENT = ui::INDENT);
+    ui::blank();
 
     0
 }
@@ -388,7 +368,7 @@ fn print_summary(summary: &standard_version::BumpSummary) {
         parts.push(format!("{} other", summary.other_count));
     }
     if !parts.is_empty() {
-        eprintln!("    {}", parts.join(", "));
+        eprintln!("{DETAIL}{}", parts.join(", "), DETAIL = ui::DETAIL_INDENT);
     }
 }
 
@@ -423,7 +403,7 @@ fn today_calver_date() -> standard_version::calver::CalverDate {
     let secs = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(d) => d.as_secs() as i64,
         Err(e) => {
-            eprintln!("warning: system clock failure ({e}), falling back to Unix epoch");
+            ui::warning(&format!("system clock failure ({e}), falling back to Unix epoch"));
             0
         }
     };
@@ -510,7 +490,7 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let repo = match git2::Repository::discover(".") {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("error: cannot open repository: {e}");
+            ui::error(&format!("cannot open repository: {e}"));
             return 1;
         }
     };
@@ -520,13 +500,13 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     // Calver does not support pre-release versioning.
     if opts.prerelease.is_some() {
-        eprintln!("error: --prerelease is not supported with scheme = \"calver\"");
+        ui::error("--prerelease is not supported with scheme = \"calver\"");
         return 1;
     }
 
     // Validate the calver format.
     if let Err(e) = standard_version::calver::validate_format(calver_format) {
-        eprintln!("error: invalid calver format: {e}");
+        ui::error(&format!("invalid calver format: {e}"));
         return 1;
     }
 
@@ -534,7 +514,7 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let current_tag = match git::find_latest_calver_tag(&repo, tag_prefix) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("error: {e}");
+            ui::error(&e.to_string());
             return 1;
         }
     };
@@ -543,7 +523,7 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let head_oid = match repo.head().and_then(|h| h.peel_to_commit().map(|c| c.id())) {
         Ok(oid) => oid,
         Err(e) => {
-            eprintln!("error: cannot resolve HEAD: {e}");
+            ui::error(&format!("cannot resolve HEAD: {e}"));
             return 1;
         }
     };
@@ -553,7 +533,7 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let raw_commits = match git::walk_commits(&repo, head_oid, tag_oid) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("error: {e}");
+            ui::error(&e.to_string());
             return 1;
         }
     };
@@ -568,7 +548,7 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         match standard_version::calver::next_version(calver_format, date, None) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("error: {e}");
+                ui::error(&e.to_string());
                 return 1;
             }
         }
@@ -576,24 +556,202 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         match standard_version::calver::next_version(calver_format, date, prev_ver) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("error: {e}");
+                ui::error(&e.to_string());
                 return 1;
             }
         }
     };
 
-    eprintln!();
+    ui::blank();
     eprintln!(
-        "  {} (calver)",
-        format!("{} \u{2192} {new_version}", prev_ver.unwrap_or("none")).bold()
+        "{INDENT}{} (calver)",
+        format!("{} \u{2192} {new_version}", prev_ver.unwrap_or("none")).bold(),
+        INDENT = ui::INDENT,
     );
 
-    let ctx = FinalizeContext {
-        new_version,
-        prev_version: prev_ver.map(|s| s.to_string()),
+    let workdir = match repo.workdir() {
+        Some(w) => w,
+        None => {
+            ui::error("bare repository not supported");
+            return 1;
+        }
     };
 
-    finalize_bump(&repo, config, opts, &raw_commits, &ctx)
+    let custom_files: Vec<CustomVersionFile> = config
+        .version_files
+        .iter()
+        .map(|vf| CustomVersionFile {
+            path: PathBuf::from(&vf.path),
+            pattern: vf.regex.clone(),
+        })
+        .collect();
+
+    // Dry run.
+    if opts.dry_run {
+        ui::blank();
+        match standard_version::detect_version_files(workdir, &custom_files) {
+            Ok(detected) if detected.is_empty() => {
+                eprintln!("{INDENT}No version files detected", INDENT = ui::INDENT);
+            }
+            Ok(detected) => {
+                eprintln!("{INDENT}Would update:", INDENT = ui::INDENT);
+                for f in &detected {
+                    let rel = f.path.strip_prefix(workdir).unwrap_or(&f.path).display();
+                    ui::item(
+                        &rel.to_string(),
+                        &format!("{} \u{2192} {new_version}", f.old_version),
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!("{INDENT}warning: cannot detect version files: {e}", INDENT = ui::INDENT);
+            }
+        }
+
+        if !opts.skip_changelog {
+            eprintln!(
+                "{INDENT}Would update: CHANGELOG.md         prepend {tag_prefix}{new_version} section",
+                INDENT = ui::INDENT,
+            );
+        }
+        if !opts.no_commit {
+            eprintln!("{INDENT}Would commit: chore(release): {new_version}", INDENT = ui::INDENT);
+        }
+        if !opts.no_commit && !opts.no_tag {
+            eprintln!("{INDENT}Would tag:    {tag_prefix}{new_version}", INDENT = ui::INDENT);
+        }
+        ui::blank();
+        return 0;
+    }
+
+    // Update version files.
+    let version_results: Vec<UpdateResult> =
+        match standard_version::update_version_files(workdir, &new_version, &custom_files) {
+            Ok(r) => r,
+            Err(e) => {
+                ui::error(&format!("cannot update version files: {e}"));
+                return 1;
+            }
+        };
+
+    let cargo_updated = version_results.iter().any(|r| r.name == "Cargo.toml");
+    if cargo_updated {
+        let status = std::process::Command::new("cargo")
+            .args(["update", "--workspace"])
+            .status();
+        if let Err(e) = status {
+            ui::warning(&format!("failed to update Cargo.lock: {e}"));
+        }
+    }
+
+    // Generate changelog.
+    if !opts.skip_changelog {
+        let changelog_config = config.to_changelog_config();
+        let host = git::detect_host_from_repo(&repo);
+        let changelog_path = workdir.join("CHANGELOG.md");
+
+        let release =
+            build_version_release(&raw_commits, &new_version, prev_ver, &changelog_config);
+
+        if let Some(release) = release {
+            let existing = std::fs::read_to_string(&changelog_path).unwrap_or_default();
+            let output =
+                standard_changelog::prepend_release(&existing, &release, &changelog_config, &host);
+            if let Err(e) = std::fs::write(&changelog_path, &output) {
+                ui::error(&format!("cannot write CHANGELOG.md: {e}"));
+                return 1;
+            }
+        }
+    }
+
+    // Print updated files.
+    if !version_results.is_empty() {
+        ui::blank();
+        eprintln!("{INDENT}Updated:", INDENT = ui::INDENT);
+        for r in &version_results {
+            let rel = r.path.strip_prefix(workdir).unwrap_or(&r.path).display();
+            ui::item(
+                &rel.to_string(),
+                &format!("{} \u{2192} {}", r.old_version, r.new_version),
+            );
+            if let Some(ref extra) = r.extra {
+                ui::item("", extra);
+            }
+        }
+    }
+
+    if !opts.skip_changelog {
+        ui::blank();
+        eprintln!("{INDENT}Changelog:", INDENT = ui::INDENT);
+        ui::item(
+            "CHANGELOG.md",
+            &format!("prepended {tag_prefix}{new_version} section"),
+        );
+    }
+
+    // Commit.
+    if !opts.no_commit {
+        let rel_paths: Vec<String> = version_results
+            .iter()
+            .filter_map(|r| {
+                r.path
+                    .strip_prefix(workdir)
+                    .ok()
+                    .map(|p| p.to_string_lossy().into_owned())
+            })
+            .collect();
+        let mut paths_to_stage: Vec<&str> = rel_paths.iter().map(|s| s.as_str()).collect();
+        if !opts.skip_changelog {
+            paths_to_stage.push("CHANGELOG.md");
+        }
+        if cargo_updated {
+            paths_to_stage.push("Cargo.lock");
+        }
+
+        if let Err(e) = git::stage_files(&repo, &paths_to_stage) {
+            ui::error(&format!("cannot stage files: {e}"));
+            return 1;
+        }
+
+        let commit_msg = format!("chore(release): {new_version}");
+
+        if opts.sign {
+            if let Err(e) = git::create_signed_commit(&commit_msg) {
+                ui::error(&e.to_string());
+                return 1;
+            }
+        } else if let Err(e) = git::create_commit(&repo, &commit_msg) {
+            ui::error(&format!("cannot create commit: {e}"));
+            return 1;
+        }
+
+        ui::blank();
+        eprintln!("{INDENT}Committed: {}", commit_msg.green(), INDENT = ui::INDENT);
+    }
+
+    // Tag.
+    if !opts.no_commit && !opts.no_tag {
+        let tag_name = format!("{tag_prefix}{new_version}");
+        let tag_msg = new_version.to_string();
+
+        if opts.sign {
+            if let Err(e) = git::create_signed_tag(&tag_name, &tag_msg) {
+                ui::error(&e.to_string());
+                return 1;
+            }
+        } else if let Err(e) = git::create_annotated_tag(&repo, &tag_name, &tag_msg) {
+            ui::error(&format!("cannot create tag: {e}"));
+            return 1;
+        }
+
+        eprintln!("{INDENT}Tagged:    {}", tag_name.green(), INDENT = ui::INDENT);
+    }
+
+    ui::blank();
+    eprintln!("{INDENT}Push with: git push --follow-tags", INDENT = ui::INDENT);
+    ui::blank();
+
+    0
 }
 
 #[cfg(test)]

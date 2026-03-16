@@ -1,4 +1,5 @@
 use crate::config::{ProjectConfig, ScopesConfig};
+use crate::ui;
 use inquire::{
     Select, Text,
     validator::{ErrorMessage, Validation},
@@ -60,7 +61,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
     let answers = match gather_answers(config, opts) {
         Ok(a) => a,
         Err(e) => {
-            eprintln!("error: {e}");
+            ui::error(&e.to_string());
             return 1;
         }
     };
@@ -69,7 +70,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
     let message = standard_commit::format(&commit);
 
     if let Err(e) = standard_commit::parse(&message) {
-        eprintln!("error: assembled message is invalid: {e}");
+        ui::error(&format!("assembled message is invalid: {e}"));
         return 1;
     }
 
@@ -82,8 +83,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
     if opts.all
         && let Err(e) = stage_tracked_modified(".")
     {
-        eprintln!("error: failed to stage files: {e}");
-        eprintln!("  hint: run this command from inside a git repository");
+        ui::error(&e.to_string());
         return 1;
     }
 
@@ -91,8 +91,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
         match create_commit_signed(&message, opts.amend) {
             Ok(()) => 0,
             Err(e) => {
-                eprintln!("error: failed to create signed commit: {e}");
-                eprintln!("  hint: ensure GPG is configured (git config user.signingkey)");
+                ui::error(&e.to_string());
                 1
             }
         }
@@ -100,7 +99,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
         match amend_commit(".", &message) {
             Ok(()) => 0,
             Err(e) => {
-                eprintln!("error: failed to amend commit: {e}");
+                ui::error(&e.to_string());
                 1
             }
         }
@@ -108,8 +107,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
         match create_commit(".", &message) {
             Ok(()) => 0,
             Err(e) => {
-                eprintln!("error: failed to create commit: {e}");
-                eprintln!("  hint: ensure you have staged changes and user.name/user.email are set");
+                ui::error(&e.to_string());
                 1
             }
         }
