@@ -106,6 +106,12 @@ enum Command {
         /// Allow breaking changes in patch-only scheme.
         #[arg(long)]
         force: bool,
+        /// Create a stable branch for patch-only releases. Optionally specify a custom branch name.
+        #[arg(long, num_args = 0..=1, default_missing_value = "")]
+        stable: Option<String>,
+        /// Use minor bump (instead of major) when advancing main after --stable.
+        #[arg(long)]
+        minor: bool,
     },
     /// Generate a changelog (incremental by default, --full to regenerate).
     Changelog {
@@ -245,8 +251,11 @@ fn main() {
             skip_changelog,
             sign,
             force,
+            stable,
+            minor,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let stable = stable.map(|s| if s.is_empty() { None } else { Some(s) });
             let opts = cli::bump::BumpOptions {
                 dry_run,
                 prerelease,
@@ -257,6 +266,8 @@ fn main() {
                 skip_changelog,
                 sign,
                 force,
+                stable,
+                minor,
             };
             let code = cli::bump::run(&project_config, &opts);
             std::process::exit(code);

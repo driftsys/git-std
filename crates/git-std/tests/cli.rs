@@ -241,6 +241,8 @@ fn bump_help_shows_flags() {
         "--no-commit",
         "--skip-changelog",
         "--sign",
+        "--stable",
+        "--minor",
     ] {
         assert!(stdout.contains(flag), "bump help should list '{flag}' flag");
     }
@@ -1413,4 +1415,202 @@ fn bump_patch_scheme_allows_breaking_with_force() {
     // Verify tag was created.
     let tag = repo.find_reference("refs/tags/v1.0.1");
     assert!(tag.is_ok(), "tag v1.0.1 should exist");
+}
+
+// --- Stable branch integration tests (#139) ---
+
+#[test]
+fn bump_stable_creates_branch_and_bumps_major() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--stable", "--skip-changelog"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Creating stable branch"))
+        .stderr(predicate::str::contains("stable-v1.0"))
+        .stderr(predicate::str::contains("patch (patch-only bumps)"))
+        .stderr(predicate::str::contains("Committed"))
+        .stderr(predicate::str::contains("1.0.0 \u{2192} 2.0.0"))
+        .stderr(predicate::str::contains("major"))
+        .stderr(predicate::str::contains("Tagged"));
+
+    // Verify the stable branch was created.
+    assert!(
+        repo.find_branch("stable-v1.0", git2::BranchType::Local).is_ok(),
+        "stable-v1.0 branch should exist"
+    );
+
+    // Verify HEAD is back on the original branch with the new tag.
+    let tag = repo.find_reference("refs/tags/v2.0.0");
+    assert!(tag.is_ok(), "tag v2.0.0 should exist");
+
+    // Verify main was bumped in Cargo.toml.
+    let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+    assert!(
+        cargo.contains("version = \"2.0.0\""),
+        "expected version 2.0.0, got: {cargo}"
+    );
+
+    // Verify the stable branch has .git-std.toml with scheme = "patch".
+    let stable_ref = repo.find_branch("stable-v1.0", git2::BranchType::Local).unwrap();
+    let stable_commit = stable_ref.get().peel_to_commit().unwrap();
+    let stable_tree = stable_commit.tree().unwrap();
+    let config_entry = stable_tree.get_name(".git-std.toml");
+    assert!(config_entry.is_some(), ".git-std.toml should exist on stable branch");
+
+    let config_blob = config_entry.unwrap().to_object(&repo).unwrap();
+    let config_content = std::str::from_utf8(config_blob.as_blob().unwrap().content()).unwrap();
+    assert!(
+        config_content.contains("scheme = \"patch\""),
+        "stable branch config should have scheme = \"patch\", got: {config_content}"
+    );
+}
+
+#[test]
+fn bump_stable_with_minor_flag() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--stable", "--minor", "--skip-changelog"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.0.0 \u{2192} 1.1.0"))
+        .stderr(predicate::str::contains("minor"));
+
+    // Verify the tag.
+    let tag = repo.find_reference("refs/tags/v1.1.0");
+    assert!(tag.is_ok(), "tag v1.1.0 should exist");
+
+    // Verify Cargo.toml.
+    let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+    assert!(
+        cargo.contains("version = \"1.1.0\""),
+        "expected version 1.1.0, got: {cargo}"
+    );
+}
+
+#[test]
+fn bump_stable_custom_branch_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--stable", "my-release-branch", "--skip-changelog"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("my-release-branch"));
+
+    // Verify the custom branch was created.
+    assert!(
+        repo.find_branch("my-release-branch", git2::BranchType::Local).is_ok(),
+        "my-release-branch should exist"
+    );
+}
+
+#[test]
+fn bump_stable_dry_run() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--stable", "--dry-run"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Creating stable branch"))
+        .stderr(predicate::str::contains("stable-v1.0"))
+        .stderr(predicate::str::contains("Would commit"))
+        .stderr(predicate::str::contains("Would tag"))
+        .stderr(predicate::str::contains("Advancing"))
+        .stderr(predicate::str::contains("1.0.0 \u{2192} 2.0.0"));
+
+    // No branch should be created.
+    assert!(
+        repo.find_branch("stable-v1.0", git2::BranchType::Local).is_err(),
+        "stable-v1.0 branch should NOT exist in dry-run"
+    );
+
+    // No tag should be created.
+    assert!(
+        repo.find_reference("refs/tags/v2.0.0").is_err(),
+        "tag v2.0.0 should NOT exist in dry-run"
+    );
+}
+
+#[test]
+fn bump_stable_rejects_existing_branch() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+
+    // Pre-create the branch that --stable would try to create.
+    let head = repo.head().unwrap().peel_to_commit().unwrap();
+    repo.branch("stable-v1.0", &head, false).unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--stable", "--skip-changelog"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("branch 'stable-v1.0' already exists"));
+}
+
+#[test]
+fn bump_stable_rejects_calver_scheme() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+
+    // Write a .git-std.toml with calver scheme.
+    std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"calver\"\n").unwrap();
+
+    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--stable"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "--stable is not supported with scheme = \"calver\"",
+        ));
+}
+
+#[test]
+fn bump_stable_rejects_dirty_working_tree() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+    add_commit(&repo, dir.path(), "a.txt", "feat: new feature");
+
+    // Create an uncommitted file to make the working tree dirty.
+    std::fs::write(dir.path().join("dirty.txt"), "uncommitted").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--stable"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("working tree has uncommitted changes"));
 }
