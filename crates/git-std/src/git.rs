@@ -71,6 +71,10 @@ pub fn collect_tags(repo: &git2::Repository) -> Result<Vec<(git2::Oid, String)>,
 }
 
 /// Find the latest version tag matching `<prefix><semver>`.
+///
+/// Returns `(Oid, semver::Version)` because semver tags can be parsed into
+/// a structured [`semver::Version`], enabling proper semantic comparison and
+/// sorting by version precedence.
 pub fn find_latest_version_tag(
     repo: &git2::Repository,
     prefix: &str,
@@ -102,6 +106,11 @@ pub fn find_latest_version_tag(
 }
 
 /// Find the latest calver-style tag matching `<prefix><version>`.
+///
+/// Returns `(Oid, String)` instead of a parsed version type because calver
+/// strings (e.g. `2025.03.1`) do not conform to the semver spec and cannot
+/// be parsed into [`semver::Version`]. The raw string is kept so callers can
+/// pass it directly to `standard_version::calver` for format-aware handling.
 ///
 /// Unlike semver tags, calver tags are sorted by commit time (newest first)
 /// since the version string itself may not sort correctly as a semver value.
