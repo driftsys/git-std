@@ -675,6 +675,7 @@ types = ["feat", "fix", "docs", "style",
          "refactor", "perf", "test",
          "chore", "ci", "build"]
 scopes = ["auth", "api", "ci", "deps"]         # "auto" | string[] | omit
+# "auto" discovers directory names from crates/*/, packages/*/, modules/*/
 strict = true                                  # enforce types/scopes without --strict flag
 
 # ── Versioning ────────────────────────────────────────────────────
@@ -890,10 +891,11 @@ git std check --range main..HEAD --format json
    for advanced git-cliff template customization.
    Right layering?
 
-2. ~~**Scope auto-discovery.**~~ **Resolved.**
+2. ~~**Scope auto-discovery.**~~ **Implemented.**
    Three-way: not set (default, no validation),
-   `scopes = "auto"` (discover from workspace layout),
-   or `scopes = ["auth", "api"]` (explicit allowlist).
+   `scopes = "auto"` (discover from `crates/*/`, `packages/*/`,
+   `modules/*/` directory names), or `scopes = ["auth", "api"]`
+   (explicit allowlist).
 
 3. **Monorepo version sync.** Post-bump, validate that
    workspace-inherited versions resolve correctly?

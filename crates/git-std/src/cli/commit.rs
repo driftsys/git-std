@@ -190,12 +190,19 @@ fn prompt_scope(config: &ProjectConfig) -> Result<Option<String>, Box<dyn std::e
             Ok(Some(selection.to_string()))
         }
         ScopesConfig::Auto => {
-            // TODO: discover scopes from workspace (package names, folder names)
-            let scope = Text::new("scope:").with_help_message("optional").prompt()?;
-            if scope.is_empty() {
-                Ok(None)
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let discovered = config.resolved_scopes(&cwd);
+            if discovered.is_empty() {
+                let scope = Text::new("scope:").with_help_message("optional").prompt()?;
+                if scope.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(scope))
+                }
             } else {
-                Ok(Some(scope))
+                let items: Vec<&str> = discovered.iter().map(|s| s.as_str()).collect();
+                let selection = Select::new("scope:", items).prompt()?;
+                Ok(Some(selection.to_string()))
             }
         }
     }
