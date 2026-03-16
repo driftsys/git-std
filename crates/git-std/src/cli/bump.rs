@@ -621,10 +621,7 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     // Determine the current branch name so we can switch back.
     let original_branch = match repo.head() {
-        Ok(head) => head
-            .shorthand()
-            .unwrap_or("main")
-            .to_string(),
+        Ok(head) => head.shorthand().unwrap_or("main").to_string(),
         Err(e) => {
             ui::error(&format!("cannot resolve HEAD: {e}"));
             return 1;
@@ -649,11 +646,15 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         ui::blank();
         eprintln!(
             "{INDENT}Would commit: chore(release): stabilize v{}.{}",
-            cur_ver.major, cur_ver.minor,
+            cur_ver.major,
+            cur_ver.minor,
             INDENT = ui::INDENT,
         );
         ui::blank();
-        eprintln!("{INDENT}Advancing {original_branch}...", INDENT = ui::INDENT);
+        eprintln!(
+            "{INDENT}Advancing {original_branch}...",
+            INDENT = ui::INDENT
+        );
         eprintln!(
             "{DETAIL}{} ({bump_kind})",
             format!("{cur_ver} \u{2192} {new_version}").bold(),
@@ -755,7 +756,10 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     // Step 8 & 9: Bump on main and finalize.
     ui::blank();
-    eprintln!("{INDENT}Advancing {original_branch}...", INDENT = ui::INDENT);
+    eprintln!(
+        "{INDENT}Advancing {original_branch}...",
+        INDENT = ui::INDENT
+    );
     eprintln!(
         "{DETAIL}{} ({bump_kind})",
         format!("{cur_ver} \u{2192} {new_version}").bold(),
@@ -780,9 +784,7 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     };
 
-    let prev_ver_str = current_version
-        .as_ref()
-        .map(|(_, v)| v.to_string());
+    let prev_ver_str = current_version.as_ref().map(|(_, v)| v.to_string());
 
     let ctx = FinalizeContext {
         new_version: new_version.to_string(),

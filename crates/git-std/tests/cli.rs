@@ -1639,7 +1639,8 @@ fn bump_stable_creates_branch_and_bumps_major() {
 
     // Verify the stable branch was created.
     assert!(
-        repo.find_branch("stable-v1.0", git2::BranchType::Local).is_ok(),
+        repo.find_branch("stable-v1.0", git2::BranchType::Local)
+            .is_ok(),
         "stable-v1.0 branch should exist"
     );
 
@@ -1655,11 +1656,16 @@ fn bump_stable_creates_branch_and_bumps_major() {
     );
 
     // Verify the stable branch has .git-std.toml with scheme = "patch".
-    let stable_ref = repo.find_branch("stable-v1.0", git2::BranchType::Local).unwrap();
+    let stable_ref = repo
+        .find_branch("stable-v1.0", git2::BranchType::Local)
+        .unwrap();
     let stable_commit = stable_ref.get().peel_to_commit().unwrap();
     let stable_tree = stable_commit.tree().unwrap();
     let config_entry = stable_tree.get_name(".git-std.toml");
-    assert!(config_entry.is_some(), ".git-std.toml should exist on stable branch");
+    assert!(
+        config_entry.is_some(),
+        ".git-std.toml should exist on stable branch"
+    );
 
     let config_blob = config_entry.unwrap().to_object(&repo).unwrap();
     let config_content = std::str::from_utf8(config_blob.as_blob().unwrap().content()).unwrap();
@@ -1714,7 +1720,8 @@ fn bump_stable_custom_branch_name() {
 
     // Verify the custom branch was created.
     assert!(
-        repo.find_branch("my-release-branch", git2::BranchType::Local).is_ok(),
+        repo.find_branch("my-release-branch", git2::BranchType::Local)
+            .is_ok(),
         "my-release-branch should exist"
     );
 }
@@ -1741,7 +1748,8 @@ fn bump_stable_dry_run() {
 
     // No branch should be created.
     assert!(
-        repo.find_branch("stable-v1.0", git2::BranchType::Local).is_err(),
+        repo.find_branch("stable-v1.0", git2::BranchType::Local)
+            .is_err(),
         "stable-v1.0 branch should NOT exist in dry-run"
     );
 
@@ -1769,7 +1777,9 @@ fn bump_stable_rejects_existing_branch() {
         .current_dir(dir.path())
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("branch 'stable-v1.0' already exists"));
+        .stderr(predicate::str::contains(
+            "branch 'stable-v1.0' already exists",
+        ));
 }
 
 #[test]
@@ -1809,7 +1819,9 @@ fn bump_stable_rejects_dirty_working_tree() {
         .current_dir(dir.path())
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("working tree has uncommitted changes"));
+        .stderr(predicate::str::contains(
+            "working tree has uncommitted changes",
+        ));
 }
 
 // --- Custom version file (regex) integration tests ---

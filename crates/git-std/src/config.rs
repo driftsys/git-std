@@ -3,10 +3,36 @@ use std::path::Path;
 /// Config filename.
 const CONFIG_FILE: &str = ".git-std.toml";
 
+/// Directory patterns scanned for auto-discovered scopes.
+const SCOPE_DIRS: &[&str] = &["crates", "packages", "modules"];
+
 /// Default conventional commit types used when `.git-std.toml` has no `types` list.
 const DEFAULT_TYPES: &[&str] = &[
     "feat", "fix", "docs", "style", "refactor", "perf", "test", "chore", "ci", "build",
 ];
+
+/// Discover scope names from workspace directory layout.
+///
+/// Scans `crates/*/`, `packages/*/`, `modules/*/` under `repo_root` and
+/// returns the sorted, deduplicated directory names.
+pub fn discover_scopes(repo_root: &Path) -> Vec<String> {
+    let mut scopes = Vec::new();
+    for dir in SCOPE_DIRS {
+        let parent = repo_root.join(dir);
+        if let Ok(entries) = std::fs::read_dir(&parent) {
+            for entry in entries.flatten() {
+                if entry.path().is_dir()
+                    && let Some(name) = entry.file_name().to_str()
+                {
+                    scopes.push(name.to_string());
+                }
+            }
+        }
+    }
+    scopes.sort();
+    scopes.dedup();
+    scopes
+}
 
 /// Versioning scheme.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -95,17 +121,35 @@ impl ProjectConfig {
         }
     }
 
+    /// Resolve the effective scope list.
+    ///
+    /// Returns the explicit list, auto-discovered names, or an empty vec.
+    pub fn resolved_scopes(&self, repo_root: &Path) -> Vec<String> {
+        match &self.scopes {
+            ScopesConfig::None => Vec::new(),
+            ScopesConfig::Auto => discover_scopes(repo_root),
+            ScopesConfig::List(list) => list.clone(),
+        }
+    }
+
     /// Build a `LintConfig` for `standard_commit::lint`.
     ///
     /// Strict mode is enabled if either the `--strict` CLI flag is passed
     /// or `strict = true` is set in `.git-std.toml`.
-    pub fn to_lint_config(&self, strict: bool) -> standard_commit::LintConfig {
+    ///
+    /// When `scopes = "auto"`, scopes are discovered from the workspace
+    /// directory layout under `repo_root`.
+    pub fn to_lint_config(&self, strict: bool, repo_root: &Path) -> standard_commit::LintConfig {
         if self.strict || strict {
             let (scopes, require_scope) = match &self.scopes {
                 ScopesConfig::None => (None, false),
                 ScopesConfig::Auto => {
-                    // TODO: discover scopes from workspace layout
-                    (None, false)
+                    let discovered = discover_scopes(repo_root);
+                    if discovered.is_empty() {
+                        (None, false)
+                    } else {
+                        (Some(discovered), true)
+                    }
                 }
                 ScopesConfig::List(list) => (Some(list.clone()), true),
             };
@@ -372,12 +416,13 @@ mod tests {
 
     #[test]
     fn to_lint_config_not_strict() {
+        let dir = tempfile::tempdir().unwrap();
         let config = ProjectConfig {
             types: vec!["feat".into()],
             scopes: ScopesConfig::List(vec!["auth".into()]),
             ..Default::default()
         };
-        let lint = config.to_lint_config(false);
+        let lint = config.to_lint_config(false, dir.path());
         assert!(lint.types.is_none());
         assert!(lint.scopes.is_none());
         assert!(!lint.require_scope);
@@ -385,12 +430,13 @@ mod tests {
 
     #[test]
     fn to_lint_config_strict() {
+        let dir = tempfile::tempdir().unwrap();
         let config = ProjectConfig {
             types: vec!["feat".into()],
             scopes: ScopesConfig::List(vec!["auth".into()]),
             ..Default::default()
         };
-        let lint = config.to_lint_config(true);
+        let lint = config.to_lint_config(true, dir.path());
         assert_eq!(lint.types, Some(vec!["feat".into()]));
         assert_eq!(lint.scopes, Some(vec!["auth".into()]));
         assert!(lint.require_scope);
@@ -398,12 +444,13 @@ mod tests {
 
     #[test]
     fn to_lint_config_strict_no_scopes() {
+        let dir = tempfile::tempdir().unwrap();
         let config = ProjectConfig {
             types: vec!["feat".into()],
             scopes: ScopesConfig::None,
             ..Default::default()
         };
-        let lint = config.to_lint_config(true);
+        let lint = config.to_lint_config(true, dir.path());
         assert!(lint.scopes.is_none());
         assert!(!lint.require_scope);
     }
@@ -422,6 +469,7 @@ mod tests {
 
     #[test]
     fn to_lint_config_strict_from_config() {
+        let dir = tempfile::tempdir().unwrap();
         let config = ProjectConfig {
             types: vec!["feat".into()],
             scopes: ScopesConfig::List(vec!["auth".into()]),
@@ -429,7 +477,7 @@ mod tests {
             ..Default::default()
         };
         // strict=true in config, flag=false → still strict
-        let lint = config.to_lint_config(false);
+        let lint = config.to_lint_config(false, dir.path());
         assert_eq!(lint.types, Some(vec!["feat".into()]));
         assert_eq!(lint.scopes, Some(vec!["auth".into()]));
         assert!(lint.require_scope);
@@ -482,6 +530,117 @@ regex = 'version:\s*(.+)'
     fn scheme_unknown_falls_back_to_semver() {
         let config = parse_config("scheme = \"unknown\"\n");
         assert_eq!(config.scheme, Scheme::Semver);
+    }
+
+    #[test]
+    fn discover_scopes_from_crates() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+        let scopes = discover_scopes(dir.path());
+        assert_eq!(scopes, vec!["api", "auth"]);
+    }
+
+    #[test]
+    fn discover_scopes_from_packages_and_modules() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("packages/ui")).unwrap();
+        std::fs::create_dir_all(dir.path().join("modules/core")).unwrap();
+        let scopes = discover_scopes(dir.path());
+        assert_eq!(scopes, vec!["core", "ui"]);
+    }
+
+    #[test]
+    fn discover_scopes_deduplicates() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/shared")).unwrap();
+        std::fs::create_dir_all(dir.path().join("packages/shared")).unwrap();
+        let scopes = discover_scopes(dir.path());
+        assert_eq!(scopes, vec!["shared"]);
+    }
+
+    #[test]
+    fn discover_scopes_ignores_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
+        std::fs::write(dir.path().join("crates/README.md"), "hi").unwrap();
+        let scopes = discover_scopes(dir.path());
+        assert_eq!(scopes, vec!["auth"]);
+    }
+
+    #[test]
+    fn discover_scopes_empty_when_no_matching_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        let scopes = discover_scopes(dir.path());
+        assert!(scopes.is_empty());
+    }
+
+    #[test]
+    fn discover_scopes_non_standard_names() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/my-crate_v2")).unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/123")).unwrap();
+        let scopes = discover_scopes(dir.path());
+        assert_eq!(scopes, vec!["123", "my-crate_v2"]);
+    }
+
+    #[test]
+    fn to_lint_config_auto_discovers_scopes() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+        let config = ProjectConfig {
+            types: vec!["feat".into()],
+            scopes: ScopesConfig::Auto,
+            ..Default::default()
+        };
+        let lint = config.to_lint_config(true, dir.path());
+        assert_eq!(lint.scopes, Some(vec!["api".into(), "auth".into()]));
+        assert!(lint.require_scope);
+    }
+
+    #[test]
+    fn to_lint_config_auto_empty_workspace() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = ProjectConfig {
+            types: vec!["feat".into()],
+            scopes: ScopesConfig::Auto,
+            ..Default::default()
+        };
+        let lint = config.to_lint_config(true, dir.path());
+        assert!(lint.scopes.is_none());
+        assert!(!lint.require_scope);
+    }
+
+    #[test]
+    fn resolved_scopes_auto() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("packages/web")).unwrap();
+        let config = ProjectConfig {
+            scopes: ScopesConfig::Auto,
+            ..Default::default()
+        };
+        assert_eq!(config.resolved_scopes(dir.path()), vec!["web"]);
+    }
+
+    #[test]
+    fn resolved_scopes_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = ProjectConfig {
+            scopes: ScopesConfig::List(vec!["auth".into()]),
+            ..Default::default()
+        };
+        assert_eq!(config.resolved_scopes(dir.path()), vec!["auth"]);
+    }
+
+    #[test]
+    fn resolved_scopes_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = ProjectConfig {
+            scopes: ScopesConfig::None,
+            ..Default::default()
+        };
+        assert!(config.resolved_scopes(dir.path()).is_empty());
     }
 
     #[test]

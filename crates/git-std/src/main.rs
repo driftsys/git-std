@@ -176,9 +176,10 @@ fn main() {
             strict,
             format,
         } => {
-            let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let project_config = config::load(&cwd);
             let effective_strict = strict || project_config.strict;
-            let lint_config = project_config.to_lint_config(strict);
+            let lint_config = project_config.to_lint_config(strict, &cwd);
             let lint_ref = if effective_strict {
                 Some(&lint_config)
             } else {
