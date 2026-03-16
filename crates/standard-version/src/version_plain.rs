@@ -33,6 +33,10 @@ impl VersionFile for PlainVersionFile {
         if trimmed.contains('\n') {
             return false;
         }
+        // Require at least one dot (version-like: X.Y or X.Y.Z).
+        if !trimmed.contains('.') {
+            return false;
+        }
         // Reject content with characters unlikely in a version string.
         trimmed
             .chars()
@@ -102,6 +106,12 @@ mod tests {
     #[test]
     fn detect_negative_special_characters() {
         assert!(!PlainVersionFile.detect("1.0.0; rm -rf /\n"));
+    }
+
+    #[test]
+    fn detect_negative_bare_word() {
+        assert!(!PlainVersionFile.detect("latest\n"));
+        assert!(!PlainVersionFile.detect("stable\n"));
     }
 
     // --- read_version ---
