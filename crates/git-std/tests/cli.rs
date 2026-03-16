@@ -1247,3 +1247,94 @@ fn hooks_run_fail_fast_prefix_overrides_collect_mode() {
         "skipped command output should not appear, got: {combined}"
     );
 }
+
+// --- Changelog --range integration tests ---
+
+#[test]
+fn changelog_range_valid_between_two_tags() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+
+    add_commit(&repo, dir.path(), "a.txt", "feat: add feature A");
+    add_commit(&repo, dir.path(), "b.txt", "fix: fix bug B");
+    create_tag(&repo, "v1.1.0");
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["changelog", "--range", "v1.0.0..v1.1.0", "--stdout"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    assert!(
+        stdout.contains("add feature A"),
+        "should contain the feat commit, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("fix bug B"),
+        "should contain the fix commit, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("1.1.0"),
+        "should use the 'to' tag as version label, got: {stdout}"
+    );
+}
+
+#[test]
+fn changelog_range_invalid_missing_dotdot() {
+    let dir = tempfile::tempdir().unwrap();
+    let _repo = init_bump_repo(dir.path());
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["changelog", "--range", "v1.0.0", "--stdout"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("range must contain '..'"));
+}
+
+#[test]
+fn changelog_range_invalid_ref() {
+    let dir = tempfile::tempdir().unwrap();
+    let _repo = init_bump_repo(dir.path());
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args([
+            "changelog",
+            "--range",
+            "nonexistent..also-nonexistent",
+            "--stdout",
+        ])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("cannot resolve"));
+}
+
+#[test]
+fn changelog_range_no_conventional_commits() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = init_bump_repo(dir.path());
+    create_tag(&repo, "v1.0.0");
+
+    // Add only non-conventional commits.
+    add_commit(&repo, dir.path(), "a.txt", "random message with no type");
+    create_tag(&repo, "v1.0.1");
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["changelog", "--range", "v1.0.0..v1.0.1", "--stdout"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("no conventional commits found"),
+        "should report no conventional commits, got stderr: {stderr}"
+    );
+}
