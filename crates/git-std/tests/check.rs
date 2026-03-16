@@ -518,7 +518,7 @@ fn color_never_no_ansi_codes_invalid() {
 #[test]
 fn strict_auto_scopes_accepts_discovered() {
     let dir = tempfile::tempdir().unwrap();
-    let _repo = make_test_repo(dir.path());
+    make_test_repo(dir.path());
     std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 
@@ -532,7 +532,7 @@ fn strict_auto_scopes_accepts_discovered() {
 #[test]
 fn strict_auto_scopes_rejects_unknown() {
     let dir = tempfile::tempdir().unwrap();
-    let _repo = make_test_repo(dir.path());
+    make_test_repo(dir.path());
     std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 
@@ -547,7 +547,7 @@ fn strict_auto_scopes_rejects_unknown() {
 #[test]
 fn strict_auto_scopes_requires_scope() {
     let dir = tempfile::tempdir().unwrap();
-    let _repo = make_test_repo(dir.path());
+    make_test_repo(dir.path());
     std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 
@@ -562,7 +562,7 @@ fn strict_auto_scopes_requires_scope() {
 #[test]
 fn strict_auto_scopes_empty_dirs_no_requirement() {
     let dir = tempfile::tempdir().unwrap();
-    let _repo = make_test_repo(dir.path());
+    make_test_repo(dir.path());
     // No crates/packages/modules directories
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 

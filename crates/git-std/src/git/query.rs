@@ -16,7 +16,7 @@ pub fn current_branch(dir: &Path) -> Result<String, GitError> {
 
 /// Resolve an arbitrary revision spec to a full SHA.
 pub fn resolve_rev(dir: &Path, rev: &str) -> Result<String, GitError> {
-    git(dir, &["rev-parse", rev])
+    git(dir, &["rev-parse", "--verify", rev])
 }
 
 /// Detect the repository host (GitHub, GitLab, etc.) from the `origin` remote URL.
@@ -42,7 +42,7 @@ pub fn walk_commits(
 
     let output = git(
         dir,
-        &["log", "--format=%H%x00%B%x00", "--topo-order", &range],
+        &["log", "--format=%H%x00%B%x00", "--topo-order", &range, "--"],
     )?;
     Ok(parse_nul_delimited_log(&output))
 }
@@ -51,7 +51,7 @@ pub fn walk_commits(
 pub fn walk_range(dir: &Path, range: &str) -> Result<Vec<(String, String)>, GitError> {
     let output = git(
         dir,
-        &["log", "--format=%H%x00%B%x00", "--topo-order", range],
+        &["log", "--format=%H%x00%B%x00", "--topo-order", range, "--"],
     )?;
     Ok(parse_nul_delimited_log(&output))
 }
@@ -103,11 +103,7 @@ pub fn collect_tags(dir: &Path) -> Result<Vec<(String, String)>, GitError> {
             continue;
         }
         // Use dereferenced OID for annotated tags, otherwise the tag OID itself.
-        let oid = if parts[1].is_empty() || parts[1].chars().all(|c| c == '0') {
-            parts[0]
-        } else {
-            parts[1]
-        };
+        let oid = if parts[1].is_empty() { parts[0] } else { parts[1] };
         let name = parts[2];
         tags.push((oid.to_string(), name.to_string()));
     }
@@ -145,39 +141,21 @@ pub fn find_latest_version_tag(
 
 /// Find the latest calver tag matching the given prefix.
 ///
-/// Returns `(commit_sha, version_string)`.
+/// Returns `(commit_sha, version_string)`. Tags are already sorted by
+/// creator date (newest first) via [`collect_tags`], so the first match wins.
 pub fn find_latest_calver_tag(
     dir: &Path,
     prefix: &str,
 ) -> Result<Option<(String, String)>, GitError> {
-    let output = git(
-        dir,
-        &[
-            "for-each-ref",
-            "--sort=-creatordate",
-            "--format=%(objectname) %(*objectname) %(refname:strip=2)",
-            "refs/tags/",
-        ],
-    )?;
-
-    for line in output.lines() {
-        let parts: Vec<&str> = line.splitn(3, ' ').collect();
-        if parts.len() < 3 {
-            continue;
-        }
-        let oid = if parts[1].is_empty() || parts[1].chars().all(|c| c == '0') {
-            parts[0]
-        } else {
-            parts[1]
-        };
-        let name = parts[2];
+    let tags = collect_tags(dir)?;
+    for (oid, name) in tags {
         let ver_str = match name.strip_prefix(prefix) {
             Some(s) => s,
             None => continue,
         };
         // Calver tags start with a digit (e.g. 2024.3.0).
         if ver_str.starts_with(|c: char| c.is_ascii_digit()) {
-            return Ok(Some((oid.to_string(), ver_str.to_string())));
+            return Ok(Some((oid, ver_str.to_string())));
         }
     }
     Ok(None)
@@ -185,8 +163,13 @@ pub fn find_latest_calver_tag(
 
 /// Return the commit date of a revision as `YYYY-MM-DD`.
 pub fn commit_date(dir: &Path, rev: &str) -> Result<String, GitError> {
-    let output = git(dir, &["log", "-1", "--format=%ai", rev])?;
+    let output = git(dir, &["log", "-1", "--format=%ai", rev, "--"])?;
     // %ai produces "2024-03-16 12:34:56 +0000", take first 10 chars.
+    if output.len() < 10 {
+        return Err(GitError {
+            message: format!("unexpected date format: '{output}'"),
+        });
+    }
     Ok(output[..10].to_string())
 }
 

@@ -48,7 +48,8 @@ fn unknown_subcommand_exits_2() {
 
 #[test]
 fn stub_subcommands_are_recognized() {
-    for sub in ["self-update"] {
+    {
+        let sub = "self-update";
         Command::cargo_bin("git-std")
             .unwrap()
             .arg(sub)

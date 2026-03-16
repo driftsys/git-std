@@ -7,9 +7,6 @@ mod cmd;
 mod mutate;
 mod query;
 
-// Re-exported for use by consumers that need to match on git errors.
-#[allow(unused_imports)]
-pub use cmd::GitError;
 pub use mutate::{
     amend_commit, branch_exists, checkout_branch, create_annotated_tag, create_branch,
     create_commit, create_signed_commit, create_signed_commit_amend, create_signed_tag,

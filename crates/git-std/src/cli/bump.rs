@@ -445,13 +445,7 @@ fn build_version_release(
     prev_tag: Option<&str>,
     config: &standard_changelog::ChangelogConfig,
 ) -> Option<VersionRelease> {
-    let pairs: Vec<(String, &str)> = commits
-        .iter()
-        .map(|(oid, msg)| (oid[..7].to_string(), msg.as_str()))
-        .collect();
-    let refs: Vec<(&str, &str)> = pairs.iter().map(|(h, m)| (h.as_str(), *m)).collect();
-
-    let mut release = standard_changelog::build_release(&refs, version, prev_tag, config)?;
+    let mut release = super::changelog::build_release_from_commits(commits, version, prev_tag, config)?;
 
     // Use today's date.
     let secs = std::time::SystemTime::now()
@@ -784,13 +778,13 @@ fn update_scheme_in_config(existing: &str, scheme: &str) -> String {
             }
         }
 
-        if trimmed.starts_with("scheme") && trimmed.contains('=') && !in_versioning {
+        if is_scheme_key(trimmed) && !in_versioning {
             result.push_str(&format!("scheme = \"{scheme}\"\n"));
             found_scheme = true;
             continue;
         }
 
-        if in_versioning && trimmed.starts_with("scheme") && trimmed.contains('=') {
+        if in_versioning && is_scheme_key(trimmed) {
             result.push_str(&format!("scheme = \"{scheme}\"\n"));
             found_scheme = true;
             continue;
@@ -816,6 +810,16 @@ fn update_scheme_in_config(existing: &str, scheme: &str) -> String {
     }
 
     result
+}
+
+/// Check if a trimmed TOML line is exactly the `scheme` key (not `scheme_other`, etc.).
+fn is_scheme_key(trimmed: &str) -> bool {
+    if let Some(rest) = trimmed.strip_prefix("scheme") {
+        let rest = rest.trim_start();
+        rest.starts_with('=')
+    } else {
+        false
+    }
 }
 
 /// Run the bump subcommand in patch-only mode.

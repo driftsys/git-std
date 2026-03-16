@@ -101,7 +101,7 @@ fn write_output(content: &str, opts: &ChangelogOptions) -> i32 {
 
 /// Convert raw `(String, String)` commits to `(&str, &str)` pairs and call
 /// `standard_changelog::build_release`.
-fn build_release_from_commits(
+pub(crate) fn build_release_from_commits(
     commits: &[(String, String)],
     version: &str,
     prev_tag: Option<&str>,
