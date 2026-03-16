@@ -1988,3 +1988,31 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
         .stderr(predicate::str::contains("Cargo.toml"))
         .stderr(predicate::str::contains("Would update"));
 }
+
+// ── commit --dry-run with auto-discover scopes (#72) ────────────
+
+#[test]
+fn commit_dry_run_auto_scopes() {
+    let dir = tempfile::tempdir().unwrap();
+    init_commit_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join("crates/web")).unwrap();
+    std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+    std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args([
+            "commit",
+            "--type",
+            "feat",
+            "--scope",
+            "web",
+            "--message",
+            "add page",
+            "--dry-run",
+        ])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("feat(web): add page"));
+}

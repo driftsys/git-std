@@ -518,3 +518,63 @@ fn color_never_no_ansi_codes_invalid() {
     );
     assert!(stderr.contains("\u{2717}"));
 }
+
+// ── auto-discover scopes (#72) ──────────────────────────────────
+
+#[test]
+fn strict_auto_scopes_accepts_discovered() {
+    let dir = tempfile::tempdir().unwrap();
+    let _repo = make_test_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
+    std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
+
+    git_std()
+        .args(["check", "--strict", "feat(auth): add login"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn strict_auto_scopes_rejects_unknown() {
+    let dir = tempfile::tempdir().unwrap();
+    let _repo = make_test_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
+    std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
+
+    git_std()
+        .args(["check", "--strict", "feat(unknown): something"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("not in the allowed list"));
+}
+
+#[test]
+fn strict_auto_scopes_requires_scope() {
+    let dir = tempfile::tempdir().unwrap();
+    let _repo = make_test_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
+    std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
+
+    git_std()
+        .args(["check", "--strict", "feat: no scope"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("scope is required"));
+}
+
+#[test]
+fn strict_auto_scopes_empty_dirs_no_requirement() {
+    let dir = tempfile::tempdir().unwrap();
+    let _repo = make_test_repo(dir.path());
+    // No crates/packages/modules directories
+    std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
+
+    git_std()
+        .args(["check", "--strict", "feat: anything"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
