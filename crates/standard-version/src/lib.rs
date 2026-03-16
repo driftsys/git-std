@@ -35,12 +35,14 @@
 //! assert_eq!(next, semver::Version::new(1, 3, 0));
 //! ```
 
+pub mod calver;
 pub mod cargo;
 pub mod gradle;
 pub mod json;
 pub mod pubspec;
 pub mod pyproject;
 pub mod regex_engine;
+pub mod toml_helpers;
 pub mod version_file;
 pub mod version_plain;
 
@@ -51,7 +53,8 @@ pub use pubspec::PubspecVersionFile;
 pub use pyproject::PyprojectVersionFile;
 pub use regex_engine::RegexVersionFile;
 pub use version_file::{
-    CustomVersionFile, UpdateResult, VersionFile, VersionFileError, update_version_files,
+    CustomVersionFile, DetectedFile, UpdateResult, VersionFile, VersionFileError,
+    detect_version_files, update_version_files,
 };
 pub use version_plain::PlainVersionFile;
 

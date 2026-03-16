@@ -213,7 +213,10 @@ fn bump_pubspec_yaml_with_build_number() {
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].name, "pubspec.yaml");
     assert_eq!(results[0].old_version, "1.2.3+42");
-    assert_eq!(results[0].new_version, "2.0.0");
+    assert_eq!(
+        results[0].new_version, "2.0.0+43",
+        "new_version should reflect the actual written value including build number"
+    );
 
     let on_disk = fs::read_to_string(&pubspec).unwrap();
     assert!(

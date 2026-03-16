@@ -47,6 +47,15 @@ pub struct ChangelogConfig {
     pub bug_url: Option<String>,
 }
 
+/// A user-defined version file entry from `[[version_files]]`.
+#[derive(Debug, Clone, Default)]
+pub struct VersionFileConfig {
+    /// Path to the file, relative to the repository root.
+    pub path: String,
+    /// Regex pattern whose first capture group contains the version string.
+    pub regex: String,
+}
+
 /// Project configuration loaded from `.git-std.toml`.
 #[derive(Debug, Default)]
 pub struct ProjectConfig {
@@ -55,6 +64,7 @@ pub struct ProjectConfig {
     pub strict: bool,
     pub changelog: ChangelogConfig,
     pub versioning: VersioningConfig,
+    pub version_files: Vec<VersionFileConfig>,
 }
 
 impl ProjectConfig {
@@ -110,6 +120,7 @@ pub fn load(dir: &Path) -> ProjectConfig {
             strict: false,
             changelog: ChangelogConfig::default(),
             versioning: VersioningConfig::default(),
+            version_files: Vec::new(),
         },
     }
 }
@@ -124,6 +135,7 @@ fn parse_config(content: &str) -> ProjectConfig {
                 strict: false,
                 changelog: ChangelogConfig::default(),
                 versioning: VersioningConfig::default(),
+                version_files: Vec::new(),
             };
         }
     };
@@ -166,6 +178,7 @@ fn parse_config(content: &str) -> ProjectConfig {
 
     let changelog = parse_changelog_config(&table);
     let versioning = parse_versioning_config(&table);
+    let version_files = parse_version_files(&table);
 
     ProjectConfig {
         types,
@@ -173,6 +186,7 @@ fn parse_config(content: &str) -> ProjectConfig {
         strict,
         changelog,
         versioning,
+        version_files,
     }
 }
 
@@ -200,6 +214,21 @@ fn parse_versioning_config(table: &toml::Table) -> VersioningConfig {
         tag_prefix,
         prerelease_tag,
     }
+}
+
+fn parse_version_files(table: &toml::Table) -> Vec<VersionFileConfig> {
+    let Some(arr) = table.get("version_files").and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+
+    arr.iter()
+        .filter_map(|entry| {
+            let t = entry.as_table()?;
+            let path = t.get("path")?.as_str()?.to_string();
+            let regex = t.get("regex")?.as_str()?.to_string();
+            Some(VersionFileConfig { path, regex })
+        })
+        .collect()
 }
 
 fn parse_changelog_config(table: &toml::Table) -> ChangelogConfig {
@@ -353,5 +382,30 @@ mod tests {
         assert_eq!(lint.types, Some(vec!["feat".into()]));
         assert_eq!(lint.scopes, Some(vec!["auth".into()]));
         assert!(lint.require_scope);
+    }
+
+    #[test]
+    fn version_files_parsed() {
+        let config = parse_config(
+            r#"
+[[version_files]]
+path = "pom.xml"
+regex = '<version>([^<]+)</version>'
+
+[[version_files]]
+path = "Chart.yaml"
+regex = 'version:\s*(.+)'
+"#,
+        );
+        assert_eq!(config.version_files.len(), 2);
+        assert_eq!(config.version_files[0].path, "pom.xml");
+        assert_eq!(config.version_files[0].regex, "<version>([^<]+)</version>");
+        assert_eq!(config.version_files[1].path, "Chart.yaml");
+    }
+
+    #[test]
+    fn version_files_default_empty() {
+        let config = parse_config(r#"types = ["feat"]"#);
+        assert!(config.version_files.is_empty());
     }
 }

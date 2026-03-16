@@ -1,5 +1,7 @@
+use std::path::PathBuf;
+
 use standard_changelog::VersionRelease;
-use standard_version::UpdateResult;
+use standard_version::{CustomVersionFile, UpdateResult};
 use yansi::Paint;
 
 use crate::config::ProjectConfig;
@@ -128,9 +130,9 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     } else {
         let level = standard_version::determine_bump(&parsed).unwrap();
         let reason = match level {
-            standard_version::BumpLevel::Major => "major — breaking change detected",
-            standard_version::BumpLevel::Minor => "minor — new feature",
-            standard_version::BumpLevel::Patch => "patch — bug fix",
+            standard_version::BumpLevel::Major => "major \u{2014} breaking change detected",
+            standard_version::BumpLevel::Minor => "minor \u{2014} new feature",
+            standard_version::BumpLevel::Patch => "patch \u{2014} bug fix",
         };
         reason.to_string()
     };
@@ -138,14 +140,45 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     eprintln!();
     eprintln!(
         "  {} ({bump_reason})",
-        format!("{cur_ver} → {new_version}").bold()
+        format!("{cur_ver} \u{2192} {new_version}").bold()
     );
+
+    let workdir = match repo.workdir() {
+        Some(w) => w,
+        None => {
+            eprintln!("error: bare repository not supported");
+            return 1;
+        }
+    };
+
+    let custom_files: Vec<CustomVersionFile> = config
+        .version_files
+        .iter()
+        .map(|vf| CustomVersionFile {
+            path: PathBuf::from(&vf.path),
+            pattern: vf.regex.clone(),
+        })
+        .collect();
 
     // --- Dry run: print plan and exit ---
     if opts.dry_run {
         eprintln!();
 
-        eprintln!("  Would update: version files detected at repo root");
+        match standard_version::detect_version_files(workdir, &custom_files) {
+            Ok(detected) if detected.is_empty() => {
+                eprintln!("  No version files detected");
+            }
+            Ok(detected) => {
+                eprintln!("  Would update:");
+                for f in &detected {
+                    let rel = f.path.strip_prefix(workdir).unwrap_or(&f.path).display();
+                    eprintln!("    {:<20} {} \u{2192} {new_version}", rel, f.old_version);
+                }
+            }
+            Err(e) => {
+                eprintln!("  warning: cannot detect version files: {e}");
+            }
+        }
 
         if !opts.skip_changelog {
             eprintln!(
@@ -166,23 +199,19 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     }
 
     // --- Actual execution ---
-    let workdir = match repo.workdir() {
-        Some(w) => w,
-        None => {
-            eprintln!("error: bare repository not supported");
+
+    // Step 7: Update all detected version files.
+    let version_results: Vec<UpdateResult> = match standard_version::update_version_files(
+        workdir,
+        &new_version.to_string(),
+        &custom_files,
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: cannot update version files: {e}");
             return 1;
         }
     };
-
-    // Step 7: Update all detected version files.
-    let version_results: Vec<UpdateResult> =
-        match standard_version::update_version_files(workdir, &new_version.to_string(), &[]) {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("error: cannot update version files: {e}");
-                return 1;
-            }
-        };
 
     // Sync Cargo.lock only when a Cargo.toml was actually updated.
     let cargo_updated = version_results.iter().any(|r| r.name == "Cargo.toml");
@@ -228,7 +257,10 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         eprintln!("  Updated:");
         for r in &version_results {
             let rel = r.path.strip_prefix(workdir).unwrap_or(&r.path).display();
-            eprintln!("    {:<20} {} → {}", rel, r.old_version, r.new_version);
+            eprintln!(
+                "    {:<20} {} \u{2192} {}",
+                rel, r.old_version, r.new_version
+            );
             if let Some(ref extra) = r.extra {
                 eprintln!("    {:<20} {extra}", "");
             }
