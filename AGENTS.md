@@ -102,10 +102,165 @@ I/O for version file detection and updates.
 - **Review before merge.** After CI passes, review every PR
   before merging. Post findings as a PR review via
   `gh api repos/{owner}/{repo}/pulls/{n}/reviews` with
-  `event=COMMENT`. Prioritize findings as must-fix,
-  should-fix, and nice-to-have. Fix must-fix items directly
-  in the PR. Open a debt issue for should-fix and
-  nice-to-have items so they are tracked and not lost.
+  `event=COMMENT`. Classify findings by severity (K0/K1/K2).
+  Fix K0 items directly in the PR. Open debt issues for
+  K1 and K2 items so they are tracked and not lost.
+
+## Issue model
+
+### Hierarchy
+
+```text
+Initiative (label only — initiative:git-workflow)
+  └── Epic (issue + epic + epic:<name> labels)
+        ├── Story  — user-facing requirement
+        ├── Task   — technical requirement
+        └── Debt   — refactoring / review findings
+```
+
+### Issue types
+
+| Type  | Label   | Purpose                                          |
+| ----- | ------- | ------------------------------------------------ |
+| Epic  | `epic`  | Tracking issue grouping stories/tasks/debt       |
+| Story | `story` | User-facing requirement from the spec            |
+| Task  | `task`  | Technical requirement (not user-visible)         |
+| Debt  | `debt`  | Refactoring, should-fix or nice-to-have findings |
+| Bug   | `bug`   | Defect. K0 bugs are must-fix immediately         |
+
+### Severity
+
+| Label | Meaning      |
+| ----- | ------------ |
+| `K0`  | Must-have    |
+| `K1`  | Should-fix   |
+| `K2`  | Nice-to-have |
+
+### Effort
+
+| Label | Meaning                          |
+| ----- | -------------------------------- |
+| `XS`  | Trivial — typo, one-liner        |
+| `S`   | Small — single file, < 1 hour    |
+| `M`   | Medium — a few files, half a day |
+| `L`   | Large — cross-cutting, full day  |
+| `XL`  | Extra large — multi-day          |
+
+### Priority lookup
+
+|    | XS | S  | M  | L    | XL   |
+| -- | -- | -- | -- | ---- | ---- |
+| K0 | P0 | P0 | P0 | P1   | P1   |
+| K1 | P0 | P1 | P1 | P2   | drop |
+| K2 | P1 | P2 | P2 | drop | drop |
+
+- **P0:** do now. **P1:** do next. **P2:** do when
+  convenient. **Drop:** not worth the effort — close
+  as won't-fix.
+- K0 never drops — must-haves always get done.
+
+### Review findings flow
+
+- **K0** → fix directly in the PR (no issue needed),
+  or open a `bug` issue if it requires separate work.
+- **K1 / K2** → open a `debt` issue with severity,
+  effort, and priority labels.
+
+### Rules for agents
+
+1. Every story/task/debt must have `Epic: #<number>`
+   as the first non-blank line of the body.
+2. Every story/task/debt carries exactly one
+   `epic:<name>` label plus its type label (`story`,
+   `task`, or `debt`).
+3. No domain labels — the domain is implicit from the
+   title and epic.
+4. When creating a story/task/debt, update the parent
+   epic's task list to include the new issue.
+5. Use only repo-local references (`#<number>`), not
+   org-level (`driftsys/.github#N`).
+6. Epics are created by humans. Agents create stories,
+   tasks, and debt issues.
+
+### Templates
+
+**Epic:**
+
+```markdown
+## Goal
+
+<1-2 sentences.>
+
+## Spec reference
+
+<Link to docs/SPEC.md section.>
+
+## Stories
+
+- [ ] #N — title
+
+## Tasks
+
+- [ ] #N — title
+
+## Debt
+
+- [ ] #N — title
+```
+
+Labels: `epic`, `epic:<name>`, `initiative:git-workflow`
+
+**Story** (user-facing requirement):
+
+```markdown
+Epic: #<epic-number>
+
+## Context
+
+<Why this story exists.>
+
+## Acceptance criteria
+
+- <criterion>
+
+## Spec reference
+
+<Link to docs/SPEC.md section.>
+```
+
+Labels: `story`, `epic:<name>`, severity, effort
+
+**Task** (technical requirement):
+
+```markdown
+Epic: #<epic-number>
+
+## Context
+
+<Why this task exists.>
+
+## Acceptance criteria
+
+- <criterion>
+```
+
+Labels: `task`, `epic:<name>`, severity, effort
+
+**Debt** (refactoring / review findings):
+
+```markdown
+Epic: #<epic-number>
+
+## Context
+
+<What triggered this. Reference the PR or review.>
+
+## Acceptance criteria
+
+- <criterion>
+```
+
+Labels: `debt`, `epic:<name>`, severity, effort
 
 ## Conventions
 
