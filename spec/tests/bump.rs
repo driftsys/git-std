@@ -237,22 +237,16 @@ fn bump_multi_ecosystem() {
 /// Dry-run with custom `[[version_files]]` shows the custom file in the plan.
 #[test]
 fn bump_dry_run_custom_version_file() {
-    let mut repo = TestRepo::new()
-        .with_cargo_toml("1.0.0")
-        .with_config(
-            r#"
+    let mut repo = TestRepo::new().with_cargo_toml("1.0.0").with_config(
+        r#"
 [[version_files]]
 path = "version.txt"
 regex = 'version = "(\d+\.\d+\.\d+)"'
 "#,
-        );
+    );
 
     // Create the custom version file.
-    std::fs::write(
-        repo.path().join("version.txt"),
-        "version = \"1.0.0\"\n",
-    )
-    .unwrap();
+    std::fs::write(repo.path().join("version.txt"), "version = \"1.0.0\"\n").unwrap();
 
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
