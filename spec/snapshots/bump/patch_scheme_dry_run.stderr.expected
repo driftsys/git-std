@@ -1,0 +1,9 @@
+
+  1.0.0 → 1.0.1 (patch)
+
+  Would update:
+    Cargo.toml           0.0.0 → 1.0.1
+  Would update: CHANGELOG.md         prepend v1.0.1 section
+  Would commit: chore(release): 1.0.1
+  Would tag:    v1.0.1
+

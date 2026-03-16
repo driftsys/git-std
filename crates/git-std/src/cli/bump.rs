@@ -120,15 +120,24 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
             Some(level) => level,
             None => {
                 ui::blank();
-                ui::heading("Analysing commits since ", &format!("{}...", cur_ver_str.bold()));
-                eprintln!("{DETAIL}no bump-worthy commits found", DETAIL = ui::DETAIL_INDENT);
+                ui::heading(
+                    "Analysing commits since ",
+                    &format!("{}...", cur_ver_str.bold()),
+                );
+                eprintln!(
+                    "{DETAIL}no bump-worthy commits found",
+                    DETAIL = ui::DETAIL_INDENT
+                );
                 ui::blank();
                 return 0;
             }
         };
 
         ui::blank();
-        ui::heading("Analysing commits since ", &format!("{}...", cur_ver_str.bold()));
+        ui::heading(
+            "Analysing commits since ",
+            &format!("{}...", cur_ver_str.bold()),
+        );
         print_summary(&summary);
 
         if let Some(ref pre_tag) = opts.prerelease {
@@ -164,9 +173,7 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         INDENT = ui::INDENT,
     );
 
-    let prev_ver_str = current_version
-        .as_ref()
-        .map(|(_, v)| v.to_string());
+    let prev_ver_str = current_version.as_ref().map(|(_, v)| v.to_string());
 
     let ctx = FinalizeContext {
         new_version: new_version.to_string(),
@@ -467,7 +474,9 @@ fn today_calver_date() -> standard_version::calver::CalverDate {
     let secs = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(d) => d.as_secs() as i64,
         Err(e) => {
-            ui::warning(&format!("system clock failure ({e}), falling back to Unix epoch"));
+            ui::warning(&format!(
+                "system clock failure ({e}), falling back to Unix epoch"
+            ));
             0
         }
     };
@@ -612,10 +621,7 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     // Determine the current branch name so we can switch back.
     let original_branch = match repo.head() {
-        Ok(head) => head
-            .shorthand()
-            .unwrap_or("main")
-            .to_string(),
+        Ok(head) => head.shorthand().unwrap_or("main").to_string(),
         Err(e) => {
             ui::error(&format!("cannot resolve HEAD: {e}"));
             return 1;
@@ -640,11 +646,15 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         ui::blank();
         eprintln!(
             "{INDENT}Would commit: chore(release): stabilize v{}.{}",
-            cur_ver.major, cur_ver.minor,
+            cur_ver.major,
+            cur_ver.minor,
             INDENT = ui::INDENT,
         );
         ui::blank();
-        eprintln!("{INDENT}Advancing {original_branch}...", INDENT = ui::INDENT);
+        eprintln!(
+            "{INDENT}Advancing {original_branch}...",
+            INDENT = ui::INDENT
+        );
         eprintln!(
             "{DETAIL}{} ({bump_kind})",
             format!("{cur_ver} \u{2192} {new_version}").bold(),
@@ -746,7 +756,10 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     // Step 8 & 9: Bump on main and finalize.
     ui::blank();
-    eprintln!("{INDENT}Advancing {original_branch}...", INDENT = ui::INDENT);
+    eprintln!(
+        "{INDENT}Advancing {original_branch}...",
+        INDENT = ui::INDENT
+    );
     eprintln!(
         "{DETAIL}{} ({bump_kind})",
         format!("{cur_ver} \u{2192} {new_version}").bold(),
@@ -771,9 +784,7 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     };
 
-    let prev_ver_str = current_version
-        .as_ref()
-        .map(|(_, v)| v.to_string());
+    let prev_ver_str = current_version.as_ref().map(|(_, v)| v.to_string());
 
     let ctx = FinalizeContext {
         new_version: new_version.to_string(),
@@ -928,9 +939,7 @@ fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         INDENT = ui::INDENT,
     );
 
-    let prev_ver_str = current_version
-        .as_ref()
-        .map(|(_, v)| v.to_string());
+    let prev_ver_str = current_version.as_ref().map(|(_, v)| v.to_string());
 
     let ctx = FinalizeContext {
         new_version: new_version.to_string(),

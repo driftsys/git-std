@@ -233,3 +233,42 @@ fn bump_multi_ecosystem() {
         .success()
         .stderr_eq(file!["../snapshots/bump/multi_ecosystem.stderr.expected"]);
 }
+
+/// Patch scheme always bumps patch, even for feat commits.
+#[test]
+fn bump_patch_scheme_dry_run() {
+    let mut repo = TestRepo::new().with_cargo_toml("0.0.0").with_config(
+        r#"
+scheme = "patch"
+"#,
+    );
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: add feature A");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--dry-run"])
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stderr_eq(file![
+            "../snapshots/bump/patch_scheme_dry_run.stderr.expected"
+        ]);
+}
+
+/// `--stable --dry-run` shows the stable branch creation plan.
+#[test]
+fn bump_stable_dry_run() {
+    let mut repo = TestRepo::new().with_cargo_toml("1.2.0");
+    repo.stage_all();
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.2.0");
+    repo.add_commit("feat: new feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--stable", "--dry-run"])
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stderr_eq(file!["../snapshots/bump/stable_dry_run.stderr.expected"]);
+}

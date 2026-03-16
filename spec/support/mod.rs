@@ -72,6 +72,16 @@ impl TestRepo {
         self
     }
 
+    /// Stage all files in the working directory.
+    pub fn stage_all(&self) -> &Self {
+        let mut index = self.repo.index().expect("failed to get index");
+        index
+            .add_all(["*"], git2::IndexAddOption::DEFAULT, None)
+            .expect("failed to stage all files");
+        index.write().expect("failed to write index");
+        self
+    }
+
     /// Create a file, stage it, and commit with the given message.
     pub fn add_commit(&mut self, message: &str) -> &mut Self {
         self.file_counter += 1;

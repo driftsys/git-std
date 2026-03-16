@@ -1,0 +1,17 @@
+
+  Creating stable branch...
+    Branch:              stable-v1.2
+    Scheme:              patch (patch-only bumps)
+
+  Would commit: chore(release): stabilize v1.2
+
+  Advancing main...
+    1.2.0 → 2.0.0 (major)
+
+  Would commit: chore(release): 2.0.0
+  Would tag:    v2.0.0
+
+  Push with:
+                         git push origin stable-v1.2
+                         git push --follow-tags
+

@@ -146,9 +146,7 @@ fn parse_config(content: &str) -> ProjectConfig {
     let table: toml::Table = match content.parse() {
         Ok(t) => t,
         Err(e) => {
-            eprintln!(
-                "warning: invalid .git-std.toml, using defaults: {e}"
-            );
+            eprintln!("warning: invalid .git-std.toml, using defaults: {e}");
             return ProjectConfig {
                 types: default_types(),
                 scopes: ScopesConfig::None,
@@ -486,5 +484,126 @@ calver_format = "YYYY.0M.PATCH"
 "#,
         );
         assert_eq!(config.versioning.calver_format, "YYYY.0M.PATCH");
+    }
+
+    #[test]
+    fn calver_format_yy_0m_patch() {
+        let fmt = "YY.0M.PATCH";
+        assert!(standard_version::calver::validate_format(fmt).is_ok());
+        let config = parse_config(&format!("[versioning]\ncalver_format = \"{fmt}\"\n"));
+        assert_eq!(config.versioning.calver_format, fmt);
+    }
+
+    #[test]
+    fn calver_format_yyyy_ww_patch() {
+        let fmt = "YYYY.WW.PATCH";
+        assert!(standard_version::calver::validate_format(fmt).is_ok());
+        let config = parse_config(&format!("[versioning]\ncalver_format = \"{fmt}\"\n"));
+        assert_eq!(config.versioning.calver_format, fmt);
+    }
+
+    #[test]
+    fn calver_tokens_yy() {
+        assert!(standard_version::calver::validate_format("YY.PATCH").is_ok());
+    }
+
+    #[test]
+    fn calver_tokens_0y_is_yy() {
+        // 0Y is not a token — YY is the short-year token.
+        assert!(standard_version::calver::validate_format("YY.PATCH").is_ok());
+    }
+
+    #[test]
+    fn calver_tokens_0m() {
+        assert!(standard_version::calver::validate_format("YYYY.0M.PATCH").is_ok());
+    }
+
+    #[test]
+    fn calver_tokens_dd() {
+        assert!(standard_version::calver::validate_format("YYYY.MM.DD.PATCH").is_ok());
+    }
+
+    #[test]
+    fn calver_tokens_ww() {
+        assert!(standard_version::calver::validate_format("YY.WW.PATCH").is_ok());
+    }
+
+    #[test]
+    fn version_files_with_regex_pattern() {
+        let config = parse_config(
+            r#"
+[[version_files]]
+path = "build.gradle"
+regex = 'version\s*=\s*"([^"]+)"'
+
+[[version_files]]
+path = "setup.py"
+regex = 'version="([^"]+)"'
+"#,
+        );
+        assert_eq!(config.version_files.len(), 2);
+        assert_eq!(config.version_files[0].path, "build.gradle");
+        assert!(config.version_files[0].regex.contains("version"));
+        assert_eq!(config.version_files[1].path, "setup.py");
+    }
+
+    #[test]
+    fn version_files_missing_path_skipped() {
+        let config = parse_config(
+            r#"
+[[version_files]]
+regex = 'version="([^"]+)"'
+"#,
+        );
+        assert!(config.version_files.is_empty());
+    }
+
+    #[test]
+    fn changelog_hidden_types() {
+        let config = parse_config(
+            r#"
+[changelog]
+hidden = ["chore", "ci", "test"]
+"#,
+        );
+        assert_eq!(
+            config.changelog.hidden,
+            Some(vec![
+                "chore".to_string(),
+                "ci".to_string(),
+                "test".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn changelog_hidden_default_none() {
+        let config = parse_config(r#"types = ["feat"]"#);
+        assert!(config.changelog.hidden.is_none());
+    }
+
+    #[test]
+    fn empty_toml_uses_defaults() {
+        let config = parse_config("");
+        assert_eq!(config.types.len(), DEFAULT_TYPES.len());
+        assert_eq!(config.scopes, ScopesConfig::None);
+        assert!(!config.strict);
+        assert_eq!(config.scheme, Scheme::Semver);
+        assert!(config.version_files.is_empty());
+        assert!(config.changelog.hidden.is_none());
+    }
+
+    #[test]
+    fn malformed_toml_warns_and_uses_defaults() {
+        let config = parse_config("{{invalid toml content!!");
+        assert_eq!(config.types.len(), DEFAULT_TYPES.len());
+        assert_eq!(config.scheme, Scheme::Semver);
+        assert!(!config.strict);
+    }
+
+    #[test]
+    fn scheme_semver_explicit() {
+        let config = parse_config("scheme = \"semver\"\n");
+        assert_eq!(config.scheme, Scheme::Semver);
     }
 }
