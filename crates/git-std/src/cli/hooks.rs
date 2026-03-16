@@ -6,6 +6,8 @@ use standard_githooks::{
     HookCommand, HookMode, Prefix, default_mode, generate_shim, substitute_msg,
 };
 
+use crate::ui;
+
 /// The result of executing a single hook command.
 struct CommandResult {
     /// The exit code (0 = success).
@@ -23,7 +25,7 @@ fn read_and_parse_hooks(hook_name: &str) -> Result<Vec<HookCommand>, i32> {
     let content = match std::fs::read_to_string(&hooks_file) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("error: cannot read {hooks_file}: {e}");
+            ui::error(&format!("cannot read {hooks_file}: {e}"));
             return Err(2);
         }
     };
@@ -81,19 +83,19 @@ fn execute_and_print(cmd: &HookCommand, msg_path: &str) -> (CommandResult, bool)
 
     // Print the result line
     if success {
-        eprintln!("  {} {}", "\u{2713}".green(), display);
+        eprintln!("{INDENT}{} {}", ui::pass(), display, INDENT = ui::INDENT);
     } else if is_advisory {
         let info = match exit_code {
             Some(code) => format!("(advisory, exit {code})"),
             None => "(advisory, killed)".to_string(),
         };
-        eprintln!("  {} {} {}", "\u{26a0}".yellow(), display, info.yellow());
+        eprintln!("{INDENT}{} {} {}", ui::warn(), display, info.yellow(), INDENT = ui::INDENT);
     } else {
         let info = match exit_code {
             Some(code) => format!("(exit {code})"),
             None => "(killed)".to_string(),
         };
-        eprintln!("  {} {} {}", "\u{2717}".red(), display, info.red());
+        eprintln!("{INDENT}{} {} {}", ui::fail(), display, info.red(), INDENT = ui::INDENT);
     }
 
     let failed = !success && !is_advisory;
@@ -117,7 +119,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
     if let Ok(val) = std::env::var("GIT_STD_SKIP_HOOKS")
         && (val == "1" || val.eq_ignore_ascii_case("true"))
     {
-        eprintln!("  \u{26a0} hooks skipped (GIT_STD_SKIP_HOOKS)");
+        eprintln!("{INDENT}{} hooks skipped (GIT_STD_SKIP_HOOKS)", ui::warn(), INDENT = ui::INDENT);
         return 0;
     }
 
@@ -134,7 +136,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
     // Determine the msg_path from args (first argument after --)
     let msg_path = args.first().map(|s| s.as_str()).unwrap_or("");
 
-    // Collect file list for glob filtering (lazy — only fetched if needed).
+    // Collect file list for glob filtering (lazy -- only fetched if needed).
     let file_list: Option<Vec<String>> = if commands.iter().any(|c| c.glob.is_some()) {
         fetch_file_list(hook)
     } else {
@@ -174,18 +176,19 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
             // Print remaining commands as skipped
             let remaining = commands.len() - results.len();
             if remaining > 0 {
-                eprintln!();
+                ui::blank();
                 eprintln!(
-                    "  {} remaining {} skipped (fail-fast)",
+                    "{INDENT}{} remaining {} skipped (fail-fast)",
                     remaining,
                     if remaining == 1 {
                         "command"
                     } else {
                         "commands"
-                    }
+                    },
+                    INDENT = ui::INDENT,
                 );
             }
-            eprintln!();
+            ui::blank();
             return 1;
         }
     }
@@ -201,7 +204,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
         .count();
 
     if failed_count > 0 || advisory_count > 0 {
-        eprintln!();
+        ui::blank();
         let mut parts = Vec::new();
         if failed_count > 0 {
             parts.push(format!("{failed_count} failed"));
@@ -216,7 +219,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
                 }
             ));
         }
-        eprintln!("  {}", parts.join(", "));
+        eprintln!("{INDENT}{}", parts.join(", "), INDENT = ui::INDENT);
     }
 
     if has_failure { 1 } else { 0 }
@@ -256,12 +259,13 @@ pub fn install() -> i32 {
     match status {
         Ok(s) if s.success() => {
             eprintln!(
-                "  {}  core.hooksPath \u{2192} .githooks",
-                "\u{2713}".green()
+                "{INDENT}{}  core.hooksPath \u{2192} .githooks",
+                ui::pass(),
+                INDENT = ui::INDENT,
             );
         }
         _ => {
-            eprintln!("error: failed to set core.hooksPath");
+            ui::error("failed to set core.hooksPath");
             eprintln!("  hint: ensure you are inside a git repository and have write access");
             return 1;
         }
@@ -272,7 +276,7 @@ pub fn install() -> i32 {
     if !hooks_dir.exists()
         && let Err(e) = std::fs::create_dir_all(hooks_dir)
     {
-        eprintln!("error: cannot create .githooks/: {e}");
+        ui::error(&format!("cannot create .githooks/: {e}"));
         return 1;
     }
 
@@ -280,8 +284,8 @@ pub fn install() -> i32 {
     let hooks = discover_hooks();
 
     if hooks.is_empty() {
-        eprintln!();
-        eprintln!("  no .hooks files found in .githooks/");
+        ui::blank();
+        eprintln!("{INDENT}no .hooks files found in .githooks/", INDENT = ui::INDENT);
         return 0;
     }
 
@@ -290,7 +294,7 @@ pub fn install() -> i32 {
         let shim_path = hooks_dir.join(hook_name);
 
         if let Err(e) = std::fs::write(&shim_path, &shim_content) {
-            eprintln!("error: cannot write {}: {e}", shim_path.display());
+            ui::error(&format!("cannot write {}: {e}", shim_path.display()));
             return 1;
         }
 
@@ -300,18 +304,19 @@ pub fn install() -> i32 {
             use std::os::unix::fs::PermissionsExt;
             let perms = std::fs::Permissions::from_mode(0o755);
             if let Err(e) = std::fs::set_permissions(&shim_path, perms) {
-                eprintln!(
-                    "error: cannot set permissions on {}: {e}",
+                ui::error(&format!(
+                    "cannot set permissions on {}: {e}",
                     shim_path.display()
-                );
+                ));
                 return 1;
             }
         }
 
         eprintln!(
-            "  {}  .githooks/{:<18}\u{2192} git std hooks run {hook_name}",
-            "\u{2713}".green(),
+            "{INDENT}{}  .githooks/{:<18}\u{2192} git std hooks run {hook_name}",
+            ui::pass(),
             hook_name,
+            INDENT = ui::INDENT,
         );
     }
 
@@ -326,7 +331,7 @@ pub fn list() -> i32 {
     let hooks = discover_hooks();
 
     if hooks.is_empty() {
-        eprintln!("  no hooks configured");
+        eprintln!("{INDENT}no hooks configured", INDENT = ui::INDENT);
         return 0;
     }
 
@@ -346,7 +351,7 @@ pub fn list() -> i32 {
             HookMode::FailFast => "fail-fast",
         };
 
-        println!("  {hook_name} ({mode_label} mode):");
+        println!("{INDENT}{hook_name} ({mode_label} mode):", INDENT = ui::INDENT);
 
         for cmd in &commands {
             let prefix_char = match cmd.prefix {
@@ -374,7 +379,7 @@ pub fn list() -> i32 {
                 format!("  {prefix_char} {}", cmd.command)
             };
 
-            println!("  {display}");
+            println!("{INDENT}{display}", INDENT = ui::INDENT);
         }
     }
 

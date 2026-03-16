@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 mod cli;
 mod config;
 mod git;
+pub mod ui;
 
 /// Standard git workflow — commits, versioning, hooks.
 #[derive(Parser)]
@@ -182,7 +183,7 @@ fn main() {
             } else if let Some(message) = message {
                 cli::check::run(&message, lint_ref, format)
             } else {
-                eprintln!("error: no input provided");
+                ui::error("no input provided");
                 eprintln!("  usage: git std check <message>");
                 eprintln!("         git std check --file <path>");
                 eprintln!("         git std check --range <from..to>");

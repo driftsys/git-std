@@ -1,6 +1,7 @@
 use standard_changelog::{ChangelogConfig, RepoHost, VersionRelease};
 
 use crate::git;
+use crate::ui;
 
 /// Options for the changelog subcommand.
 pub struct ChangelogOptions {
@@ -19,8 +20,7 @@ pub fn run(config: &ChangelogConfig, opts: &ChangelogOptions) -> i32 {
     let repo = match git2::Repository::discover(".") {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("error: cannot open repository: {e}");
-            eprintln!("  hint: run this command from inside a git repository");
+            ui::error(&format!("cannot open repository: {e}"));
             return 1;
         }
     };
@@ -46,14 +46,13 @@ fn run_full(
     let releases = match build_releases(repo, config) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("error: {e}");
+            ui::error(&e.to_string());
             return 1;
         }
     };
 
     if releases.is_empty() {
-        eprintln!("error: no releases found in git history");
-        eprintln!("  hint: create a version tag first (e.g. git tag v0.1.0) or use --range");
+        ui::error("no releases found");
         return 1;
     }
 
@@ -75,7 +74,7 @@ fn run_incremental(
             return 0;
         }
         Err(e) => {
-            eprintln!("error: {e}");
+            ui::error(&e.to_string());
             return 1;
         }
     };
@@ -98,7 +97,7 @@ fn write_output(content: &str, opts: &ChangelogOptions) -> i32 {
         print!("{content}");
     } else {
         if let Err(e) = std::fs::write(&opts.output, content) {
-            eprintln!("error: cannot write {}: {e}", opts.output);
+            ui::error(&format!("cannot write {}: {e}", opts.output));
             return 1;
         }
         eprintln!("wrote {}", opts.output);
@@ -161,7 +160,7 @@ fn run_range(
     let (from_spec, to_spec) = match range.split_once("..") {
         Some(pair) => pair,
         None => {
-            eprintln!("error: range must contain '..' (e.g. v1.0.0..v2.0.0)");
+            ui::error("range must contain '..' (e.g. v1.0.0..v2.0.0)");
             return 1;
         }
     };
@@ -172,7 +171,7 @@ fn run_range(
     {
         Ok(c) => c.id(),
         Err(e) => {
-            eprintln!("error: cannot resolve '{from_spec}': {e}");
+            ui::error(&format!("cannot resolve '{from_spec}': {e}"));
             return 1;
         }
     };
@@ -183,7 +182,7 @@ fn run_range(
     {
         Ok(c) => c.id(),
         Err(e) => {
-            eprintln!("error: cannot resolve '{to_spec}': {e}");
+            ui::error(&format!("cannot resolve '{to_spec}': {e}"));
             return 1;
         }
     };
@@ -191,7 +190,7 @@ fn run_range(
     let commits = match git::walk_commits(repo, to_oid, Some(from_oid)) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("error: {e}");
+            ui::error(&e.to_string());
             return 1;
         }
     };
