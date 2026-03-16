@@ -8,6 +8,16 @@ const DEFAULT_TYPES: &[&str] = &[
     "feat", "fix", "docs", "style", "refactor", "perf", "test", "chore", "ci", "build",
 ];
 
+/// Versioning scheme.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Scheme {
+    /// Semantic versioning (default).
+    #[default]
+    Semver,
+    /// Calendar versioning.
+    Calver,
+}
+
 /// How scopes are resolved.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub enum ScopesConfig {
@@ -27,6 +37,8 @@ pub struct VersioningConfig {
     pub tag_prefix: String,
     /// Default pre-release tag (default `"rc"`).
     pub prerelease_tag: String,
+    /// Calver format string (e.g. `"YYYY.MM.PATCH"`).
+    pub calver_format: String,
 }
 
 impl Default for VersioningConfig {
@@ -34,6 +46,7 @@ impl Default for VersioningConfig {
         Self {
             tag_prefix: "v".to_string(),
             prerelease_tag: "rc".to_string(),
+            calver_format: standard_version::calver::DEFAULT_FORMAT.to_string(),
         }
     }
 }
@@ -62,6 +75,7 @@ pub struct ProjectConfig {
     pub types: Vec<String>,
     pub scopes: ScopesConfig,
     pub strict: bool,
+    pub scheme: Scheme,
     pub changelog: ChangelogConfig,
     pub versioning: VersioningConfig,
     pub version_files: Vec<VersionFileConfig>,
@@ -118,6 +132,7 @@ pub fn load(dir: &Path) -> ProjectConfig {
             types: default_types(),
             scopes: ScopesConfig::None,
             strict: false,
+            scheme: Scheme::default(),
             changelog: ChangelogConfig::default(),
             versioning: VersioningConfig::default(),
             version_files: Vec::new(),
@@ -133,6 +148,7 @@ fn parse_config(content: &str) -> ProjectConfig {
                 types: default_types(),
                 scopes: ScopesConfig::None,
                 strict: false,
+                scheme: Scheme::default(),
                 changelog: ChangelogConfig::default(),
                 versioning: VersioningConfig::default(),
                 version_files: Vec::new(),
@@ -176,6 +192,11 @@ fn parse_config(content: &str) -> ProjectConfig {
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    let scheme = match table.get("scheme").and_then(|v| v.as_str()) {
+        Some("calver") => Scheme::Calver,
+        _ => Scheme::Semver,
+    };
+
     let changelog = parse_changelog_config(&table);
     let versioning = parse_versioning_config(&table);
     let version_files = parse_version_files(&table);
@@ -184,6 +205,7 @@ fn parse_config(content: &str) -> ProjectConfig {
         types,
         scopes,
         strict,
+        scheme,
         changelog,
         versioning,
         version_files,
@@ -210,9 +232,16 @@ fn parse_versioning_config(table: &toml::Table) -> VersioningConfig {
         .map(String::from)
         .unwrap_or(defaults.prerelease_tag);
 
+    let calver_format = versioning_table
+        .get("calver_format")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .unwrap_or(defaults.calver_format);
+
     VersioningConfig {
         tag_prefix,
         prerelease_tag,
+        calver_format,
     }
 }
 
@@ -407,5 +436,43 @@ regex = 'version:\s*(.+)'
     fn version_files_default_empty() {
         let config = parse_config(r#"types = ["feat"]"#);
         assert!(config.version_files.is_empty());
+    }
+
+    #[test]
+    fn scheme_defaults_to_semver() {
+        let config = parse_config(r#"types = ["feat"]"#);
+        assert_eq!(config.scheme, Scheme::Semver);
+    }
+
+    #[test]
+    fn scheme_calver_parsed() {
+        let config = parse_config("scheme = \"calver\"\n");
+        assert_eq!(config.scheme, Scheme::Calver);
+    }
+
+    #[test]
+    fn scheme_unknown_falls_back_to_semver() {
+        let config = parse_config("scheme = \"unknown\"\n");
+        assert_eq!(config.scheme, Scheme::Semver);
+    }
+
+    #[test]
+    fn calver_format_default() {
+        let config = parse_config(r#"types = ["feat"]"#);
+        assert_eq!(
+            config.versioning.calver_format,
+            standard_version::calver::DEFAULT_FORMAT
+        );
+    }
+
+    #[test]
+    fn calver_format_custom() {
+        let config = parse_config(
+            r#"
+[versioning]
+calver_format = "YYYY.0M.PATCH"
+"#,
+        );
+        assert_eq!(config.versioning.calver_format, "YYYY.0M.PATCH");
     }
 }
