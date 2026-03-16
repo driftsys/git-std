@@ -6,8 +6,6 @@
 //!
 //! This module is pure — it takes the date as a parameter and performs no I/O.
 
-use std::fmt;
-
 /// Date information needed for calver computation.
 ///
 /// All fields are simple integers — the caller is responsible for computing
@@ -30,33 +28,18 @@ pub struct CalverDate {
 pub const DEFAULT_FORMAT: &str = "YYYY.MM.PATCH";
 
 /// Errors that can occur during calver computation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CalverError {
     /// The format string contains no `PATCH` token.
+    #[error("calver format must contain the PATCH token")]
     NoPatchToken,
     /// The format string contains an unrecognised token.
+    #[error("unknown calver format token: {0}")]
     UnknownToken(String),
     /// The format string is empty.
+    #[error("calver format string is empty")]
     EmptyFormat,
 }
-
-impl fmt::Display for CalverError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CalverError::NoPatchToken => {
-                write!(f, "calver format must contain the PATCH token")
-            }
-            CalverError::UnknownToken(tok) => {
-                write!(f, "unknown calver format token: {tok}")
-            }
-            CalverError::EmptyFormat => {
-                write!(f, "calver format string is empty")
-            }
-        }
-    }
-}
-
-impl std::error::Error for CalverError {}
 
 /// A parsed token from the calver format string.
 #[derive(Debug, Clone, PartialEq, Eq)]
