@@ -1,7 +1,7 @@
 # git-std
 
 [![crates.io](https://img.shields.io/crates/v/git-std.svg)](https://crates.io/crates/git-std)
-[![docs.rs](https://docs.rs/git-std/badge.svg)](https://docs.rs/git-std)
+[![user guide](https://img.shields.io/badge/docs-user%20guide-blue)](https://driftsys.github.io/git-std/)
 [![CI](https://github.com/driftsys/git-std/actions/workflows/ci.yml/badge.svg)](https://github.com/driftsys/git-std/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/driftsys/git-std/blob/main/LICENSE)
 
