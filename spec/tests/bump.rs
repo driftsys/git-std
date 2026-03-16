@@ -233,3 +233,37 @@ fn bump_multi_ecosystem() {
         .success()
         .stderr_eq(file!["../snapshots/bump/multi_ecosystem.stderr.expected"]);
 }
+
+/// Dry-run with custom `[[version_files]]` shows the custom file in the plan.
+#[test]
+fn bump_dry_run_custom_version_file() {
+    let mut repo = TestRepo::new()
+        .with_cargo_toml("1.0.0")
+        .with_config(
+            r#"
+[[version_files]]
+path = "version.txt"
+regex = 'version = "(\d+\.\d+\.\d+)"'
+"#,
+        );
+
+    // Create the custom version file.
+    std::fs::write(
+        repo.path().join("version.txt"),
+        "version = \"1.0.0\"\n",
+    )
+    .unwrap();
+
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: add feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--dry-run"])
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stderr_eq(file![
+            "../snapshots/bump/dry_run_custom_version_file.stderr.expected"
+        ]);
+}
