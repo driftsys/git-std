@@ -296,6 +296,49 @@ fn bump_skip_changelog_dry_run() {
         ]);
 }
 
+/// Patch scheme bumps patch for a feat commit.
+#[test]
+fn bump_patch_scheme_dry_run() {
+    let mut repo = TestRepo::new()
+        .with_cargo_toml("0.0.0")
+        .with_config("scheme = \"patch\"\n");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: new feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--dry-run"])
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stderr_eq(file![
+            "../snapshots/bump/patch_scheme_dry_run.stderr.expected"
+        ]);
+}
+
+/// `--stable --dry-run` shows the stable branch creation plan.
+#[test]
+fn bump_stable_dry_run() {
+    let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
+    // Stage Cargo.toml so the working tree is clean (--stable requires it).
+    let git_repo = git2::Repository::open(repo.path()).unwrap();
+    let mut index = git_repo.index().unwrap();
+    index.add_path(std::path::Path::new("Cargo.toml")).unwrap();
+    index.write().unwrap();
+    drop(index);
+    drop(git_repo);
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.2.0");
+    repo.add_commit("feat!: breaking change");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--stable", "--dry-run"])
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stderr_eq(file!["../snapshots/bump/stable_dry_run.stderr.expected"]);
+}
+
 /// `--skip-changelog` actually skips writing CHANGELOG.md.
 #[test]
 fn bump_skip_changelog_no_file() {
