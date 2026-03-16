@@ -53,3 +53,41 @@ fn changelog_full_creates_file() {
         "full changelog should contain Bug Fixes section"
     );
 }
+
+/// `changelog --range v1.0.0..v2.0.0 --stdout` prints only commits between the two tags.
+#[test]
+fn changelog_range_between_tags() {
+    let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: add feature A");
+    repo.add_commit("fix: correct edge case");
+    repo.create_tag("v2.0.0");
+    repo.add_commit("feat: post-release feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["changelog", "--range", "v1.0.0..v2.0.0", "--stdout"])
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stdout_eq(file![
+            "../snapshots/changelog/range_between_tags.stdout.expected"
+        ]);
+}
+
+/// `changelog --stdout` with no commits after the latest tag reports no unreleased changes.
+#[test]
+fn changelog_no_unreleased_changes() {
+    let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.add_commit("feat: initial");
+    repo.create_tag("v1.0.0");
+
+    Command::new(TestRepo::bin_path())
+        .args(["changelog", "--stdout"])
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stderr_eq(file![
+            "../snapshots/changelog/no_unreleased_changes.stderr.expected"
+        ]);
+}
