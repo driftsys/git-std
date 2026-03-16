@@ -241,6 +241,7 @@ fn bump_help_shows_flags() {
         "--no-commit",
         "--skip-changelog",
         "--sign",
+        "--force",
         "--stable",
         "--minor",
     ] {
@@ -1387,8 +1388,9 @@ fn bump_patch_scheme_rejects_breaking_without_force() {
         .current_dir(dir.path())
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("breaking change detected"))
-        .stderr(predicate::str::contains("--force"));
+        .stderr(predicate::str::contains(
+            "breaking change not allowed on patch-only branch (use --force to override)",
+        ));
 }
 
 #[test]
