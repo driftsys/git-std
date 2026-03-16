@@ -22,6 +22,7 @@ use crate::version_plain::PlainVersionFile;
 
 /// Errors that can occur when reading or writing version files.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum VersionFileError {
     /// The expected file was not found on disk.
     FileNotFound(PathBuf),
@@ -107,6 +108,21 @@ pub struct UpdateResult {
 }
 
 // ---------------------------------------------------------------------------
+// DetectedFile
+// ---------------------------------------------------------------------------
+
+/// Information about a detected version file (no writes performed).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DetectedFile {
+    /// Absolute path to the file.
+    pub path: PathBuf,
+    /// Human-readable engine name (e.g. `"Cargo.toml"`).
+    pub name: String,
+    /// Current version string in the file.
+    pub old_version: String,
+}
+
+// ---------------------------------------------------------------------------
 // CustomVersionFile
 // ---------------------------------------------------------------------------
 
@@ -146,6 +162,12 @@ pub fn update_version_files(
     new_version: &str,
     custom_files: &[CustomVersionFile],
 ) -> Result<Vec<UpdateResult>, VersionFileError> {
+    // Validate all custom regexes upfront before any file writes.
+    let custom_engines: Vec<RegexVersionFile> = custom_files
+        .iter()
+        .map(RegexVersionFile::new)
+        .collect::<Result<Vec<_>, _>>()?;
+
     let engines: Vec<Box<dyn VersionFile>> = vec![
         Box::new(CargoVersionFile),
         Box::new(PyprojectVersionFile),
@@ -178,21 +200,25 @@ pub fn update_version_files(
 
             let updated = engine.write_version(&content, new_version)?;
             let extra = engine.extra_info(&content, &updated);
+            // Read the actual version from updated content (may differ for
+            // pubspec build numbers or other engines with side-effects).
+            let actual_new_version = engine
+                .read_version(&updated)
+                .unwrap_or_else(|| new_version.to_string());
             fs::write(&path, &updated).map_err(VersionFileError::WriteFailed)?;
 
             results.push(UpdateResult {
                 path,
                 name: engine.name().to_string(),
                 old_version,
-                new_version: new_version.to_string(),
+                new_version: actual_new_version,
                 extra,
             });
         }
     }
 
-    // Process custom version files via the regex engine.
-    for custom in custom_files {
-        let engine = RegexVersionFile::new(custom)?;
+    // Process custom version files (already validated).
+    for engine in &custom_engines {
         let path = root.join(engine.path());
         if !path.exists() {
             continue;
@@ -206,13 +232,96 @@ pub fn update_version_files(
             None => continue,
         };
         let updated = engine.write_version(&content, new_version)?;
+        let actual_new_version = engine
+            .read_version(&updated)
+            .unwrap_or_else(|| new_version.to_string());
         fs::write(&path, &updated).map_err(VersionFileError::WriteFailed)?;
         results.push(UpdateResult {
             path,
             name: engine.name(),
             old_version,
-            new_version: new_version.to_string(),
+            new_version: actual_new_version,
             extra: None,
+        });
+    }
+
+    Ok(results)
+}
+
+// ---------------------------------------------------------------------------
+// detect_version_files
+// ---------------------------------------------------------------------------
+
+/// Detect version files at `root` without modifying them.
+///
+/// Returns a list of [`DetectedFile`] entries for each file that is found,
+/// detected, and has a readable version string. No files are written.
+///
+/// # Errors
+///
+/// Returns a [`VersionFileError`] if a file cannot be read or if a custom
+/// regex pattern is invalid.
+pub fn detect_version_files(
+    root: &Path,
+    custom_files: &[CustomVersionFile],
+) -> Result<Vec<DetectedFile>, VersionFileError> {
+    // Validate all custom regexes upfront.
+    let custom_engines: Vec<RegexVersionFile> = custom_files
+        .iter()
+        .map(RegexVersionFile::new)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let engines: Vec<Box<dyn VersionFile>> = vec![
+        Box::new(CargoVersionFile),
+        Box::new(PyprojectVersionFile),
+        Box::new(JsonVersionFile),
+        Box::new(DenoVersionFile),
+        Box::new(PubspecVersionFile),
+        Box::new(GradleVersionFile),
+        Box::new(PlainVersionFile),
+    ];
+
+    let mut results = Vec::new();
+
+    for engine in &engines {
+        for filename in engine.filenames() {
+            let path = root.join(filename);
+            if !path.exists() {
+                continue;
+            }
+            let content = fs::read_to_string(&path).map_err(VersionFileError::ReadFailed)?;
+            if !engine.detect(&content) {
+                continue;
+            }
+            let old_version = match engine.read_version(&content) {
+                Some(v) => v,
+                None => continue,
+            };
+            results.push(DetectedFile {
+                path,
+                name: engine.name().to_string(),
+                old_version,
+            });
+        }
+    }
+
+    for engine in &custom_engines {
+        let path = root.join(engine.path());
+        if !path.exists() {
+            continue;
+        }
+        let content = fs::read_to_string(&path).map_err(VersionFileError::ReadFailed)?;
+        if !engine.detect(&content) {
+            continue;
+        }
+        let old_version = match engine.read_version(&content) {
+            Some(v) => v,
+            None => continue,
+        };
+        results.push(DetectedFile {
+            path,
+            name: engine.name(),
+            old_version,
         });
     }
 
