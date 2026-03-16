@@ -1,0 +1,3 @@
+[..]scope 'unknown' is not in the allowed list: auth, api
+  Expected: <type>(<scope>): <description>
+  Got:      feat(unknown): add login
