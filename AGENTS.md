@@ -85,8 +85,13 @@ I/O for version file detection and updates.
   together. Before opening a PR, update rustdoc comments,
   `README.md`, and `docs/` pages (mdbook) to stay consistent
   with the code changes.
-- **Single commit.** Squash work into one conventional
-  commit per task.
+- **Single commit per PR.** Each PR should contain one
+  conventional commit per story/task. Fixup or squash
+  cleanup commits before pushing so the branch has a
+  clean history.
+- **Merge commit.** PRs are merged with `gh pr merge --merge`
+  (not squash). This preserves the PR reference in the
+  merge commit for traceability in `git log`.
 - **Work in isolation.** Always work in a git worktree
   (not the main working directory). This prevents conflicts
   with other agents running in parallel and protects the
