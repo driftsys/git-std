@@ -53,8 +53,8 @@ pub use pubspec::PubspecVersionFile;
 pub use pyproject::PyprojectVersionFile;
 pub use regex_engine::RegexVersionFile;
 pub use version_file::{
-    CustomVersionFile, UpdateResult, VersionFile, VersionFileError,
-    update_version_files,
+    CustomVersionFile, DetectedFile, UpdateResult, VersionFile, VersionFileError,
+    detect_version_files, update_version_files,
 };
 pub use version_plain::PlainVersionFile;
 
