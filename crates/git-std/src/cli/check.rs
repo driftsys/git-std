@@ -46,8 +46,15 @@ pub fn run(message: &str, lint_config: Option<&LintConfig>, format: OutputFormat
         for error in &errors {
             eprintln!("{} {}", ui::fail(), error.to_string().red());
         }
-        eprintln!("{INDENT}Expected: <type>(<scope>): <description>", INDENT = ui::INDENT);
-        eprintln!("{INDENT}Got:      {}", first_line(message), INDENT = ui::INDENT);
+        eprintln!(
+            "{INDENT}Expected: <type>(<scope>): <description>",
+            INDENT = ui::INDENT
+        );
+        eprintln!(
+            "{INDENT}Got:      {}",
+            first_line(message),
+            INDENT = ui::INDENT
+        );
         return 1;
     }
 
@@ -177,11 +184,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
                     INDENT = ui::INDENT,
                 );
                 for error in &errors {
-                    eprintln!(
-                        "{DETAIL}\u{2192} {}",
-                        error,
-                        DETAIL = ui::DETAIL_INDENT,
-                    );
+                    eprintln!("{DETAIL}\u{2192} {}", error, DETAIL = ui::DETAIL_INDENT,);
                 }
                 false
             }
@@ -196,11 +199,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
                         first_line(message).red(),
                         INDENT = ui::INDENT,
                     );
-                    eprintln!(
-                        "{DETAIL}\u{2192} {}",
-                        e,
-                        DETAIL = ui::DETAIL_INDENT,
-                    );
+                    eprintln!("{DETAIL}\u{2192} {}", e, DETAIL = ui::DETAIL_INDENT,);
                     false
                 }
             }
@@ -299,8 +298,15 @@ fn walk_range(
 
 fn print_diagnostic(message: &str, error: &standard_commit::ParseError) {
     eprintln!("{} {}", ui::fail(), format!("invalid: {error}").red());
-    eprintln!("{INDENT}Expected: <type>(<scope>): <description>", INDENT = ui::INDENT);
-    eprintln!("{INDENT}Got:      {}", first_line(message), INDENT = ui::INDENT);
+    eprintln!(
+        "{INDENT}Expected: <type>(<scope>): <description>",
+        INDENT = ui::INDENT
+    );
+    eprintln!(
+        "{INDENT}Got:      {}",
+        first_line(message),
+        INDENT = ui::INDENT
+    );
 }
 
 fn first_line(s: &str) -> &str {

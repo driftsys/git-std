@@ -89,13 +89,25 @@ fn execute_and_print(cmd: &HookCommand, msg_path: &str) -> (CommandResult, bool)
             Some(code) => format!("(advisory, exit {code})"),
             None => "(advisory, killed)".to_string(),
         };
-        eprintln!("{INDENT}{} {} {}", ui::warn(), display, info.yellow(), INDENT = ui::INDENT);
+        eprintln!(
+            "{INDENT}{} {} {}",
+            ui::warn(),
+            display,
+            info.yellow(),
+            INDENT = ui::INDENT
+        );
     } else {
         let info = match exit_code {
             Some(code) => format!("(exit {code})"),
             None => "(killed)".to_string(),
         };
-        eprintln!("{INDENT}{} {} {}", ui::fail(), display, info.red(), INDENT = ui::INDENT);
+        eprintln!(
+            "{INDENT}{} {} {}",
+            ui::fail(),
+            display,
+            info.red(),
+            INDENT = ui::INDENT
+        );
     }
 
     let failed = !success && !is_advisory;
@@ -119,7 +131,11 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
     if let Ok(val) = std::env::var("GIT_STD_SKIP_HOOKS")
         && (val == "1" || val.eq_ignore_ascii_case("true"))
     {
-        eprintln!("{INDENT}{} hooks skipped (GIT_STD_SKIP_HOOKS)", ui::warn(), INDENT = ui::INDENT);
+        eprintln!(
+            "{INDENT}{} hooks skipped (GIT_STD_SKIP_HOOKS)",
+            ui::warn(),
+            INDENT = ui::INDENT
+        );
         return 0;
     }
 
@@ -285,7 +301,10 @@ pub fn install() -> i32 {
 
     if hooks.is_empty() {
         ui::blank();
-        eprintln!("{INDENT}no .hooks files found in .githooks/", INDENT = ui::INDENT);
+        eprintln!(
+            "{INDENT}no .hooks files found in .githooks/",
+            INDENT = ui::INDENT
+        );
         return 0;
     }
 
@@ -351,7 +370,10 @@ pub fn list() -> i32 {
             HookMode::FailFast => "fail-fast",
         };
 
-        println!("{INDENT}{hook_name} ({mode_label} mode):", INDENT = ui::INDENT);
+        println!(
+            "{INDENT}{hook_name} ({mode_label} mode):",
+            INDENT = ui::INDENT
+        );
 
         for cmd in &commands {
             let prefix_char = match cmd.prefix {
