@@ -288,27 +288,29 @@ changelog, commit, and tag.
 
 1. Find the latest version tag matching `<tag_prefix><semver>` (default `v*`).
 2. Collect all commits between that tag and `HEAD`.
-3. Parse each commit as a conventional commit.
+3. Filter out process commits (see §2.3.3).
+4. Parse each remaining commit as a conventional commit.
    Non-conforming commits are ignored (not an error).
-4. Apply bump rules inferred from `scheme`: if any
+5. Apply bump rules inferred from `scheme`: if any
    commit has a `BREAKING CHANGE` footer or `!` after
    the type, bump major. Otherwise, the highest bump
-   wins (`minor` > `patch`).
-5. If no bump-worthy commits exist, print a message and exit `0` (not an error).
-6. Compute the new version string.
-7. Update all version files:
+   wins (`minor` > `patch`). `feat` bumps minor;
+   `fix`, `perf`, and `revert` bump patch.
+6. If no bump-worthy commits exist, print a message and exit `0` (not an error).
+7. Compute the new version string.
+8. Update all version files:
    a. Auto-detected built-in files (see §2.3.1).
    b. Custom files from `.git-std.toml`
    `[[version_files]]` (see §2.3.2).
    c. Report each file updated in the output.
-8. Sync `Cargo.lock` via `cargo update --workspace`
+9. Sync `Cargo.lock` via `cargo update --workspace`
    (only when `Cargo.toml` was updated).
-9. Generate changelog section for this release via `standard-changelog`.
-10. Prepend the section to `CHANGELOG.md`.
-11. Create commit: `chore(release): <version>`.
+10. Generate changelog section for this release via `standard-changelog`.
+11. Prepend the section to `CHANGELOG.md`.
+12. Create commit: `chore(release): <version>`.
     All updated version files are included in the
     release commit.
-12. Create annotated tag: `<tag_prefix><version>`.
+13. Create annotated tag: `<tag_prefix><version>`.
 
 **Flags:**
 
@@ -462,6 +464,38 @@ Rules:
   error).
 - If the regex doesn't match, warn and skip.
 - Multiple `[[version_files]]` entries are supported.
+
+#### 2.3.3 Process Commit Detection
+
+Platform-generated and git-generated process commits
+(merge commits, reverts, fixups, squashes) are expected
+in real-world git history and should not block validation
+or pollute version calculation.
+
+**Detection:** based on the first line of the commit
+message using simple prefix checks (no regex). The
+following patterns are recognised:
+
+| Pattern                        | Source                |
+| ------------------------------ | --------------------- |
+| `Merge pull request #`         | GitHub                |
+| `Merge branch '`               | GitHub / GitLab       |
+| `Merge tag '`                  | git                   |
+| `Merge remote-tracking branch` | git                   |
+| `Merge "`                      | Gerrit                |
+| `Merge changes`                | Gerrit                |
+| `Revert "`                     | `git revert`          |
+| `fixup!`                       | `git commit --fixup`  |
+| `squash!`                      | `git commit --squash` |
+| `Initial commit`               | GitHub / convention   |
+
+**Behaviour in `check --range`:** process commits are
+skipped silently and excluded from the valid/total count.
+The count of skipped commits is reported separately.
+
+**Behaviour in `bump`:** process commits are filtered out
+before parsing, so they do not affect version calculation
+or changelog generation.
 
 ### 2.4 `git std changelog`
 
@@ -673,7 +707,7 @@ TOML format. Optional — all fields have sensible defaults.
 scheme = "semver"                              # semver | calver | patch
 types = ["feat", "fix", "docs", "style",
          "refactor", "perf", "test",
-         "chore", "ci", "build"]
+         "chore", "ci", "build", "revert"]
 scopes = ["auth", "api", "ci", "deps"]         # "auto" | string[] | omit
 strict = true                                  # enforce types/scopes without --strict flag
 
@@ -705,7 +739,7 @@ regex = '<version>(.*)</version>'
 | Field                       | Default                                                                            |
 | --------------------------- | ---------------------------------------------------------------------------------- |
 | `scheme`                    | `semver`                                                                           |
-| `types`                     | `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build` |
+| `types`                     | `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, `revert` |
 | `scopes`                    | None (no scope validation)                                                         |
 | `strict`                    | `false`                                                                            |
 | `versioning.tag_prefix`     | `v`                                                                                |
