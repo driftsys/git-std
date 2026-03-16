@@ -4,7 +4,6 @@
 //! engines, and the [`update_version_files`] function that discovers and
 //! updates version files at a repository root.
 
-use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -21,40 +20,24 @@ use crate::version_plain::PlainVersionFile;
 // ---------------------------------------------------------------------------
 
 /// Errors that can occur when reading or writing version files.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum VersionFileError {
     /// The expected file was not found on disk.
+    #[error("file not found: {}", .0.display())]
     FileNotFound(PathBuf),
     /// The file does not contain a version field this engine can handle.
+    #[error("no version field found")]
     NoVersionField,
     /// Writing the updated content back to disk failed.
-    WriteFailed(std::io::Error),
+    #[error("write failed: {0}")]
+    WriteFailed(#[source] std::io::Error),
     /// Reading the file from disk failed.
-    ReadFailed(std::io::Error),
+    #[error("read failed: {0}")]
+    ReadFailed(#[source] std::io::Error),
     /// A user-supplied regex pattern is invalid or has no capture groups.
+    #[error("invalid regex: {0}")]
     InvalidRegex(String),
-}
-
-impl fmt::Display for VersionFileError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::FileNotFound(p) => write!(f, "file not found: {}", p.display()),
-            Self::NoVersionField => write!(f, "no version field found"),
-            Self::WriteFailed(e) => write!(f, "write failed: {e}"),
-            Self::ReadFailed(e) => write!(f, "read failed: {e}"),
-            Self::InvalidRegex(msg) => write!(f, "invalid regex: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for VersionFileError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::WriteFailed(e) | Self::ReadFailed(e) => Some(e),
-            _ => None,
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------

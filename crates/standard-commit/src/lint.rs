@@ -25,16 +25,11 @@ impl Default for LintConfig {
 }
 
 /// A lint error found in a commit message.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("{message}")]
 pub struct LintError {
     /// Human-readable description of the error.
     pub message: String,
-}
-
-impl std::fmt::Display for LintError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
-    }
 }
 
 /// Lint a commit message against the given configuration.

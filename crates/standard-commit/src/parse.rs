@@ -25,24 +25,15 @@ pub struct Footer {
 }
 
 /// Errors that can occur when parsing a conventional commit message.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ParseError {
     /// The message is empty.
+    #[error("commit message is empty")]
     EmptyMessage,
     /// The message does not conform to the conventional commit format.
+    #[error("{0}")]
     InvalidFormat(String),
 }
-
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseError::EmptyMessage => write!(f, "commit message is empty"),
-            ParseError::InvalidFormat(msg) => write!(f, "{msg}"),
-        }
-    }
-}
-
-impl std::error::Error for ParseError {}
 
 /// Parse a commit message string into a [`ConventionalCommit`].
 ///
