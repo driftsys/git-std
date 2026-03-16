@@ -220,7 +220,13 @@ fn commit_with_scope() {
         .unwrap()
         .current_dir(dir.path())
         .args([
-            "commit", "--type", "feat", "--scope", "auth", "-m", "add login",
+            "commit",
+            "--type",
+            "feat",
+            "--scope",
+            "auth",
+            "-m",
+            "add login",
         ])
         .assert()
         .success();
@@ -1833,11 +1839,7 @@ fn bump_custom_regex_version_file() {
     create_tag(&repo, "v1.0.0");
 
     // Write a custom version file.
-    std::fs::write(
-        dir.path().join("version.txt"),
-        "version = \"1.0.0\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("version.txt"), "version = \"1.0.0\"\n").unwrap();
 
     // Write .git-std.toml with a [[version_files]] entry.
     std::fs::write(
@@ -1878,11 +1880,7 @@ fn bump_multiple_custom_files() {
     create_tag(&repo, "v1.0.0");
 
     // Write two custom version files.
-    std::fs::write(
-        dir.path().join("version.txt"),
-        "version = \"1.0.0\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("version.txt"), "version = \"1.0.0\"\n").unwrap();
     std::fs::write(
         dir.path().join("Chart.yaml"),
         "name: my-chart\nversion: 1.0.0\nappVersion: 1.0.0\n",
@@ -1966,11 +1964,7 @@ fn bump_dry_run_shows_custom_files() {
     create_tag(&repo, "v1.0.0");
 
     // Write a custom version file.
-    std::fs::write(
-        dir.path().join("version.txt"),
-        "version = \"1.0.0\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("version.txt"), "version = \"1.0.0\"\n").unwrap();
 
     // Config with a [[version_files]] entry.
     std::fs::write(

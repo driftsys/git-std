@@ -1,0 +1,3 @@
+[..]scope is required
+  Expected: <type>(<scope>): <description>
+  Got:      feat: no scope provided
