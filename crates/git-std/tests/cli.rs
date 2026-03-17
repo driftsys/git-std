@@ -29,7 +29,6 @@ fn help_lists_subcommands() {
         "changelog",
         "hooks",
         "completions",
-        "self-update",
     ] {
         assert!(
             stdout.contains(sub),
@@ -47,18 +46,6 @@ fn unknown_subcommand_exits_2() {
         .code(2);
 }
 
-#[test]
-fn stub_subcommands_are_recognized() {
-    {
-        let sub = "self-update";
-        Command::cargo_bin("git-std")
-            .unwrap()
-            .arg(sub)
-            .assert()
-            .code(1)
-            .stderr(predicates::str::contains("not yet implemented"));
-    }
-}
 
 #[test]
 fn hooks_requires_subcommand() {
