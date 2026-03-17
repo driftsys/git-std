@@ -44,8 +44,14 @@ git std bump                         # bump + changelog + tag
 git push --follow-tags
 ```
 
+**Shell completions:**
+
+```bash
+eval "$(git-std completions bash)"   # or zsh, fish
+```
+
 See the [CLI usage guide](docs/USAGE.md) for all subcommands,
-flags, and configuration options.
+flags, configuration options, and git aliases.
 
 ## Workspace crates
 

@@ -71,6 +71,7 @@ git-std covers four concerns:
 | Commit message validation    | `git std check`                                                    |
 | Version bump + changelog     | `git std bump`, `git std changelog`                                |
 | Git hooks management         | `git std hooks install`, `git std hooks run`, `git std hooks list` |
+| Shell completions            | `git std completions`                                              |
 
 **Out of scope:** repo scaffolding, directory structure
 compliance, formatting, linting, CI pipeline generation,
@@ -103,20 +104,20 @@ list of built-in version files.
 | `standard-changelog` | Changelog generation from conventional commits                                       |
 | `standard-githooks`  | Hook file format parsing, shim generation                                            |
 
-Library crates are pure — no git2, no I/O, no terminal
-output — except `standard-version`, which performs file
-I/O for version file detection and updates.
+Library crates are pure — no I/O, no terminal output —
+except `standard-version`, which performs file I/O for
+version file detection and updates.
 
 **Key dependencies:**
 
-| Crate              | Purpose                                                                                   |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| `clap`             | CLI argument parsing with subcommand dispatch                                             |
-| `inquire`          | Interactive terminal prompts (type/scope/description selection)                           |
-| `yansi`            | Terminal colours and `--color` flag support                                               |
-| `toml`             | `.git-std.toml` reading and Cargo.toml version updates                                    |
-| `git2` (`libgit2`) | Git operations (log, tag, commit) — avoids shelling out to `git` (except for GPG signing) |
-| `semver`           | Semantic version parsing and bumping                                                      |
+| Crate           | Purpose                                                         |
+| --------------- | --------------------------------------------------------------- |
+| `clap`          | CLI argument parsing with subcommand dispatch                   |
+| `clap_complete` | Shell completion script generation (bash, zsh, fish)            |
+| `inquire`       | Interactive terminal prompts (type/scope/description selection) |
+| `yansi`         | Terminal colours and `--color` flag support                     |
+| `toml`          | `.git-std.toml` reading and Cargo.toml version updates          |
+| `semver`        | Semantic version parsing and bumping                            |
 
 **Binary size target:** ~5-8 MB statically linked
 (`lto = true`, `strip = true`, `codegen-units = 1`).
@@ -320,8 +321,11 @@ changelog, commit, and tag.
 | `--first-release`        | Use current version for initial changelog. No bump.                                       |
 | `--no-tag`               | Update files and commit, skip tag creation                                                |
 | `--no-commit`            | Update files only, no commit or tag                                                       |
-| `--sign`                 | GPG-sign the release commit and annotated tag                                             |
+| `--sign` / `-S`          | GPG-sign the release commit and annotated tag                                             |
 | `--skip-changelog`       | Bump version files without changelog generation                                           |
+| `--force`                | Allow breaking changes in patch-only scheme                                               |
+| `--stable [branch]`      | Create a stable branch for patch-only releases (optional custom branch name)              |
+| `--minor`                | Use minor bump (instead of major) when advancing main after `--stable`                    |
 
 **Exit codes:** `0` = success (or no bump needed), `1` = error.
 
@@ -644,26 +648,41 @@ cargo test --workspace --lib *.rs
 ! git std check --file {msg}
 ```
 
-### 2.7 `git std self-update`
+### 2.7 `git std completions`
 
-Fetch the latest release and replace the current binary:
+Generate shell completion scripts for bash, zsh, or fish.
 
-```text
-$ git std self-update
-
-  Current: v0.2.0
-  Latest:  v0.3.1
-  Installed: ~/.local/bin/git-std
+```bash
+git std completions bash   # Bash completions
+git std completions zsh    # Zsh completions
+git std completions fish   # Fish completions
 ```
 
-### 2.8 Global Flags
+**Example — add to shell profile:**
+
+```bash
+# Bash (~/.bashrc)
+eval "$(git std completions bash)"
+
+# Zsh (~/.zshrc)
+eval "$(git std completions zsh)"
+
+# Fish (~/.config/fish/config.fish)
+git std completions fish | source
+```
+
+### 2.8 `git std self-update` _(planned)_
+
+Fetch the latest release and replace the current binary.
+Not yet implemented.
+
+### 2.9 Global Flags
 
 | Flag               | Description                         |
 | ------------------ | ----------------------------------- |
 | `--help` / `-h`    | Print help                          |
 | `--version` / `-V` | Print git-std version               |
 | `--color <when>`   | `auto` (default), `always`, `never` |
-| `--quiet` / `-q`   | Suppress non-error output           |
 
 ---
 
