@@ -1,5 +1,92 @@
 # Changelog
 
+## [0.3.0] (2026-03-17)
+
+### Bug Fixes
+
+- **docs:** remove stray character in SPEC.md table ([1bde589])
+- **spec:** add missing snapshot files for patch and stable bump tests
+  ([df36f45])
+- improve error messages and diagnostics across CLI ([1337200]), closes [#67]
+- **spec:** simplify changelog range snapshot for parallel test stability
+  ([6ea2dac])
+- **spec:** use flexible matching for changelog range snapshot ([239d000])
+- **spec:** correct changelog range snapshot section order ([d8c8ad7])
+- **ci:** use cargo install for mdbook instead of broken URL ([3f79092])
+
+### Documentation
+
+- sync SPEC, USAGE, and README with current CLI ([3d0f36a])
+- defer org-wide policies to driftsys/.github ([f498fca])
+- add AI policy section to CONTRIBUTING.md ([eec0a62])
+- replace docs.rs badge with user guide badge for binary crate ([a666bbc])
+- add badges, book links, and documentation metadata ([6696f5d])
+- move issue model to CONTRIBUTING.md, trim AGENTS.md ([cae0d4b])
+
+### Refactoring
+
+- **bump:** re-extract finalize_bump helper with ui module ([58570e9]), closes
+  [#128]
+- add shared ui module for consistent CLI output ([8f837b1]), closes [#132]
+- **bump:** extract shared finalize_bump helper ([5c34c72]), closes [#128]
+- use thiserror for error derives in library crates ([32d89da]), closes [#133]
+- **spec:** extract inline assertions to snapshot files ([6bd7149])
+
+### Features
+
+- add shell completions for bash, zsh, and fish ([9948c9b])
+- **git:** replace git2 with git CLI subprocess calls ([#177]) ([213af52]),
+  closes [#134]
+- auto-discover scopes from workspace directory layout ([39c70ab]), closes [#72]
+- validate calver_format at config parse time ([a7313cd]), closes [#124]
+- **bump:** align patch scheme error message with spec ([5ebe5dc]), closes
+  [#138]
+- **bump:** implement --stable flag for creating patch-only branches
+  ([3f6f623]), closes [#139]
+- **bump:** implement scheme = "patch" for patch-only branches ([32111a7]),
+  closes [#138]
+- **hooks:** skip hook execution when GIT_STD_SKIP_HOOKS is set ([78bb445]),
+  closes [#73]
+
+[0.3.0]: https://github.com/driftsys/git-std/compare/v0.2.0...v0.3.0
+[1bde589]: https://github.com/driftsys/git-std/commit/1bde589
+[df36f45]: https://github.com/driftsys/git-std/commit/df36f45
+[1337200]: https://github.com/driftsys/git-std/commit/1337200
+[#67]: https://github.com/driftsys/git-std/issues/67
+[6ea2dac]: https://github.com/driftsys/git-std/commit/6ea2dac
+[239d000]: https://github.com/driftsys/git-std/commit/239d000
+[d8c8ad7]: https://github.com/driftsys/git-std/commit/d8c8ad7
+[3f79092]: https://github.com/driftsys/git-std/commit/3f79092
+[3d0f36a]: https://github.com/driftsys/git-std/commit/3d0f36a
+[f498fca]: https://github.com/driftsys/git-std/commit/f498fca
+[eec0a62]: https://github.com/driftsys/git-std/commit/eec0a62
+[a666bbc]: https://github.com/driftsys/git-std/commit/a666bbc
+[6696f5d]: https://github.com/driftsys/git-std/commit/6696f5d
+[cae0d4b]: https://github.com/driftsys/git-std/commit/cae0d4b
+[58570e9]: https://github.com/driftsys/git-std/commit/58570e9
+[#128]: https://github.com/driftsys/git-std/issues/128
+[8f837b1]: https://github.com/driftsys/git-std/commit/8f837b1
+[#132]: https://github.com/driftsys/git-std/issues/132
+[5c34c72]: https://github.com/driftsys/git-std/commit/5c34c72
+[32d89da]: https://github.com/driftsys/git-std/commit/32d89da
+[#133]: https://github.com/driftsys/git-std/issues/133
+[6bd7149]: https://github.com/driftsys/git-std/commit/6bd7149
+[9948c9b]: https://github.com/driftsys/git-std/commit/9948c9b
+[213af52]: https://github.com/driftsys/git-std/commit/213af52
+[#177]: https://github.com/driftsys/git-std/issues/177
+[#134]: https://github.com/driftsys/git-std/issues/134
+[39c70ab]: https://github.com/driftsys/git-std/commit/39c70ab
+[#72]: https://github.com/driftsys/git-std/issues/72
+[a7313cd]: https://github.com/driftsys/git-std/commit/a7313cd
+[#124]: https://github.com/driftsys/git-std/issues/124
+[5ebe5dc]: https://github.com/driftsys/git-std/commit/5ebe5dc
+[#138]: https://github.com/driftsys/git-std/issues/138
+[3f6f623]: https://github.com/driftsys/git-std/commit/3f6f623
+[#139]: https://github.com/driftsys/git-std/issues/139
+[32111a7]: https://github.com/driftsys/git-std/commit/32111a7
+[78bb445]: https://github.com/driftsys/git-std/commit/78bb445
+[#73]: https://github.com/driftsys/git-std/issues/73
+
 ## [0.2.0] (2026-03-16)
 
 ### Documentation
