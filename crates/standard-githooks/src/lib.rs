@@ -12,4 +12,4 @@ mod shim;
 pub use glob::matches_any;
 pub use parse::{HookCommand, Prefix, parse};
 pub use run::{HookMode, default_mode, substitute_msg};
-pub use shim::generate_shim;
+pub use shim::{KNOWN_HOOKS, generate_hooks_template, generate_shim};

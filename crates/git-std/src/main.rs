@@ -156,6 +156,16 @@ enum HooksCommand {
     },
     /// Display all configured hooks and their commands.
     List,
+    /// Enable a hook (activate its shim).
+    Enable {
+        /// Hook name (e.g. pre-commit, commit-msg).
+        hook: String,
+    },
+    /// Disable a hook (deactivate its shim).
+    Disable {
+        /// Hook name (e.g. pre-commit, commit-msg).
+        hook: String,
+    },
 }
 
 fn main() {
@@ -282,6 +292,8 @@ fn main() {
                 HooksCommand::Install => cli::hooks::install(),
                 HooksCommand::Run { hook, args } => cli::hooks::run(&hook, &args),
                 HooksCommand::List => cli::hooks::list(),
+                HooksCommand::Enable { hook } => cli::hooks::enable(&hook),
+                HooksCommand::Disable { hook } => cli::hooks::disable(&hook),
             };
             std::process::exit(code);
         }

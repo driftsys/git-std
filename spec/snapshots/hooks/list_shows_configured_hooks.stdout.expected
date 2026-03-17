@@ -1,3 +1,18 @@
-...
-[..] pre-commit (collect mode):[..]
-...
+  pre-commit (collect) [disabled]:
+      dprint check
+      cargo clippy --workspace -- -D warnings       *.rs
+
+  commit-msg (fail-fast) [disabled]:
+    (no commands)
+
+  pre-push (fail-fast) [disabled]:
+    (no commands)
+
+  post-commit (collect) [disabled]:
+    (no commands)
+
+  prepare-commit-msg (collect) [disabled]:
+    (no commands)
+
+  post-merge (collect) [disabled]:
+    (no commands)
