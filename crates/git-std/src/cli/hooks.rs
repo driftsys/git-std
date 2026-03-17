@@ -1,9 +1,11 @@
 use std::process::Command;
 
+use inquire::MultiSelect;
 use yansi::Paint;
 
 use standard_githooks::{
-    HookCommand, HookMode, Prefix, default_mode, generate_shim, substitute_msg,
+    HookCommand, HookMode, KNOWN_HOOKS, Prefix, default_mode, generate_hooks_template,
+    generate_shim, substitute_msg,
 };
 
 use crate::ui;
@@ -241,31 +243,18 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
     if has_failure { 1 } else { 0 }
 }
 
-/// Scan `.githooks/` for `*.hooks` files and return sorted hook names.
-fn discover_hooks() -> Vec<String> {
-    let hooks_dir = std::path::Path::new(".githooks");
-    let entries = match std::fs::read_dir(hooks_dir) {
-        Ok(e) => e,
-        Err(_) => return Vec::new(),
-    };
-
-    let mut hooks: Vec<String> = entries
-        .filter_map(|entry| {
-            let entry = entry.ok()?;
-            let name = entry.file_name().to_string_lossy().to_string();
-            let hook_name = name.strip_suffix(".hooks")?;
-            Some(hook_name.to_string())
-        })
-        .collect();
-
-    hooks.sort();
-    hooks
+/// Returns true if a hook's shim is currently active (named exactly as the hook).
+fn is_enabled(hooks_dir: &std::path::Path, hook_name: &str) -> bool {
+    hooks_dir.join(hook_name).exists()
 }
 
 /// Run the `hooks install` subcommand. Returns the process exit code.
 ///
-/// Configures `core.hooksPath`, creates the `.githooks/` directory,
-/// and writes shim scripts for each `.hooks` file found.
+/// - Sets core.hooksPath
+/// - Creates .githooks/ directory
+/// - Writes .hooks template for every known hook (skips existing)
+/// - Prompts which hooks to enable (interactive multi-select)
+/// - Writes active shims for selected hooks, .off shims for the rest
 pub fn install() -> i32 {
     // 1. Set core.hooksPath
     let status = Command::new("git")
@@ -296,33 +285,83 @@ pub fn install() -> i32 {
         return 1;
     }
 
-    // 3. Write shims for each .hooks file
-    let hooks = discover_hooks();
-
-    if hooks.is_empty() {
-        ui::blank();
-        eprintln!(
-            "{INDENT}no .hooks files found in .githooks/",
-            INDENT = ui::INDENT
-        );
-        return 0;
+    // 3. Write .hooks templates for every known hook (skip if already exists)
+    for hook_name in KNOWN_HOOKS {
+        let template_path = hooks_dir.join(format!("{hook_name}.hooks"));
+        if !template_path.exists() {
+            let content = generate_hooks_template(hook_name);
+            if let Err(e) = std::fs::write(&template_path, &content) {
+                ui::error(&format!("cannot write {}: {e}", template_path.display()));
+                return 1;
+            }
+        }
     }
 
-    for hook_name in &hooks {
-        let shim_content = generate_shim(hook_name);
-        let shim_path = hooks_dir.join(hook_name);
+    // 4. Determine which hooks to enable — via env var (for tests/CI) or interactive prompt
+    let default_enabled = ["pre-commit", "commit-msg"];
 
-        if let Err(e) = std::fs::write(&shim_path, &shim_content) {
+    let env_enable = std::env::var("GIT_STD_HOOKS_ENABLE").ok();
+    let selected: Vec<&str> = if let Some(ref val) = env_enable {
+        // Comma-separated list of hook names, or "all" or "none"
+        match val.to_lowercase().as_str() {
+            "all" => KNOWN_HOOKS.to_vec(),
+            "none" => vec![],
+            _ => val
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| KNOWN_HOOKS.contains(s))
+                .collect(),
+        }
+    } else {
+        let options: Vec<&str> = KNOWN_HOOKS.to_vec();
+        match MultiSelect::new("Which hooks do you want to enable?", options)
+            .with_default(
+                &KNOWN_HOOKS
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, h)| default_enabled.contains(h))
+                    .map(|(i, _)| i)
+                    .collect::<Vec<_>>(),
+            )
+            .prompt()
+        {
+            Ok(s) => s,
+            Err(_) => {
+                ui::error("install cancelled");
+                return 1;
+            }
+        }
+    };
+
+    ui::blank();
+
+    // 5. Write shims — active for selected, .off for the rest
+    for hook_name in KNOWN_HOOKS {
+        let shim_content = generate_shim(hook_name);
+        let enabled = selected.contains(hook_name);
+
+        let active_path = hooks_dir.join(hook_name);
+        let off_path = hooks_dir.join(format!("{hook_name}.off"));
+
+        // Remove stale counterpart
+        if enabled {
+            let _ = std::fs::remove_file(&off_path);
+        } else {
+            let _ = std::fs::remove_file(&active_path);
+        }
+
+        let shim_path = if enabled { &active_path } else { &off_path };
+
+        if let Err(e) = std::fs::write(shim_path, &shim_content) {
             ui::error(&format!("cannot write {}: {e}", shim_path.display()));
             return 1;
         }
 
-        // Set executable permissions on Unix
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             let perms = std::fs::Permissions::from_mode(0o755);
-            if let Err(e) = std::fs::set_permissions(&shim_path, perms) {
+            if let Err(e) = std::fs::set_permissions(shim_path, perms) {
                 ui::error(&format!(
                     "cannot set permissions on {}: {e}",
                     shim_path.display()
@@ -331,10 +370,15 @@ pub fn install() -> i32 {
             }
         }
 
+        let status_label = if enabled {
+            "enabled ".green().to_string()
+        } else {
+            "disabled".dim().to_string()
+        };
+
         eprintln!(
-            "{INDENT}{}  .githooks/{:<18}\u{2192} git std hooks run {hook_name}",
+            "{INDENT}{}  {hook_name:<22} {status_label}",
             ui::pass(),
-            hook_name,
             INDENT = ui::INDENT,
         );
     }
@@ -342,26 +386,130 @@ pub fn install() -> i32 {
     0
 }
 
-/// Run the `hooks list` subcommand. Returns the process exit code.
-///
-/// Reads all `.githooks/*.hooks` files, parses them, and prints
-/// a human-readable summary of each hook and its commands.
-pub fn list() -> i32 {
-    let hooks = discover_hooks();
+/// Run the `hooks enable <hook>` subcommand. Returns the process exit code.
+pub fn enable(hook_name: &str) -> i32 {
+    if !KNOWN_HOOKS.contains(&hook_name) {
+        ui::error(&format!(
+            "unknown hook '{hook_name}' — known hooks: {}",
+            KNOWN_HOOKS.join(", ")
+        ));
+        return 1;
+    }
 
-    if hooks.is_empty() {
-        eprintln!("{INDENT}no hooks configured", INDENT = ui::INDENT);
+    let hooks_dir = std::path::Path::new(".githooks");
+    let active_path = hooks_dir.join(hook_name);
+    let off_path = hooks_dir.join(format!("{hook_name}.off"));
+
+    if active_path.exists() {
+        eprintln!(
+            "{INDENT}{} {hook_name} is already enabled",
+            ui::warn(),
+            INDENT = ui::INDENT
+        );
         return 0;
     }
 
-    for (i, hook_name) in hooks.iter().enumerate() {
+    if !off_path.exists() {
+        ui::error(&format!(
+            "{hook_name}.off not found — run 'git std hooks install' first"
+        ));
+        return 1;
+    }
+
+    if let Err(e) = std::fs::rename(&off_path, &active_path) {
+        ui::error(&format!("cannot enable {hook_name}: {e}"));
+        return 1;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = std::fs::Permissions::from_mode(0o755);
+        let _ = std::fs::set_permissions(&active_path, perms);
+    }
+
+    eprintln!(
+        "{INDENT}{}  {hook_name} enabled",
+        ui::pass(),
+        INDENT = ui::INDENT
+    );
+    0
+}
+
+/// Run the `hooks disable <hook>` subcommand. Returns the process exit code.
+pub fn disable(hook_name: &str) -> i32 {
+    if !KNOWN_HOOKS.contains(&hook_name) {
+        ui::error(&format!(
+            "unknown hook '{hook_name}' — known hooks: {}",
+            KNOWN_HOOKS.join(", ")
+        ));
+        return 1;
+    }
+
+    let hooks_dir = std::path::Path::new(".githooks");
+    let active_path = hooks_dir.join(hook_name);
+    let off_path = hooks_dir.join(format!("{hook_name}.off"));
+
+    if off_path.exists() {
+        eprintln!(
+            "{INDENT}{} {hook_name} is already disabled",
+            ui::warn(),
+            INDENT = ui::INDENT
+        );
+        return 0;
+    }
+
+    if !active_path.exists() {
+        ui::error(&format!(
+            "{hook_name} not found — run 'git std hooks install' first"
+        ));
+        return 1;
+    }
+
+    if let Err(e) = std::fs::rename(&active_path, &off_path) {
+        ui::error(&format!("cannot disable {hook_name}: {e}"));
+        return 1;
+    }
+
+    eprintln!(
+        "{INDENT}{}  {hook_name} disabled",
+        ui::pass(),
+        INDENT = ui::INDENT
+    );
+    0
+}
+
+/// Run the `hooks list` subcommand. Returns the process exit code.
+///
+/// Shows all known hooks with enabled/disabled status and their commands.
+pub fn list() -> i32 {
+    let hooks_dir = std::path::Path::new(".githooks");
+
+    if !hooks_dir.exists() {
+        eprintln!(
+            "{INDENT}no hooks installed — run 'git std hooks install'",
+            INDENT = ui::INDENT
+        );
+        return 0;
+    }
+
+    for (i, hook_name) in KNOWN_HOOKS.iter().enumerate() {
         if i > 0 {
             println!();
         }
 
-        let commands = match read_and_parse_hooks(hook_name) {
-            Ok(c) => c,
-            Err(code) => return code,
+        let enabled = is_enabled(hooks_dir, hook_name);
+        let status_label = if enabled {
+            "enabled".green().to_string()
+        } else {
+            "disabled".dim().to_string()
+        };
+
+        let template_path = hooks_dir.join(format!("{hook_name}.hooks"));
+        let commands: Vec<HookCommand> = if template_path.exists() {
+            read_and_parse_hooks(hook_name).unwrap_or_default()
+        } else {
+            vec![]
         };
 
         let mode = default_mode(hook_name);
@@ -371,37 +519,40 @@ pub fn list() -> i32 {
         };
 
         println!(
-            "{INDENT}{hook_name} ({mode_label} mode):",
+            "{INDENT}{hook_name} ({mode_label}) [{status_label}]:",
             INDENT = ui::INDENT
         );
 
-        for cmd in &commands {
-            let prefix_char = match cmd.prefix {
-                Prefix::FailFast => "!",
-                Prefix::Advisory => "?",
-                Prefix::Default => " ",
-            };
-
-            let display = if let Some(ref glob) = cmd.glob {
-                // Right-align glob after command with padding
-                let cmd_part = format!("  {prefix_char} {}", cmd.command);
-                let total_width = 50;
-                let padding = if cmd_part.len() < total_width {
-                    total_width - cmd_part.len()
-                } else {
-                    4
+        if commands.is_empty() {
+            println!("{INDENT}  (no commands)", INDENT = ui::INDENT);
+        } else {
+            for cmd in &commands {
+                let prefix_char = match cmd.prefix {
+                    Prefix::FailFast => "!",
+                    Prefix::Advisory => "?",
+                    Prefix::Default => " ",
                 };
-                format!(
-                    "  {prefix_char} {}{:width$}{glob}",
-                    cmd.command,
-                    "",
-                    width = padding
-                )
-            } else {
-                format!("  {prefix_char} {}", cmd.command)
-            };
 
-            println!("{INDENT}{display}", INDENT = ui::INDENT);
+                let display = if let Some(ref glob) = cmd.glob {
+                    let cmd_part = format!("  {prefix_char} {}", cmd.command);
+                    let total_width = 50;
+                    let padding = if cmd_part.len() < total_width {
+                        total_width - cmd_part.len()
+                    } else {
+                        4
+                    };
+                    format!(
+                        "  {prefix_char} {}{:width$}{glob}",
+                        cmd.command,
+                        "",
+                        width = padding
+                    )
+                } else {
+                    format!("  {prefix_char} {}", cmd.command)
+                };
+
+                println!("{INDENT}{display}", INDENT = ui::INDENT);
+            }
         }
     }
 

@@ -61,6 +61,7 @@ fn hooks_install_creates_shims() {
 
     Command::new(TestRepo::bin_path())
         .args(["hooks", "install"])
+        .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
         .current_dir(repo.path())
         .assert()
         .success()

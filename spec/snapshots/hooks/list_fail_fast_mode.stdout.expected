@@ -1,3 +1,18 @@
-...
-[..] pre-push (fail-fast mode):[..]
-...
+  pre-commit (collect) [disabled]:
+    (no commands)
+
+  commit-msg (fail-fast) [disabled]:
+    (no commands)
+
+  pre-push (fail-fast) [disabled]:
+    ! cargo build --workspace
+    ! cargo test --workspace
+
+  post-commit (collect) [disabled]:
+    (no commands)
+
+  prepare-commit-msg (collect) [disabled]:
+    (no commands)
+
+  post-merge (collect) [disabled]:
+    (no commands)
