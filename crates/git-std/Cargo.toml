@@ -1,6 +1,6 @@
 [package]
 name = "git-std"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Standard git workflow — commits, versioning, hooks"
 license = "MIT"
@@ -22,10 +22,10 @@ inquire = "0.9"
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-standard-changelog = { version = "0.2.0", path = "../standard-changelog" }
-standard-commit = { version = "0.2.0", path = "../standard-commit" }
-standard-githooks = { version = "0.2.0", path = "../standard-githooks" }
-standard-version = { version = "0.2.0", path = "../standard-version" }
+standard-changelog = { version = "0.3.0", path = "../standard-changelog" }
+standard-commit = { version = "0.3.0", path = "../standard-commit" }
+standard-githooks = { version = "0.3.0", path = "../standard-githooks" }
+standard-version = { version = "0.3.0", path = "../standard-version" }
 toml = "0.8"
 yansi = "1"
 

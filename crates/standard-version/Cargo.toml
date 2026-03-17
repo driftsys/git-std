@@ -1,6 +1,6 @@
 [package]
 name = "standard-version"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Semantic and calendar version bump calculation"
 license = "MIT"
@@ -14,8 +14,9 @@ categories = ["development-tools"]
 regex = "1"
 semver = "1"
 serde_json = "1"
-standard-commit = { version = "0.2.0", path = "../standard-commit" }
+standard-commit = { version = "0.3.0", path = "../standard-commit" }
 thiserror = "2"
+toml = "0.8"
 
 [dev-dependencies]
 tempfile = "3"
