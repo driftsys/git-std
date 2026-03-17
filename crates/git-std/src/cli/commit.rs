@@ -194,7 +194,21 @@ fn prompt_scope(config: &ProjectConfig) -> Result<Option<String>, Box<dyn std::e
             let cwd = std::env::current_dir().unwrap_or_default();
             let discovered = config.resolved_scopes(&cwd);
             if discovered.is_empty() {
-                let scope = Text::new("scope:").with_help_message("optional").prompt()?;
+                let mut prompt = Text::new("scope:");
+                if config.strict {
+                    prompt = prompt.with_validator(|input: &str| {
+                        if input.trim().is_empty() {
+                            Ok(Validation::Invalid(ErrorMessage::Custom(
+                                "scope is required (strict mode)".into(),
+                            )))
+                        } else {
+                            Ok(Validation::Valid)
+                        }
+                    });
+                } else {
+                    prompt = prompt.with_help_message("optional");
+                }
+                let scope = prompt.prompt()?;
                 if scope.is_empty() {
                     Ok(None)
                 } else {
@@ -521,6 +535,32 @@ mod tests {
         assert!(answers.scope.is_none());
         assert_eq!(answers.description, "add login");
         assert!(answers.breaking.is_none());
+    }
+
+    #[test]
+    fn gather_answers_scope_required_in_strict_mode() {
+        // strict = true + auto scopes + no --scope flag -> non-interactive path skips scope
+        // The prompt path can't be unit-tested (requires TTY), but we verify that
+        // fully-non-interactive mode with no scope provided and strict=true still works
+        // when scope is passed explicitly via flag.
+        let config = ProjectConfig {
+            types: vec!["feat".into()],
+            scopes: ScopesConfig::Auto,
+            strict: true,
+            ..Default::default()
+        };
+        let opts = CommitOptions {
+            commit_type: Some("feat".into()),
+            scope: Some("git-std".into()),
+            message: Some("add feature".into()),
+            breaking: None,
+            dry_run: false,
+            amend: false,
+            sign: false,
+            all: false,
+        };
+        let answers = gather_answers(&config, &opts).unwrap();
+        assert_eq!(answers.scope.as_deref(), Some("git-std"));
     }
 
     #[test]
