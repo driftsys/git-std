@@ -6,6 +6,14 @@ INSTALL_DIR="${GIT_STD_INSTALL_DIR:-$HOME/.local/bin}"
 
 die() { printf 'error: %s\n' "$1" >&2; exit 1; }
 
+sha256_check() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "$1"
+  else
+    shasum -a 256 -c "$1"
+  fi
+}
+
 detect_target() {
   local os arch
   os="$(uname -s)"
@@ -14,8 +22,8 @@ detect_target() {
   case "$os" in
     Linux)
       case "$arch" in
-        x86_64)  echo "x86_64-unknown-linux-musl" ;;
-        aarch64) echo "aarch64-unknown-linux-musl" ;;
+        x86_64)  echo "x86_64-unknown-linux-gnu" ;;
+        aarch64) echo "aarch64-unknown-linux-gnu" ;;
         *)       die "unsupported architecture: $arch" ;;
       esac
       ;;
@@ -33,7 +41,7 @@ detect_target() {
 }
 
 main() {
-  local target version download_url tmp_dir
+  local target version download_url tmp_dir base
 
   target="$(detect_target)"
   printf 'detected target: %s\n' "$target"
@@ -44,14 +52,23 @@ main() {
   [ -n "$version" ] || die "could not determine latest release"
   printf 'latest version: %s\n' "$version"
 
-  download_url="https://github.com/$REPO/releases/download/$version/git-std-$target"
+  local base="git-std-$target"
+  download_url="https://github.com/$REPO/releases/download/$version/$base.tar.gz"
   printf 'downloading %s\n' "$download_url"
 
   tmp_dir="$(mktemp -d)"
   trap 'rm -rf "$tmp_dir"' EXIT
 
-  curl -sSfL "$download_url" -o "$tmp_dir/git-std" \
+  curl -sSfL "$download_url" -o "$tmp_dir/$base.tar.gz" \
     || die "download failed — check that the release exists for $target"
+  curl -sSfL "$download_url.sha256" -o "$tmp_dir/$base.tar.gz.sha256" \
+    || die "checksum download failed"
+
+  # Verify checksum
+  (cd "$tmp_dir" && sha256_check "$base.tar.gz.sha256") \
+    || die "checksum verification failed"
+
+  tar -xzf "$tmp_dir/$base.tar.gz" -C "$tmp_dir"
 
   mkdir -p "$INSTALL_DIR"
   mv "$tmp_dir/git-std" "$INSTALL_DIR/git-std"

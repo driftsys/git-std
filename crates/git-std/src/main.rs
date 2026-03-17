@@ -139,8 +139,6 @@ enum Command {
         /// Target shell.
         shell: Shell,
     },
-    /// Update git-std to the latest version.
-    SelfUpdate,
 }
 
 /// Hooks subcommands.
@@ -290,19 +288,6 @@ fn main() {
         Command::Completions { shell } => {
             let mut cmd = Cli::command();
             clap_complete::generate(shell, &mut cmd, "git-std", &mut std::io::stdout());
-        }
-        other => {
-            let name = match other {
-                Command::Commit { .. } => unreachable!(),
-                Command::Check { .. } => unreachable!(),
-                Command::Changelog { .. } => unreachable!(),
-                Command::Bump { .. } => unreachable!(),
-                Command::Hooks { .. } => unreachable!(),
-                Command::Completions { .. } => unreachable!(),
-                Command::SelfUpdate => "self-update",
-            };
-            eprintln!("git-std {name}: not yet implemented");
-            std::process::exit(1);
         }
     }
 }

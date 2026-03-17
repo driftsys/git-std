@@ -671,12 +671,7 @@ eval "$(git std completions zsh)"
 git std completions fish | source
 ```
 
-### 2.8 `git std self-update` _(planned)_
-
-Fetch the latest release and replace the current binary.
-Not yet implemented.
-
-### 2.9 Global Flags
+### 2.8 Global Flags
 
 | Flag               | Description                         |
 | ------------------ | ----------------------------------- |
