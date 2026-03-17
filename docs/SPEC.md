@@ -71,7 +71,7 @@ git-std covers four concerns:
 | Commit message validation    | `git std check`                                                    |
 | Version bump + changelog     | `git std bump`, `git std changelog`                                |
 | Git hooks management         | `git std hooks install`, `git std hooks run`, `git std hooks list` |
-| Shell completions            | `git std completions`                                        f      |
+| Shell completions            | `git std completions`                                              |
 
 **Out of scope:** repo scaffolding, directory structure
 compliance, formatting, linting, CI pipeline generation,
