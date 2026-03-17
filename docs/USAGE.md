@@ -78,16 +78,19 @@ update version files, generate changelog, commit, and tag.
 
 **Flags:**
 
-| Flag                 | Description                              |
-| -------------------- | ---------------------------------------- |
-| `--dry-run`          | Print plan without writing               |
-| `--prerelease [tag]` | Bump as pre-release (e.g., `2.0.0-rc.1`) |
-| `--release-as <ver>` | Force a specific version                 |
-| `--first-release`    | Initial changelog, no bump               |
-| `--no-tag`           | Skip tag creation                        |
-| `--no-commit`        | Update files only                        |
-| `--sign`             | GPG-sign commit and tag                  |
-| `--skip-changelog`   | Bump without changelog                   |
+| Flag                 | Description                                                        |
+| -------------------- | ------------------------------------------------------------------ |
+| `--dry-run`          | Print plan without writing                                         |
+| `--prerelease [tag]` | Bump as pre-release (e.g. `2.0.0-rc.1`)                            |
+| `--release-as <ver>` | Force a specific version                                           |
+| `--first-release`    | Initial changelog, no bump                                         |
+| `--no-tag`           | Skip tag creation                                                  |
+| `--no-commit`        | Update files only                                                  |
+| `--sign` / `-S`      | GPG-sign commit and tag                                            |
+| `--skip-changelog`   | Bump without changelog                                             |
+| `--force`            | Allow breaking changes in patch-only scheme                        |
+| `--stable [branch]`  | Create a stable branch for patch-only releases                     |
+| `--minor`            | Use minor bump (instead of major) when advancing main after stable |
 
 **Exit codes:** `0` = success, `1` = error.
 
@@ -116,6 +119,29 @@ Manage git hooks defined in `.githooks/*.hooks` files.
 git std hooks install    # set up hooks directory and shim scripts
 git std hooks run <hook> # execute a hook manually
 git std hooks list       # display configured hooks
+```
+
+### `git std completions`
+
+Generate shell completion scripts.
+
+```bash
+git std completions bash   # Bash
+git std completions zsh    # Zsh
+git std completions fish   # Fish
+```
+
+Add to your shell profile:
+
+```bash
+# Bash (~/.bashrc)
+eval "$(git-std completions bash)"
+
+# Zsh (~/.zshrc)
+eval "$(git-std completions zsh)"
+
+# Fish (~/.config/fish/config.fish)
+git-std completions fish | source
 ```
 
 ### `git std self-update` _(planned)_
@@ -320,5 +346,26 @@ git std hooks install
 ```
 
 Every commit message will be validated automatically.
+
+## Git Aliases
+
+Shorten common commands with git aliases:
+
+```bash
+git config --global alias.sc "std commit"
+git config --global alias.sb "std bump"
+git config --global alias.sl "std changelog"
+git config --global alias.sk "std check"
+```
+
+Then use:
+
+```bash
+git sc           # interactive commit
+git sc -am "fix(auth): handle expired tokens"
+git sk --range main..HEAD
+git sl --stdout  # preview changelog
+git sb           # bump + changelog + tag
+```
 
 [conv-commits]: https://www.conventionalcommits.org/en/v1.0.0/
