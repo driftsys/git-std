@@ -46,7 +46,6 @@ fn unknown_subcommand_exits_2() {
         .code(2);
 }
 
-
 #[test]
 fn hooks_requires_subcommand() {
     Command::cargo_bin("git-std")
