@@ -6,6 +6,21 @@ use inquire::{
 };
 use standard_commit::ConventionalCommit;
 
+/// Standard commit type descriptions, keyed by type name.
+const TYPE_DESCRIPTIONS: &[(&str, &str)] = &[
+    ("feat", "A new feature"),
+    ("fix", "A bug fix"),
+    ("docs", "Documentation only"),
+    ("style", "Formatting, no code change"),
+    ("refactor", "Code change, no feature or fix"),
+    ("perf", "Performance improvement"),
+    ("test", "Adding or fixing tests"),
+    ("build", "Build system or dependencies"),
+    ("ci", "CI configuration"),
+    ("chore", "Other changes"),
+    ("revert", "Reverts a previous commit"),
+];
+
 /// Options passed from CLI flags to the commit flow.
 pub struct CommitOptions {
     pub commit_type: Option<String>,
@@ -74,7 +89,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
     }
 
     if opts.dry_run {
-        println!("{message}");
+        eprintln!("{}{message}", ui::INDENT);
         return 0;
     }
 
@@ -88,31 +103,34 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
         return 1;
     }
 
-    if opts.sign {
-        match crate::git::create_signed_commit_amend(dir, &message, opts.amend) {
-            Ok(()) => 0,
-            Err(e) => {
-                ui::error(&e.to_string());
-                1
-            }
-        }
+    let result = if opts.sign {
+        crate::git::create_signed_commit_amend(dir, &message, opts.amend)
     } else if opts.amend {
-        match crate::git::amend_commit(dir, &message) {
-            Ok(()) => 0,
-            Err(e) => {
-                ui::error(&e.to_string());
-                1
-            }
-        }
+        crate::git::amend_commit(dir, &message)
     } else {
-        match crate::git::create_commit(dir, &message) {
-            Ok(()) => 0,
-            Err(e) => {
-                ui::error(&e.to_string());
-                1
-            }
+        crate::git::create_commit(dir, &message)
+    };
+
+    match result {
+        Ok(()) => {
+            print_commit_result(dir, opts.amend);
+            0
+        }
+        Err(e) => {
+            ui::error(&e.to_string());
+            1
         }
     }
+}
+
+/// Print a post-commit summary: short SHA, branch, and message subject.
+fn print_commit_result(dir: &std::path::Path, amend: bool) {
+    let sha = crate::git::head_oid(dir)
+        .map(|s| s[..s.len().min(7)].to_string())
+        .unwrap_or_else(|_| "???????".to_string());
+    let branch = crate::git::current_branch(dir).unwrap_or_else(|_| "?".to_string());
+    let action = if amend { "amended" } else { "committed" };
+    ui::heading("", &format!("{action} [{branch} {sha}]"));
 }
 
 /// Gather answers from flags and/or interactive prompts.
@@ -177,9 +195,19 @@ fn gather_answers(
 }
 
 fn prompt_type(types: &[String]) -> Result<String, Box<dyn std::error::Error>> {
-    let items: Vec<&str> = types.iter().map(|s| s.as_str()).collect();
-    let selection = Select::new("type:", items).prompt()?;
-    Ok(selection.to_string())
+    let display: Vec<String> = types
+        .iter()
+        .map(|t| {
+            TYPE_DESCRIPTIONS
+                .iter()
+                .find(|(name, _)| *name == t.as_str())
+                .map(|(_, desc)| format!("{t} \u{2014} {desc}"))
+                .unwrap_or_else(|| t.clone())
+        })
+        .collect();
+    let display_refs: Vec<&str> = display.iter().map(|s| s.as_str()).collect();
+    let choice = Select::new("type:", display_refs).raw_prompt()?;
+    Ok(types[choice.index].clone())
 }
 
 fn prompt_scope(config: &ProjectConfig) -> Result<Option<String>, Box<dyn std::error::Error>> {
