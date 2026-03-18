@@ -81,3 +81,36 @@ impl Default for ChangelogConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config() {
+        let config = ChangelogConfig::default();
+
+        assert_eq!(config.title, "Changelog");
+        assert_eq!(
+            config.sections,
+            vec![
+                ("feat".to_string(), "Features".to_string()),
+                ("fix".to_string(), "Bug Fixes".to_string()),
+                ("perf".to_string(), "Performance".to_string()),
+                ("refactor".to_string(), "Refactoring".to_string()),
+                ("docs".to_string(), "Documentation".to_string()),
+            ]
+        );
+        assert_eq!(
+            config.hidden,
+            vec![
+                "chore".to_string(),
+                "ci".to_string(),
+                "build".to_string(),
+                "style".to_string(),
+                "test".to_string(),
+            ]
+        );
+        assert!(config.bug_url.is_none());
+    }
+}
