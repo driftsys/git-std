@@ -62,7 +62,7 @@ fn commit_dry_run_prints_message() {
         .args(["commit", "--type", "feat", "-m", "add login", "--dry-run"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("feat: add login"));
+        .stderr(predicate::str::contains("feat: add login"));
 }
 
 #[test]
@@ -81,7 +81,7 @@ fn commit_dry_run_with_scope() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("fix(auth): handle tokens"));
+        .stderr(predicate::str::contains("fix(auth): handle tokens"));
 }
 
 #[test]
@@ -100,8 +100,8 @@ fn commit_dry_run_with_breaking() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("feat!: remove legacy API"))
-        .stdout(predicate::str::contains(
+        .stderr(predicate::str::contains("feat!: remove legacy API"))
+        .stderr(predicate::str::contains(
             "BREAKING CHANGE: removed v1 endpoints",
         ));
 }
@@ -140,7 +140,7 @@ fn commit_short_flags() {
         .args(["commit", "--type", "feat", "-m", "short flag", "--dry-run"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("feat: short flag"));
+        .stderr(predicate::str::contains("feat: short flag"));
 }
 
 // --- Commit integration tests (actual repo) ---
@@ -363,7 +363,7 @@ fn commit_combined_flags() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("feat(auth): add login"));
+        .stderr(predicate::str::contains("feat(auth): add login"));
 }
 
 // --- Bump integration tests ---
@@ -1952,7 +1952,7 @@ fn commit_dry_run_auto_scopes() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stdout(predicate::str::contains("feat(web): add page"));
+        .stderr(predicate::str::contains("feat(web): add page"));
 }
 
 #[test]
