@@ -116,10 +116,25 @@ commits since the last tag.
 Manage git hooks defined in `.githooks/*.hooks` files.
 
 ```bash
-git std hooks install    # set up hooks directory and shim scripts
-git std hooks run <hook> # execute a hook manually
-git std hooks list       # display configured hooks
+git std hooks install          # set up hooks directory and shim scripts
+git std hooks run <hook>       # execute a hook manually
+git std hooks list             # display configured hooks
+git std hooks enable <hook>    # activate a hook (rename .off → shim)
+git std hooks disable <hook>   # deactivate a hook (rename shim → .off)
 ```
+
+**Subcommands:**
+
+| Subcommand       | Description                                    |
+| ---------------- | ---------------------------------------------- |
+| `install`        | Write shim scripts and `.hooks` templates      |
+| `run <hook>`     | Execute a hook manually                        |
+| `list`           | Display all hooks with enabled/disabled status |
+| `enable <hook>`  | Activate a disabled hook                       |
+| `disable <hook>` | Deactivate an enabled hook                     |
+
+**Known hook types:** `pre-commit`, `commit-msg`, `pre-push`,
+`post-commit`, `prepare-commit-msg`, `post-merge`.
 
 ### `git std completions`
 
@@ -190,11 +205,6 @@ $ git std config list
   ...
 ```
 
-### `git std self-update` _(planned)_
-
-Fetch the latest release and replace the current binary.
-Not yet implemented.
-
 ## Global Flags
 
 | Flag               | Description                         |
@@ -230,7 +240,9 @@ calver_format = "YYYY.MM.PATCH"                # only when scheme = "calver"
 
 # ── Changelog ─────────────────────────────────────────────────────
 [changelog]
+title = "Release Notes"                        # optional, custom heading
 hidden = ["chore", "ci", "build", "style", "test"]
+bug_url = "https://github.com/org/repo/issues" # optional, issue link base
 
 [changelog.sections]
 feat = "Features"
@@ -238,6 +250,11 @@ fix = "Bug Fixes"
 perf = "Performance"
 refactor = "Refactoring"
 docs = "Documentation"
+
+# ── Version files ────────────────────────────────────────────
+[[version_files]]
+path = "pom.xml"
+regex = '<version>([^<]+)</version>'
 ```
 
 ### Fields
@@ -246,13 +263,26 @@ docs = "Documentation"
 
 | Field    | Type                 | Default           | Description                                             |
 | -------- | -------------------- | ----------------- | ------------------------------------------------------- |
-| `scheme` | string               | `"semver"`        | Versioning scheme: `semver`, `calver`, or `patch`       |
+| `scheme` | string               | `"semver"`        | Versioning scheme (see below)                           |
 | `types`  | string[]             | 10 standard types | Allowed conventional commit types                       |
 | `scopes` | `"auto"` or string[] | None              | Scope discovery or explicit allowlist                   |
 | `strict` | bool                 | `false`           | Enforce types/scopes validation without `--strict` flag |
 
 Default types: `feat`, `fix`, `docs`, `style`, `refactor`,
 `perf`, `test`, `chore`, `ci`, `build`.
+
+**Versioning schemes:**
+
+- **`semver`** — `BREAKING CHANGE` or `!` → major, `feat` →
+  minor, everything else → patch. Resets lower components
+  (e.g. `1.2.3` → `1.3.0`). Supports `--prerelease`.
+- **`calver`** — date-based, ignores commit types. Uses
+  `calver_format` (default `YYYY.MM.PATCH`). Patch increments
+  within the same period, resets on period change. No
+  `--prerelease`.
+- **`patch`** — always increments patch only, never touches
+  major/minor. Breaking changes rejected unless `--force` is
+  used. Intended for maintenance/LTS branches.
 
 **Scopes behavior:**
 
@@ -298,9 +328,11 @@ patch.
 
 #### `[changelog]`
 
-| Field    | Type     | Default                                     | Description                   |
-| -------- | -------- | ------------------------------------------- | ----------------------------- |
-| `hidden` | string[] | `["chore", "ci", "build", "style", "test"]` | Types excluded from changelog |
+| Field     | Type     | Default                                     | Description                      |
+| --------- | -------- | ------------------------------------------- | -------------------------------- |
+| `title`   | string   | _(none)_                                    | Custom changelog title           |
+| `hidden`  | string[] | `["chore", "ci", "build", "style", "test"]` | Types excluded from changelog    |
+| `bug_url` | string   | _(none)_                                    | URL template for bug/issue links |
 
 #### `[changelog.sections]`
 
@@ -314,6 +346,31 @@ listed here use the type name as the heading.
 | `perf`     | `"Performance"`   |
 | `refactor` | `"Refactoring"`   |
 | `docs`     | `"Documentation"` |
+
+#### `[[version_files]]`
+
+Optional array of custom version files to update during bump.
+Each entry specifies a file path and a regex whose first
+capture group contains the version string.
+
+```toml
+[[version_files]]
+path = "pom.xml"
+regex = '<version>([^<]+)</version>'
+
+[[version_files]]
+path = "Chart.yaml"
+regex = 'version:\s*(.+)'
+```
+
+| Field   | Type   | Description                                 |
+| ------- | ------ | ------------------------------------------- |
+| `path`  | string | File path relative to repo root             |
+| `regex` | string | Regex with capture group containing version |
+
+Entries with missing `path` or `regex` are silently skipped.
+These are in addition to auto-detected version files
+(e.g. `Cargo.toml`).
 
 ### Inferred settings
 
