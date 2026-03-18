@@ -54,6 +54,7 @@ pub fn list() -> i32 {
                 let prefix_char = match cmd.prefix {
                     Prefix::FailFast => "!",
                     Prefix::Advisory => "?",
+                    Prefix::Fix => "~",
                     Prefix::Default => " ",
                 };
 

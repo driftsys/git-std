@@ -9,6 +9,9 @@ pub enum Prefix {
     FailFast,
     /// `?` prefix — report as a warning, never cause the hook to fail.
     Advisory,
+    /// `~` prefix — auto-format staged files and re-stage (pre-commit only).
+    /// In other hooks, treated as `!` with a warning.
+    Fix,
 }
 
 /// A single command parsed from a `.githooks/<hook>.hooks` file.
@@ -89,6 +92,8 @@ fn extract_prefix(line: &str) -> (Prefix, &str) {
         (Prefix::FailFast, rest)
     } else if let Some(rest) = line.strip_prefix('?') {
         (Prefix::Advisory, rest)
+    } else if let Some(rest) = line.strip_prefix('~') {
+        (Prefix::Fix, rest)
     } else {
         (Prefix::Default, line)
     }
@@ -406,5 +411,60 @@ cargo test --workspace --lib *.rs
         assert_eq!(commands[1].command, "");
         assert_eq!(commands[2].prefix, Prefix::Default);
         assert_eq!(commands[2].command, "cargo test");
+    }
+
+    // --- Fix prefix (~) tests (#197) ---
+
+    #[test]
+    fn fix_prefix_with_space() {
+        let commands = parse("~ cargo fmt\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].prefix, Prefix::Fix);
+        assert_eq!(commands[0].command, "cargo fmt");
+        assert_eq!(commands[0].glob, None);
+    }
+
+    #[test]
+    fn fix_prefix_no_space() {
+        let commands = parse("~cargo fmt\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].prefix, Prefix::Fix);
+        assert_eq!(commands[0].command, "cargo fmt");
+        assert_eq!(commands[0].glob, None);
+    }
+
+    #[test]
+    fn fix_prefix_with_glob() {
+        let commands = parse("~ dprint fmt *.rs\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].prefix, Prefix::Fix);
+        assert_eq!(commands[0].command, "dprint fmt");
+        assert_eq!(commands[0].glob, Some("*.rs".to_string()));
+    }
+
+    #[test]
+    fn fix_prefix_only_produces_empty_command() {
+        let commands = parse("~\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].prefix, Prefix::Fix);
+        assert_eq!(commands[0].command, "");
+        assert_eq!(commands[0].glob, None);
+    }
+
+    #[test]
+    fn fix_prefix_distinct_from_others() {
+        assert_ne!(Prefix::Fix, Prefix::Default);
+        assert_ne!(Prefix::Fix, Prefix::FailFast);
+        assert_ne!(Prefix::Fix, Prefix::Advisory);
+    }
+
+    #[test]
+    fn fix_prefix_in_mixed_content() {
+        let input = "! cargo clippy\n~ cargo fmt\n? cargo test\n";
+        let commands = parse(input);
+        assert_eq!(commands.len(), 3);
+        assert_eq!(commands[0].prefix, Prefix::FailFast);
+        assert_eq!(commands[1].prefix, Prefix::Fix);
+        assert_eq!(commands[2].prefix, Prefix::Advisory);
     }
 }

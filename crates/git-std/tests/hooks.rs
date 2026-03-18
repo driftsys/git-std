@@ -402,3 +402,195 @@ fn hooks_run_fail_fast_prefix_overrides_collect_mode() {
         "skipped command output should not appear, got: {combined}"
     );
 }
+
+// --- Fix-mode (~) integration tests (#197) ---
+
+/// #197 — $@ is populated with staged file paths for pre-commit.
+///
+/// The `~` hook command runs with staged files as positional parameters.
+/// We verify $@ is non-empty by echoing "$@" and checking the file name
+/// appears in output.
+#[test]
+fn hooks_run_fix_mode_staged_files_passed_as_positional_args() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Create and stage a file so $@ is non-empty.
+    std::fs::write(dir.path().join("hello.txt"), "hello\n").unwrap();
+    git(dir.path(), &["add", "hello.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // The ~ command echoes $@ — staged file names should appear in output.
+    std::fs::write(
+        hooks_dir.join("pre-commit.hooks"),
+        "~ echo \"staged: $@\"\n",
+    )
+    .unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    let combined = format!("{stdout}{stderr}");
+    assert!(
+        combined.contains("hello.txt"),
+        "$@ should contain staged file names, got:\n{combined}"
+    );
+}
+
+/// #197 — Normal commands also receive $@ with staged file paths.
+#[test]
+fn hooks_run_staged_files_passed_to_normal_commands() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    std::fs::write(dir.path().join("world.txt"), "world\n").unwrap();
+    git(dir.path(), &["add", "world.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // Plain command (no prefix) also gets $@ with staged files.
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "echo \"files: $@\"\n").unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    let combined = format!("{stdout}{stderr}");
+    assert!(
+        combined.contains("world.txt"),
+        "$@ should contain staged file names for plain commands, got:\n{combined}"
+    );
+}
+
+/// #197 — `~` in pre-commit: stash dance runs, staged content re-staged.
+///
+/// We stage a file, then a `~` formatter appends a line to it.
+/// After the hook runs, the staged version should include the formatter's change.
+#[test]
+fn hooks_run_fix_mode_pre_commit_restages_formatted_content() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Write and stage the initial file.
+    std::fs::write(dir.path().join("fmt.txt"), "line1\n").unwrap();
+    git(dir.path(), &["add", "fmt.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // The formatter appends "formatted" to each staged file passed via $@.
+    std::fs::write(
+        hooks_dir.join("pre-commit.hooks"),
+        "~ for f in \"$@\"; do echo 'formatted' >> \"$f\"; done\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // After the hook, the staged version of fmt.txt should contain "formatted".
+    let staged_content = std::process::Command::new("git")
+        .args(["show", ":fmt.txt"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let staged_str = String::from_utf8_lossy(&staged_content.stdout);
+    assert!(
+        staged_str.contains("formatted"),
+        "staged content should include formatter output, got: {staged_str}"
+    );
+}
+
+/// #197 — `~` in a non-pre-commit hook prints a warning and treats as `!`.
+#[test]
+fn hooks_run_fix_mode_non_pre_commit_warns_and_treats_as_fail_fast() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // Use commit-msg with ~ prefix on a passing command.
+    std::fs::write(hooks_dir.join("commit-msg.hooks"), "~ true\n").unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "commit-msg"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("warning:"),
+        "should print a warning for ~ in non-pre-commit, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("pre-commit"),
+        "warning should mention pre-commit, got:\n{stderr}"
+    );
+}
+
+/// #197 — `~` in a non-pre-commit hook: failing command causes non-zero exit.
+#[test]
+fn hooks_run_fix_mode_non_pre_commit_failing_command_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // commit-msg with ~ prefix on a failing command — should fail.
+    std::fs::write(hooks_dir.join("commit-msg.hooks"), "~ false\n").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "commit-msg"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1);
+}
+
+/// #197 — No stash dance when no `~` commands are present.
+///
+/// A plain pre-commit hook with no `~` commands should not attempt any stash
+/// operations (the hook runs normally).
+#[test]
+fn hooks_run_no_stash_dance_without_fix_commands() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    std::fs::write(dir.path().join("file.txt"), "content\n").unwrap();
+    git(dir.path(), &["add", "file.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "true\n").unwrap();
+
+    // Should succeed without any stash-related warnings.
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        !stderr.contains("stash"),
+        "no stash messages expected for hook without ~ commands, got:\n{stderr}"
+    );
+}
