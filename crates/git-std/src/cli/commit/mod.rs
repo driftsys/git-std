@@ -1,28 +1,7 @@
-use std::io::IsTerminal;
+mod assemble;
+mod prompt;
 
-use crate::config::{ProjectConfig, ScopesConfig};
 use crate::ui;
-use anyhow::{Result, bail};
-use inquire::{
-    Select, Text,
-    validator::{ErrorMessage, Validation},
-};
-use standard_commit::ConventionalCommit;
-
-/// Standard commit type descriptions, keyed by type name.
-const TYPE_DESCRIPTIONS: &[(&str, &str)] = &[
-    ("feat", "A new feature"),
-    ("fix", "A bug fix"),
-    ("docs", "Documentation only"),
-    ("style", "Formatting, no code change"),
-    ("refactor", "Code change, no feature or fix"),
-    ("perf", "Performance improvement"),
-    ("test", "Adding or fixing tests"),
-    ("build", "Build system or dependencies"),
-    ("ci", "CI configuration"),
-    ("chore", "Other changes"),
-    ("revert", "Reverts a previous commit"),
-];
 
 /// Options passed from CLI flags to the commit flow.
 pub struct CommitOptions {
@@ -36,46 +15,9 @@ pub struct CommitOptions {
     pub all: bool,
 }
 
-/// Raw prompt answers before assembly into a `ConventionalCommit`.
-struct PromptAnswers {
-    commit_type: String,
-    scope: Option<String>,
-    description: String,
-    body: Option<String>,
-    breaking: Option<String>,
-    refs: Vec<String>,
-}
-
-/// Assemble a `ConventionalCommit` from raw prompt answers.
-fn build_commit(answers: PromptAnswers) -> ConventionalCommit {
-    let is_breaking = answers.breaking.is_some();
-    let mut footers = Vec::new();
-    if let Some(desc) = answers.breaking {
-        footers.push(standard_commit::Footer {
-            token: "BREAKING CHANGE".into(),
-            value: desc,
-        });
-    }
-    if !answers.refs.is_empty() {
-        footers.push(standard_commit::Footer {
-            token: "Refs".into(),
-            value: answers.refs.join(", "),
-        });
-    }
-
-    ConventionalCommit {
-        r#type: answers.commit_type,
-        scope: answers.scope,
-        description: answers.description,
-        body: answers.body,
-        footers,
-        is_breaking,
-    }
-}
-
 /// Run the commit flow: prompt (or use flags), format, validate, commit.
-pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
-    let answers = match gather_answers(config, opts) {
+pub fn run_interactive(config: &crate::config::ProjectConfig, opts: &CommitOptions) -> i32 {
+    let answers = match assemble::gather_answers(config, opts) {
         Ok(a) => a,
         Err(e) => {
             ui::error(&e.to_string());
@@ -83,7 +25,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
         }
     };
 
-    let commit = build_commit(answers);
+    let commit = assemble::build_commit(answers);
     let message = standard_commit::format(&commit);
 
     if let Err(e) = standard_commit::parse(&message) {
@@ -136,186 +78,11 @@ fn print_commit_result(dir: &std::path::Path, amend: bool) {
     ui::heading("", &format!("{action} [{branch} {sha}]"));
 }
 
-/// Gather answers from flags and/or interactive prompts.
-///
-/// When all required fields (`--type` and `--message`) are provided via flags,
-/// prompts are skipped entirely (non-interactive mode). When some flags are
-/// given, only the missing fields are prompted.
-fn gather_answers(config: &ProjectConfig, opts: &CommitOptions) -> Result<PromptAnswers> {
-    let fully_non_interactive = opts.commit_type.is_some() && opts.message.is_some();
-
-    if !fully_non_interactive && !std::io::stdin().is_terminal() {
-        bail!(
-            "interactive prompts require a TTY \u{2014} use --message to provide a commit message non-interactively"
-        );
-    }
-
-    let commit_type = if let Some(t) = &opts.commit_type {
-        t.clone()
-    } else {
-        prompt_type(&config.types)?
-    };
-
-    let scope = if opts.scope.is_some() {
-        opts.scope.clone()
-    } else if fully_non_interactive {
-        None
-    } else {
-        prompt_scope(config)?
-    };
-
-    let description = if let Some(m) = &opts.message {
-        m.clone()
-    } else {
-        prompt_description()?
-    };
-
-    let body = if fully_non_interactive {
-        None
-    } else {
-        prompt_body()?
-    };
-
-    let breaking = if opts.breaking.is_some() {
-        opts.breaking.clone()
-    } else if fully_non_interactive {
-        None
-    } else {
-        prompt_breaking()?
-    };
-
-    let refs = if fully_non_interactive {
-        vec![]
-    } else {
-        prompt_refs()?
-    };
-
-    Ok(PromptAnswers {
-        commit_type,
-        scope,
-        description,
-        body,
-        breaking,
-        refs,
-    })
-}
-
-fn prompt_type(types: &[String]) -> Result<String> {
-    let display: Vec<String> = types
-        .iter()
-        .map(|t| {
-            TYPE_DESCRIPTIONS
-                .iter()
-                .find(|(name, _)| *name == t.as_str())
-                .map(|(_, desc)| format!("{t} \u{2014} {desc}"))
-                .unwrap_or_else(|| t.clone())
-        })
-        .collect();
-    let display_refs: Vec<&str> = display.iter().map(|s| s.as_str()).collect();
-    let choice = Select::new("type:", display_refs).raw_prompt()?;
-    Ok(types[choice.index].clone())
-}
-
-fn prompt_scope(config: &ProjectConfig) -> Result<Option<String>> {
-    match &config.scopes {
-        ScopesConfig::None => Ok(None),
-        ScopesConfig::List(scopes) => {
-            let items: Vec<&str> = scopes.iter().map(|s| s.as_str()).collect();
-            let selection = Select::new("scope:", items).prompt()?;
-            Ok(Some(selection.to_string()))
-        }
-        ScopesConfig::Auto => {
-            let cwd = std::env::current_dir().unwrap_or_default();
-            let discovered = config.resolved_scopes(&cwd);
-            if discovered.is_empty() {
-                let mut prompt = Text::new("scope:");
-                if config.strict {
-                    prompt = prompt.with_validator(|input: &str| {
-                        if input.trim().is_empty() {
-                            Ok(Validation::Invalid(ErrorMessage::Custom(
-                                "scope is required (strict mode)".into(),
-                            )))
-                        } else {
-                            Ok(Validation::Valid)
-                        }
-                    });
-                } else {
-                    prompt = prompt.with_help_message("optional");
-                }
-                let scope = prompt.prompt()?;
-                if scope.is_empty() {
-                    Ok(None)
-                } else {
-                    Ok(Some(scope))
-                }
-            } else {
-                let items: Vec<&str> = discovered.iter().map(|s| s.as_str()).collect();
-                let selection = Select::new("scope:", items).prompt()?;
-                Ok(Some(selection.to_string()))
-            }
-        }
-    }
-}
-
-fn prompt_description() -> Result<String> {
-    let desc = Text::new("subject:")
-        .with_validator(|input: &str| {
-            if input.trim().is_empty() {
-                Ok(Validation::Invalid(ErrorMessage::Custom(
-                    "subject may not be empty".into(),
-                )))
-            } else {
-                Ok(Validation::Valid)
-            }
-        })
-        .prompt()?;
-    Ok(desc)
-}
-
-fn prompt_body() -> Result<Option<String>> {
-    let mut paragraphs: Vec<String> = Vec::new();
-    loop {
-        let line = Text::new("body:").with_help_message("optional").prompt()?;
-        if line.is_empty() {
-            break;
-        }
-        paragraphs.push(line);
-    }
-    if paragraphs.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(paragraphs.join("\n\n")))
-    }
-}
-
-fn prompt_breaking() -> Result<Option<String>> {
-    let desc = Text::new("breaks:")
-        .with_help_message("optional")
-        .prompt()?;
-    if desc.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(desc))
-    }
-}
-
-fn prompt_refs() -> Result<Vec<String>> {
-    let mut refs: Vec<String> = Vec::new();
-    loop {
-        let input = Text::new("issues:")
-            .with_help_message("optional")
-            .prompt()?;
-        if input.is_empty() {
-            break;
-        }
-        refs.push(input);
-    }
-    Ok(refs)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::{ProjectConfig, ScopesConfig};
+    use assemble::{PromptAnswers, build_commit, gather_answers};
 
     #[test]
     fn minimal_commit() {
