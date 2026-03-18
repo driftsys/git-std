@@ -143,6 +143,41 @@ fn commit_short_flags() {
         .stderr(predicate::str::contains("feat: short flag"));
 }
 
+#[test]
+fn commit_fails_fast_when_stdin_is_not_a_tty() {
+    // Piping stdin makes it non-TTY; without --type and --message the command
+    // should fail immediately with a clear error rather than hanging.
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["commit"])
+        .write_stdin("")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "interactive prompts require a TTY \u{2014} use --message to provide a commit message non-interactively",
+        ));
+}
+
+#[test]
+fn commit_non_interactive_with_type_and_message_works_in_piped_context() {
+    // When --type and --message are both provided, no prompt is needed; the
+    // command must succeed even with a piped (non-TTY) stdin.
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args([
+            "commit",
+            "--type",
+            "feat",
+            "-m",
+            "no tty needed",
+            "--dry-run",
+        ])
+        .write_stdin("")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("feat: no tty needed"));
+}
+
 // --- Commit integration tests (actual repo) ---
 
 /// Helper: run a git command and return stdout.

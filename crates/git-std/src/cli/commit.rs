@@ -1,3 +1,5 @@
+use std::io::IsTerminal;
+
 use crate::config::{ProjectConfig, ScopesConfig};
 use crate::ui;
 use inquire::{
@@ -143,6 +145,10 @@ fn gather_answers(
     opts: &CommitOptions,
 ) -> Result<PromptAnswers, Box<dyn std::error::Error>> {
     let fully_non_interactive = opts.commit_type.is_some() && opts.message.is_some();
+
+    if !fully_non_interactive && !std::io::stdin().is_terminal() {
+        return Err("interactive prompts require a TTY \u{2014} use --message to provide a commit message non-interactively".into());
+    }
 
     let commit_type = if let Some(t) = &opts.commit_type {
         t.clone()
