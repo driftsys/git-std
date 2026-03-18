@@ -125,13 +125,13 @@ git std hooks disable <hook>   # deactivate a hook (rename shim → .off)
 
 **Subcommands:**
 
-| Subcommand       | Description                                      |
-| ---------------- | ------------------------------------------------ |
-| `install`        | Write shim scripts and `.hooks` templates        |
-| `run <hook>`     | Execute a hook manually                          |
-| `list`           | Display all hooks with enabled/disabled status   |
-| `enable <hook>`  | Activate a disabled hook                         |
-| `disable <hook>` | Deactivate an enabled hook                       |
+| Subcommand       | Description                                    |
+| ---------------- | ---------------------------------------------- |
+| `install`        | Write shim scripts and `.hooks` templates      |
+| `run <hook>`     | Execute a hook manually                        |
+| `list`           | Display all hooks with enabled/disabled status |
+| `enable <hook>`  | Activate a disabled hook                       |
+| `disable <hook>` | Deactivate an enabled hook                     |
 
 **Known hook types:** `pre-commit`, `commit-msg`, `pre-push`,
 `post-commit`, `prepare-commit-msg`, `post-merge`.
@@ -328,11 +328,11 @@ patch.
 
 #### `[changelog]`
 
-| Field     | Type     | Default                                     | Description                          |
-| --------- | -------- | ------------------------------------------- | ------------------------------------ |
-| `title`   | string   | _(none)_                                    | Custom changelog title               |
-| `hidden`  | string[] | `["chore", "ci", "build", "style", "test"]` | Types excluded from changelog        |
-| `bug_url` | string   | _(none)_                                    | URL template for bug/issue links     |
+| Field     | Type     | Default                                     | Description                      |
+| --------- | -------- | ------------------------------------------- | -------------------------------- |
+| `title`   | string   | _(none)_                                    | Custom changelog title           |
+| `hidden`  | string[] | `["chore", "ci", "build", "style", "test"]` | Types excluded from changelog    |
+| `bug_url` | string   | _(none)_                                    | URL template for bug/issue links |
 
 #### `[changelog.sections]`
 
