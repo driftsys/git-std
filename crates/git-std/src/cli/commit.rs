@@ -92,7 +92,7 @@ pub fn run_interactive(config: &ProjectConfig, opts: &CommitOptions) -> i32 {
     }
 
     if opts.dry_run {
-        eprintln!("{}{message}", ui::INDENT);
+        ui::info(&message);
         return 0;
     }
 

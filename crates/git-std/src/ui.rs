@@ -59,3 +59,35 @@ pub fn item(label: &str, value: &str) {
         width = LABEL_WIDTH
     );
 }
+
+/// Print an indented informational line (two-space indent).
+pub fn info(msg: &str) {
+    eprintln!("{INDENT}{msg}");
+}
+
+/// Print a detail-indented line (four-space indent).
+pub fn detail(msg: &str) {
+    eprintln!("{DETAIL_INDENT}{msg}");
+}
+
+/// Print a hint line (two-space indent, no prefix).
+pub fn hint(msg: &str) {
+    eprintln!("{INDENT}hint: {msg}");
+}
+
+/// Print a summary count line (`valid_count/total valid`).
+pub fn summary_counts(valid: usize, total: usize) {
+    eprintln!("{valid}/{total} valid");
+}
+
+/// Print a plain message to stderr with no indentation.
+pub fn print(msg: &str) {
+    eprintln!("{msg}");
+}
+
+/// Print a plain indented line to stderr (two-space indent) with a leading symbol.
+///
+/// Suitable for check/hook result lines: `  ✓ <text>` or `  ✗ <text>`.
+pub fn result_line(msg: &str) {
+    eprintln!("{INDENT}{msg}");
+}

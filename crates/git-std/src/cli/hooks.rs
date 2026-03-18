@@ -85,31 +85,19 @@ fn execute_and_print(cmd: &HookCommand, msg_path: &str) -> (CommandResult, bool)
 
     // Print the result line
     if success {
-        eprintln!("{INDENT}{} {}", ui::pass(), display, INDENT = ui::INDENT);
+        ui::result_line(&format!("{} {}", ui::pass(), display));
     } else if is_advisory {
         let info = match exit_code {
             Some(code) => format!("(advisory, exit {code})"),
             None => "(advisory, killed)".to_string(),
         };
-        eprintln!(
-            "{INDENT}{} {} {}",
-            ui::warn(),
-            display,
-            info.yellow(),
-            INDENT = ui::INDENT
-        );
+        ui::result_line(&format!("{} {} {}", ui::warn(), display, info.yellow()));
     } else {
         let info = match exit_code {
             Some(code) => format!("(exit {code})"),
             None => "(killed)".to_string(),
         };
-        eprintln!(
-            "{INDENT}{} {} {}",
-            ui::fail(),
-            display,
-            info.red(),
-            INDENT = ui::INDENT
-        );
+        ui::result_line(&format!("{} {} {}", ui::fail(), display, info.red()));
     }
 
     let failed = !success && !is_advisory;
@@ -133,11 +121,10 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
     if let Ok(val) = std::env::var("GIT_STD_SKIP_HOOKS")
         && (val == "1" || val.eq_ignore_ascii_case("true"))
     {
-        eprintln!(
-            "{INDENT}{} hooks skipped (GIT_STD_SKIP_HOOKS)",
-            ui::warn(),
-            INDENT = ui::INDENT
-        );
+        ui::result_line(&format!(
+            "{} hooks skipped (GIT_STD_SKIP_HOOKS)",
+            ui::warn()
+        ));
         return 0;
     }
 
@@ -195,16 +182,15 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
             let remaining = commands.len() - results.len();
             if remaining > 0 {
                 ui::blank();
-                eprintln!(
-                    "{INDENT}{} remaining {} skipped (fail-fast)",
+                ui::info(&format!(
+                    "{} remaining {} skipped (fail-fast)",
                     remaining,
                     if remaining == 1 {
                         "command"
                     } else {
                         "commands"
                     },
-                    INDENT = ui::INDENT,
-                );
+                ));
             }
             ui::blank();
             return 1;
@@ -237,7 +223,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
                 }
             ));
         }
-        eprintln!("{INDENT}{}", parts.join(", "), INDENT = ui::INDENT);
+        ui::info(&parts.join(", "));
     }
 
     if has_failure { 1 } else { 0 }
@@ -263,15 +249,14 @@ pub fn install() -> i32 {
 
     match status {
         Ok(s) if s.success() => {
-            eprintln!(
-                "{INDENT}{}  core.hooksPath \u{2192} .githooks",
-                ui::pass(),
-                INDENT = ui::INDENT,
-            );
+            ui::result_line(&format!(
+                "{}  core.hooksPath \u{2192} .githooks",
+                ui::pass()
+            ));
         }
         _ => {
             ui::error("failed to set core.hooksPath");
-            eprintln!("  hint: ensure you are inside a git repository and have write access");
+            ui::hint("ensure you are inside a git repository and have write access");
             return 1;
         }
     }
@@ -376,11 +361,7 @@ pub fn install() -> i32 {
             "disabled".dim().to_string()
         };
 
-        eprintln!(
-            "{INDENT}{}  {hook_name:<22} {status_label}",
-            ui::pass(),
-            INDENT = ui::INDENT,
-        );
+        ui::result_line(&format!("{}  {hook_name:<22} {status_label}", ui::pass()));
     }
 
     0
@@ -401,11 +382,7 @@ pub fn enable(hook_name: &str) -> i32 {
     let off_path = hooks_dir.join(format!("{hook_name}.off"));
 
     if active_path.exists() {
-        eprintln!(
-            "{INDENT}{} {hook_name} is already enabled",
-            ui::warn(),
-            INDENT = ui::INDENT
-        );
+        ui::result_line(&format!("{} {hook_name} is already enabled", ui::warn()));
         return 0;
     }
 
@@ -428,11 +405,7 @@ pub fn enable(hook_name: &str) -> i32 {
         let _ = std::fs::set_permissions(&active_path, perms);
     }
 
-    eprintln!(
-        "{INDENT}{}  {hook_name} enabled",
-        ui::pass(),
-        INDENT = ui::INDENT
-    );
+    ui::result_line(&format!("{}  {hook_name} enabled", ui::pass()));
     0
 }
 
@@ -451,11 +424,7 @@ pub fn disable(hook_name: &str) -> i32 {
     let off_path = hooks_dir.join(format!("{hook_name}.off"));
 
     if off_path.exists() {
-        eprintln!(
-            "{INDENT}{} {hook_name} is already disabled",
-            ui::warn(),
-            INDENT = ui::INDENT
-        );
+        ui::result_line(&format!("{} {hook_name} is already disabled", ui::warn()));
         return 0;
     }
 
@@ -471,11 +440,7 @@ pub fn disable(hook_name: &str) -> i32 {
         return 1;
     }
 
-    eprintln!(
-        "{INDENT}{}  {hook_name} disabled",
-        ui::pass(),
-        INDENT = ui::INDENT
-    );
+    ui::result_line(&format!("{}  {hook_name} disabled", ui::pass()));
     0
 }
 
@@ -486,10 +451,7 @@ pub fn list() -> i32 {
     let hooks_dir = std::path::Path::new(".githooks");
 
     if !hooks_dir.exists() {
-        eprintln!(
-            "{INDENT}no hooks installed — run 'git std hooks install'",
-            INDENT = ui::INDENT
-        );
+        ui::info("no hooks installed — run 'git std hooks install'");
         return 0;
     }
 
