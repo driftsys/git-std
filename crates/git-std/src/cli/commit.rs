@@ -2,6 +2,7 @@ use std::io::IsTerminal;
 
 use crate::config::{ProjectConfig, ScopesConfig};
 use crate::ui;
+use anyhow::{Result, bail};
 use inquire::{
     Select, Text,
     validator::{ErrorMessage, Validation},
@@ -140,14 +141,13 @@ fn print_commit_result(dir: &std::path::Path, amend: bool) {
 /// When all required fields (`--type` and `--message`) are provided via flags,
 /// prompts are skipped entirely (non-interactive mode). When some flags are
 /// given, only the missing fields are prompted.
-fn gather_answers(
-    config: &ProjectConfig,
-    opts: &CommitOptions,
-) -> Result<PromptAnswers, Box<dyn std::error::Error>> {
+fn gather_answers(config: &ProjectConfig, opts: &CommitOptions) -> Result<PromptAnswers> {
     let fully_non_interactive = opts.commit_type.is_some() && opts.message.is_some();
 
     if !fully_non_interactive && !std::io::stdin().is_terminal() {
-        return Err("interactive prompts require a TTY \u{2014} use --message to provide a commit message non-interactively".into());
+        bail!(
+            "interactive prompts require a TTY \u{2014} use --message to provide a commit message non-interactively"
+        );
     }
 
     let commit_type = if let Some(t) = &opts.commit_type {
@@ -200,7 +200,7 @@ fn gather_answers(
     })
 }
 
-fn prompt_type(types: &[String]) -> Result<String, Box<dyn std::error::Error>> {
+fn prompt_type(types: &[String]) -> Result<String> {
     let display: Vec<String> = types
         .iter()
         .map(|t| {
@@ -216,7 +216,7 @@ fn prompt_type(types: &[String]) -> Result<String, Box<dyn std::error::Error>> {
     Ok(types[choice.index].clone())
 }
 
-fn prompt_scope(config: &ProjectConfig) -> Result<Option<String>, Box<dyn std::error::Error>> {
+fn prompt_scope(config: &ProjectConfig) -> Result<Option<String>> {
     match &config.scopes {
         ScopesConfig::None => Ok(None),
         ScopesConfig::List(scopes) => {
@@ -257,7 +257,7 @@ fn prompt_scope(config: &ProjectConfig) -> Result<Option<String>, Box<dyn std::e
     }
 }
 
-fn prompt_description() -> Result<String, Box<dyn std::error::Error>> {
+fn prompt_description() -> Result<String> {
     let desc = Text::new("subject:")
         .with_validator(|input: &str| {
             if input.trim().is_empty() {
@@ -272,7 +272,7 @@ fn prompt_description() -> Result<String, Box<dyn std::error::Error>> {
     Ok(desc)
 }
 
-fn prompt_body() -> Result<Option<String>, Box<dyn std::error::Error>> {
+fn prompt_body() -> Result<Option<String>> {
     let mut paragraphs: Vec<String> = Vec::new();
     loop {
         let line = Text::new("body:").with_help_message("optional").prompt()?;
@@ -288,7 +288,7 @@ fn prompt_body() -> Result<Option<String>, Box<dyn std::error::Error>> {
     }
 }
 
-fn prompt_breaking() -> Result<Option<String>, Box<dyn std::error::Error>> {
+fn prompt_breaking() -> Result<Option<String>> {
     let desc = Text::new("breaks:")
         .with_help_message("optional")
         .prompt()?;
@@ -299,7 +299,7 @@ fn prompt_breaking() -> Result<Option<String>, Box<dyn std::error::Error>> {
     }
 }
 
-fn prompt_refs() -> Result<Vec<String>, Box<dyn std::error::Error>> {
+fn prompt_refs() -> Result<Vec<String>> {
     let mut refs: Vec<String> = Vec::new();
     loop {
         let input = Text::new("issues:")

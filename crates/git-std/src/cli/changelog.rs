@@ -1,3 +1,4 @@
+use anyhow::Result;
 use standard_changelog::{ChangelogConfig, RepoHost, VersionRelease};
 
 use crate::git;
@@ -119,7 +120,7 @@ pub(crate) fn build_release_from_commits(
 fn build_unreleased(
     dir: &std::path::Path,
     config: &ChangelogConfig,
-) -> Result<Option<VersionRelease>, Box<dyn std::error::Error>> {
+) -> Result<Option<VersionRelease>> {
     let tags = git::collect_tags(dir)?;
 
     let head_oid = git::head_oid(dir)?;
@@ -211,10 +212,7 @@ fn run_range(
 }
 
 /// Build version releases from git history.
-fn build_releases(
-    dir: &std::path::Path,
-    config: &ChangelogConfig,
-) -> Result<Vec<VersionRelease>, Box<dyn std::error::Error>> {
+fn build_releases(dir: &std::path::Path, config: &ChangelogConfig) -> Result<Vec<VersionRelease>> {
     let tags = git::collect_tags(dir)?;
 
     let mut releases = Vec::new();
