@@ -100,7 +100,7 @@ jobs:
         if: matrix.target != 'aarch64-unknown-linux-musl'
         run: cargo build --release --target ${{ matrix.target }}
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: git-std-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/git-std${{ contains(matrix.target, 'windows') && '.exe' || '' }}
