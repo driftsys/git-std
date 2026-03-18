@@ -40,27 +40,20 @@ pub fn run(message: &str, lint_config: Option<&LintConfig>, format: OutputFormat
     if let Some(config) = lint_config {
         let errors = standard_commit::lint(message, config);
         if errors.is_empty() {
-            eprintln!("{} {}", ui::pass(), "valid".green());
+            ui::print(&format!("{} {}", ui::pass(), "valid".green()));
             return 0;
         }
         for error in &errors {
-            eprintln!("{} {}", ui::fail(), error.to_string().red());
+            ui::print(&format!("{} {}", ui::fail(), error.to_string().red()));
         }
-        eprintln!(
-            "{INDENT}Expected: <type>(<scope>): <description>",
-            INDENT = ui::INDENT
-        );
-        eprintln!(
-            "{INDENT}Got:      {}",
-            first_line(message),
-            INDENT = ui::INDENT
-        );
+        ui::info("Expected: <type>(<scope>): <description>");
+        ui::info(&format!("Got:      {}", first_line(message)));
         return 1;
     }
 
     match standard_commit::parse(message) {
         Ok(_) => {
-            eprintln!("{} {}", ui::pass(), "valid".green());
+            ui::print(&format!("{} {}", ui::pass(), "valid".green()));
             0
         }
         Err(e) => {
@@ -170,15 +163,14 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
             if errors.is_empty() {
                 true
             } else {
-                eprintln!(
-                    "{INDENT}{} {} {}",
+                ui::result_line(&format!(
+                    "{} {} {}",
                     ui::fail(),
                     short,
                     first_line(message).red(),
-                    INDENT = ui::INDENT,
-                );
+                ));
                 for error in &errors {
-                    eprintln!("{DETAIL}\u{2192} {}", error, DETAIL = ui::DETAIL_INDENT,);
+                    ui::detail(&format!("\u{2192} {}", error));
                 }
                 false
             }
@@ -186,27 +178,25 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
             match standard_commit::parse(message) {
                 Ok(_) => true,
                 Err(e) => {
-                    eprintln!(
-                        "{INDENT}{} {} {}",
+                    ui::result_line(&format!(
+                        "{} {} {}",
                         ui::fail(),
                         short,
                         first_line(message).red(),
-                        INDENT = ui::INDENT,
-                    );
-                    eprintln!("{DETAIL}\u{2192} {}", e, DETAIL = ui::DETAIL_INDENT,);
+                    ));
+                    ui::detail(&format!("\u{2192} {}", e));
                     false
                 }
             }
         };
 
         if valid {
-            eprintln!(
-                "{INDENT}{} {} {}",
+            ui::result_line(&format!(
+                "{} {} {}",
                 ui::pass(),
                 short,
                 first_line(message).green(),
-                INDENT = ui::INDENT,
-            );
+            ));
         } else {
             failures += 1;
         }
@@ -214,7 +204,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
 
     let valid_count = total - failures;
     ui::blank();
-    eprintln!("{}/{} valid", valid_count, total);
+    ui::summary_counts(valid_count, total);
 
     if failures > 0 { 1 } else { 0 }
 }
@@ -273,16 +263,13 @@ fn strip_comments(content: &str) -> String {
 }
 
 fn print_diagnostic(message: &str, error: &standard_commit::ParseError) {
-    eprintln!("{} {}", ui::fail(), format!("invalid: {error}").red());
-    eprintln!(
-        "{INDENT}Expected: <type>(<scope>): <description>",
-        INDENT = ui::INDENT
-    );
-    eprintln!(
-        "{INDENT}Got:      {}",
-        first_line(message),
-        INDENT = ui::INDENT
-    );
+    ui::print(&format!(
+        "{} {}",
+        ui::fail(),
+        format!("invalid: {error}").red()
+    ));
+    ui::info("Expected: <type>(<scope>): <description>");
+    ui::info(&format!("Got:      {}", first_line(message)));
 }
 
 fn first_line(s: &str) -> &str {

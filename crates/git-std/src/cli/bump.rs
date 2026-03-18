@@ -118,10 +118,7 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
                     "Analysing commits since ",
                     &format!("{}...", cur_ver_str.bold()),
                 );
-                eprintln!(
-                    "{DETAIL}no bump-worthy commits found",
-                    DETAIL = ui::DETAIL_INDENT
-                );
+                ui::detail("no bump-worthy commits found");
                 ui::blank();
                 return 0;
             }
@@ -161,11 +158,10 @@ pub fn run(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     };
 
     ui::blank();
-    eprintln!(
-        "{INDENT}{} ({bump_reason})",
+    ui::info(&format!(
+        "{} ({bump_reason})",
         format!("{cur_ver} \u{2192} {new_version}").bold(),
-        INDENT = ui::INDENT,
-    );
+    ));
 
     let prev_ver_str = current_version.as_ref().map(|(_, v)| v.to_string());
 
@@ -225,10 +221,10 @@ fn finalize_bump(
 
         match standard_version::detect_version_files(workdir, &custom_files) {
             Ok(detected) if detected.is_empty() => {
-                eprintln!("{INDENT}No version files detected", INDENT = ui::INDENT);
+                ui::info("No version files detected");
             }
             Ok(detected) => {
-                eprintln!("{INDENT}Would update:", INDENT = ui::INDENT);
+                ui::info("Would update:");
                 for f in &detected {
                     let rel = f.path.strip_prefix(workdir).unwrap_or(&f.path).display();
                     ui::item(
@@ -238,32 +234,22 @@ fn finalize_bump(
                 }
             }
             Err(e) => {
-                eprintln!(
-                    "{INDENT}warning: cannot detect version files: {e}",
-                    INDENT = ui::INDENT,
-                );
+                ui::warning(&format!("cannot detect version files: {e}"));
             }
         }
 
         if !opts.skip_changelog {
-            eprintln!(
-                "{INDENT}Would update: CHANGELOG.md         prepend {tag_prefix}{new_version} section",
-                INDENT = ui::INDENT,
-            );
+            ui::info(&format!(
+                "Would update: CHANGELOG.md         prepend {tag_prefix}{new_version} section"
+            ));
         }
 
         if !opts.no_commit {
-            eprintln!(
-                "{INDENT}Would commit: chore(release): {new_version}",
-                INDENT = ui::INDENT,
-            );
+            ui::info(&format!("Would commit: chore(release): {new_version}"));
         }
 
         if !opts.no_commit && !opts.no_tag {
-            eprintln!(
-                "{INDENT}Would tag:    {tag_prefix}{new_version}",
-                INDENT = ui::INDENT,
-            );
+            ui::info(&format!("Would tag:    {tag_prefix}{new_version}"));
         }
 
         ui::blank();
@@ -320,7 +306,7 @@ fn finalize_bump(
     // Print updated files.
     if !version_results.is_empty() {
         ui::blank();
-        eprintln!("{INDENT}Updated:", INDENT = ui::INDENT);
+        ui::info("Updated:");
         for r in &version_results {
             let rel = r.path.strip_prefix(workdir).unwrap_or(&r.path).display();
             ui::item(
@@ -335,7 +321,7 @@ fn finalize_bump(
 
     if !opts.skip_changelog {
         ui::blank();
-        eprintln!("{INDENT}Changelog:", INDENT = ui::INDENT);
+        ui::info("Changelog:");
         ui::item(
             "CHANGELOG.md",
             &format!("prepended {tag_prefix}{new_version} section"),
@@ -379,11 +365,7 @@ fn finalize_bump(
         }
 
         ui::blank();
-        eprintln!(
-            "{INDENT}Committed: {}",
-            commit_msg.green(),
-            INDENT = ui::INDENT,
-        );
+        ui::info(&format!("Committed: {}", commit_msg.green()));
     }
 
     // Create annotated tag.
@@ -401,18 +383,11 @@ fn finalize_bump(
             return 1;
         }
 
-        eprintln!(
-            "{INDENT}Tagged:    {}",
-            tag_name.green(),
-            INDENT = ui::INDENT,
-        );
+        ui::info(&format!("Tagged:    {}", tag_name.green()));
     }
 
     ui::blank();
-    eprintln!(
-        "{INDENT}Push with: git push --follow-tags",
-        INDENT = ui::INDENT,
-    );
+    ui::info("Push with: git push --follow-tags");
     ui::blank();
 
     0
@@ -434,7 +409,7 @@ fn print_summary(summary: &standard_version::BumpSummary) {
         parts.push(format!("{} other", summary.other_count));
     }
     if !parts.is_empty() {
-        eprintln!("{DETAIL}{}", parts.join(", "), DETAIL = ui::DETAIL_INDENT);
+        ui::detail(&parts.join(", "));
     }
 }
 
@@ -609,37 +584,25 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     if opts.dry_run {
         ui::blank();
-        eprintln!("{INDENT}Creating stable branch...", INDENT = ui::INDENT);
+        ui::info("Creating stable branch...");
         ui::item("Branch:", &stable_branch_name);
         ui::item("Scheme:", "patch (patch-only bumps)");
         ui::blank();
-        eprintln!(
-            "{INDENT}Would commit: chore(release): stabilize v{}.{}",
-            cur_ver.major,
-            cur_ver.minor,
-            INDENT = ui::INDENT,
-        );
+        ui::info(&format!(
+            "Would commit: chore(release): stabilize v{}.{}",
+            cur_ver.major, cur_ver.minor,
+        ));
         ui::blank();
-        eprintln!(
-            "{INDENT}Advancing {original_branch}...",
-            INDENT = ui::INDENT
-        );
-        eprintln!(
-            "{DETAIL}{} ({bump_kind})",
+        ui::info(&format!("Advancing {original_branch}..."));
+        ui::detail(&format!(
+            "{} ({bump_kind})",
             format!("{cur_ver} \u{2192} {new_version}").bold(),
-            DETAIL = ui::DETAIL_INDENT,
-        );
+        ));
         ui::blank();
-        eprintln!(
-            "{INDENT}Would commit: chore(release): {new_version}",
-            INDENT = ui::INDENT,
-        );
-        eprintln!(
-            "{INDENT}Would tag:    {tag_prefix}{new_version}",
-            INDENT = ui::INDENT,
-        );
+        ui::info(&format!("Would commit: chore(release): {new_version}"));
+        ui::info(&format!("Would tag:    {tag_prefix}{new_version}"));
         ui::blank();
-        eprintln!("{INDENT}Push with:", INDENT = ui::INDENT);
+        ui::info("Push with:");
         ui::item("", &format!("git push origin {stable_branch_name}"));
         ui::item("", "git push --follow-tags");
         ui::blank();
@@ -695,15 +658,11 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     }
 
     ui::blank();
-    eprintln!("{INDENT}Creating stable branch...", INDENT = ui::INDENT);
+    ui::info("Creating stable branch...");
     ui::item("Branch:", &stable_branch_name);
     ui::item("Scheme:", "patch (patch-only bumps)");
     ui::blank();
-    eprintln!(
-        "{INDENT}Committed: {}",
-        stabilize_msg.green(),
-        INDENT = ui::INDENT,
-    );
+    ui::info(&format!("Committed: {}", stabilize_msg.green()));
 
     if let Err(e) = git::checkout_branch(dir, &original_branch) {
         ui::error(&format!("cannot checkout branch '{original_branch}': {e}"));
@@ -711,15 +670,11 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     }
 
     ui::blank();
-    eprintln!(
-        "{INDENT}Advancing {original_branch}...",
-        INDENT = ui::INDENT
-    );
-    eprintln!(
-        "{DETAIL}{} ({bump_kind})",
+    ui::info(&format!("Advancing {original_branch}..."));
+    ui::detail(&format!(
+        "{} ({bump_kind})",
         format!("{cur_ver} \u{2192} {new_version}").bold(),
-        DETAIL = ui::DETAIL_INDENT,
-    );
+    ));
 
     let head_oid = match git::head_oid(dir) {
         Ok(oid) => oid,
@@ -751,10 +706,9 @@ fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         return exit;
     }
 
-    eprintln!(
-        "{INDENT}Push stable: git push origin {stable_branch_name}",
-        INDENT = ui::INDENT,
-    );
+    ui::info(&format!(
+        "Push stable: git push origin {stable_branch_name}"
+    ));
     ui::blank();
 
     0
@@ -873,11 +827,10 @@ fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let new_version = semver::Version::new(cur_ver.major, cur_ver.minor, cur_ver.patch + 1);
 
     ui::blank();
-    eprintln!(
-        "{INDENT}{} (patch)",
+    ui::info(&format!(
+        "{} (patch)",
         format!("{cur_ver} \u{2192} {new_version}").bold(),
-        INDENT = ui::INDENT,
-    );
+    ));
 
     let prev_ver_str = current_version.as_ref().map(|(_, v)| v.to_string());
 
@@ -951,11 +904,10 @@ fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     };
 
     ui::blank();
-    eprintln!(
-        "{INDENT}{} (calver)",
+    ui::info(&format!(
+        "{} (calver)",
         format!("{} \u{2192} {new_version}", prev_ver.unwrap_or("none")).bold(),
-        INDENT = ui::INDENT,
-    );
+    ));
 
     let ctx = FinalizeContext {
         new_version: new_version.clone(),

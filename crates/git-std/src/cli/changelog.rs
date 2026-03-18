@@ -64,7 +64,7 @@ fn run_incremental(
     let release = match build_unreleased(dir, config) {
         Ok(Some(r)) => r,
         Ok(None) => {
-            eprintln!("no unreleased changes found");
+            ui::print("no unreleased changes found");
             return 0;
         }
         Err(e) => {
@@ -94,7 +94,7 @@ fn write_output(content: &str, opts: &ChangelogOptions) -> i32 {
             ui::error(&format!("cannot write {}: {e}", opts.output));
             return 1;
         }
-        eprintln!("wrote {}", opts.output);
+        ui::info(&format!("wrote {}", opts.output));
     }
     0
 }
@@ -194,7 +194,7 @@ fn run_range(
             r
         }
         None => {
-            eprintln!("no conventional commits found in range {range}");
+            ui::info(&format!("no conventional commits found in range {range}"));
             return 0;
         }
     };
