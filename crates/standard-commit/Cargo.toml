@@ -11,5 +11,5 @@ keywords = ["conventional-commits", "commit", "lint", "git", "validation"]
 categories = ["development-tools", "parser-implementations"]
 
 [dependencies]
-git-conventional = "1.0.0"
+git-conventional = "1.1.0"
 thiserror = "2"
