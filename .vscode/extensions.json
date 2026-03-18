@@ -4,6 +4,6 @@
     "tamasfe.even-better-toml",
     "davidanson.vscode-markdownlint",
     "dprint.dprint",
-    "promptexecution.justlang-lsp"
+    "nefrob.vscode-just-syntax"
   ]
 }
