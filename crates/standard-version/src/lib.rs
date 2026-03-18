@@ -240,10 +240,8 @@ pub fn summarise(commits: &[ConventionalCommit]) -> BumpSummary {
 pub fn replace_version_in_toml(
     content: &str,
     new_version: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    CargoVersionFile
-        .write_version(content, new_version)
-        .map_err(|e| e.to_string().into())
+) -> Result<String, VersionFileError> {
+    CargoVersionFile.write_version(content, new_version)
 }
 
 #[cfg(test)]
