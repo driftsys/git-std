@@ -7,6 +7,7 @@ use crate::config::ProjectConfig;
 use crate::git;
 use crate::ui;
 
+use super::lock_sync;
 use super::{BumpOptions, FinalizeContext};
 
 /// Build a `VersionRelease` from raw commits for changelog generation.
@@ -64,9 +65,11 @@ pub(super) fn finalize_bump(
     if opts.dry_run {
         ui::blank();
 
-        match standard_version::detect_version_files(workdir, &custom_files) {
+        let dry_cargo_updated = match standard_version::detect_version_files(workdir, &custom_files)
+        {
             Ok(detected) if detected.is_empty() => {
                 ui::info("No version files detected");
+                false
             }
             Ok(detected) => {
                 ui::info("Would update:");
@@ -77,11 +80,15 @@ pub(super) fn finalize_bump(
                         &format!("{} \u{2192} {new_version}", f.old_version),
                     );
                 }
+                detected.iter().any(|f| f.name == "Cargo.toml")
             }
             Err(e) => {
                 ui::warning(&format!("cannot detect version files: {e}"));
+                false
             }
-        }
+        };
+
+        lock_sync::dry_run_lock_files(workdir, dry_cargo_updated);
 
         if !opts.skip_changelog {
             ui::info(&format!(
@@ -113,16 +120,9 @@ pub(super) fn finalize_bump(
             }
         };
 
-    // Sync Cargo.lock only when a Cargo.toml was actually updated.
+    // Sync ecosystem lock files.
     let cargo_updated = version_results.iter().any(|r| r.name == "Cargo.toml");
-    if cargo_updated {
-        let status = std::process::Command::new("cargo")
-            .args(["update", "--workspace"])
-            .status();
-        if let Err(e) = status {
-            ui::warning(&format!("failed to update Cargo.lock: {e}"));
-        }
-    }
+    let synced_locks = lock_sync::sync_lock_files(workdir, cargo_updated);
 
     // Generate/update changelog.
     if !opts.skip_changelog {
@@ -188,8 +188,9 @@ pub(super) fn finalize_bump(
         if !opts.skip_changelog {
             paths_to_stage.push("CHANGELOG.md");
         }
-        if cargo_updated {
-            paths_to_stage.push("Cargo.lock");
+        // Stage all successfully synced lock files.
+        for lock in &synced_locks {
+            paths_to_stage.push(lock.as_str());
         }
 
         if let Err(e) = git::stage_files(dir, &paths_to_stage) {
