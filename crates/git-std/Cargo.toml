@@ -27,7 +27,7 @@ standard-changelog = { version = "0.4.0", path = "../standard-changelog" }
 standard-commit = { version = "0.4.0", path = "../standard-commit" }
 standard-githooks = { version = "0.4.0", path = "../standard-githooks" }
 standard-version = { version = "0.4.0", path = "../standard-version" }
-toml = "0.8"
+toml = "1.0"
 yansi = "1"
 
 [dev-dependencies]
