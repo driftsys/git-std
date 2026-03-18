@@ -134,10 +134,34 @@ enum Command {
         #[command(subcommand)]
         subcommand: HooksCommand,
     },
+    /// Inspect effective git-std configuration.
+    Config {
+        #[command(subcommand)]
+        subcommand: ConfigCommand,
+    },
     /// Generate shell completion scripts.
     Completions {
         /// Target shell.
         shell: Shell,
+    },
+}
+
+/// Config subcommands.
+#[derive(Subcommand)]
+enum ConfigCommand {
+    /// List all effective configuration values with their sources.
+    List {
+        /// Output format.
+        #[arg(long, default_value = "text")]
+        format: cli::config::OutputFormat,
+    },
+    /// Get a single configuration value.
+    Get {
+        /// Dot-separated key (e.g. versioning.tag_prefix).
+        key: String,
+        /// Output format.
+        #[arg(long, default_value = "text")]
+        format: cli::config::OutputFormat,
     },
 }
 
@@ -294,6 +318,14 @@ fn main() {
                 HooksCommand::List => cli::hooks::list(),
                 HooksCommand::Enable { hook } => cli::hooks::enable(&hook),
                 HooksCommand::Disable { hook } => cli::hooks::disable(&hook),
+            };
+            std::process::exit(code);
+        }
+        Command::Config { subcommand } => {
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let code = match subcommand {
+                ConfigCommand::List { format } => cli::config::list(&cwd, format),
+                ConfigCommand::Get { key, format } => cli::config::get(&cwd, &key, format),
             };
             std::process::exit(code);
         }

@@ -33,6 +33,32 @@ pub fn load(dir: &Path) -> ProjectConfig {
     }
 }
 
+/// Load configuration along with the raw TOML table for source-tracking.
+///
+/// Returns `(config, raw_table)` where `raw_table` is `Some` when a
+/// `.git-std.toml` file was found and successfully parsed.
+pub(crate) fn load_with_raw(dir: &Path) -> (ProjectConfig, Option<toml::Table>) {
+    let path = dir.join(CONFIG_FILE);
+    match std::fs::read_to_string(&path) {
+        Ok(content) => {
+            let table: Option<toml::Table> = content.parse().ok();
+            (parse_config(&content), table)
+        }
+        Err(_) => {
+            let config = ProjectConfig {
+                types: default_types(),
+                scopes: ScopesConfig::None,
+                strict: false,
+                scheme: Scheme::default(),
+                changelog: ChangelogConfig::default(),
+                versioning: VersioningConfig::default(),
+                version_files: Vec::new(),
+            };
+            (config, None)
+        }
+    }
+}
+
 pub(crate) fn parse_config(content: &str) -> ProjectConfig {
     let table: toml::Table = match content.parse() {
         Ok(t) => t,

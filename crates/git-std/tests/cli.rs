@@ -25,6 +25,7 @@ fn help_lists_subcommands() {
         "bump",
         "changelog",
         "hooks",
+        "config",
         "completions",
     ] {
         assert!(
