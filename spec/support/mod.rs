@@ -25,6 +25,8 @@ impl TestRepo {
     }
 
     /// Write a `.githooks/<name>.hooks` file with the given content.
+    // Used by: spec/tests/hooks.rs (not referenced in every test binary)
+    #[allow(dead_code)]
     pub fn with_hooks_file(self, name: &str, content: &str) -> Self {
         let hooks_dir = self.dir.path().join(".githooks");
         std::fs::create_dir_all(&hooks_dir).expect("failed to create .githooks dir");
@@ -34,6 +36,8 @@ impl TestRepo {
     }
 
     /// Write a `.git-std.toml` config file.
+    // Used by: spec/tests/check.rs, spec/tests/bump.rs (not referenced in every test binary)
+    #[allow(dead_code)]
     pub fn with_config(self, content: &str) -> Self {
         std::fs::write(self.dir.path().join(".git-std.toml"), content)
             .expect("failed to write config");
@@ -41,6 +45,8 @@ impl TestRepo {
     }
 
     /// Write a minimal `Cargo.toml` with the given version.
+    // Used by: spec/tests/bump.rs, spec/tests/changelog.rs (not referenced in every test binary)
+    #[allow(dead_code)]
     pub fn with_cargo_toml(self, version: &str) -> Self {
         std::fs::write(
             self.dir.path().join("Cargo.toml"),
@@ -53,6 +59,8 @@ impl TestRepo {
     }
 
     /// Write a minimal `package.json` with the given version.
+    // Used by: spec/tests/bump.rs (not referenced in every test binary)
+    #[allow(dead_code)]
     pub fn with_package_json(self, version: &str) -> Self {
         std::fs::write(
             self.dir.path().join("package.json"),
@@ -76,6 +84,8 @@ impl TestRepo {
     }
 
     /// Create an annotated tag at HEAD.
+    // Used by: spec/tests/bump.rs, spec/tests/changelog.rs (not referenced in every test binary)
+    #[allow(dead_code)]
     pub fn create_tag(&self, name: &str) -> &Self {
         git(self.dir.path(), &["tag", "-a", name, "-m", name]);
         self
