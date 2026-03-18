@@ -157,16 +157,16 @@ git std config get <key> --format json  # value as JSON
 
 **Subcommands:**
 
-| Subcommand      | Description                                      |
-| --------------- | ------------------------------------------------ |
-| `list`          | Print all effective config grouped by section    |
-| `get <key>`     | Print a single dot-separated key value           |
+| Subcommand  | Description                                   |
+| ----------- | --------------------------------------------- |
+| `list`      | Print all effective config grouped by section |
+| `get <key>` | Print a single dot-separated key value        |
 
 **Flags (list and get):**
 
-| Flag              | Description                              |
-| ----------------- | ---------------------------------------- |
-| `--format <fmt>`  | Output format: `text` (default), `json`  |
+| Flag             | Description                             |
+| ---------------- | --------------------------------------- |
+| `--format <fmt>` | Output format: `text` (default), `json` |
 
 **Supported keys for `get`:**
 
