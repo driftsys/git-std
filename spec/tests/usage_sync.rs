@@ -40,9 +40,8 @@ fn extract_flags(help: &str) -> Vec<String> {
 
 #[test]
 fn usage_md_documents_all_flags() {
-    let docs =
-        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/USAGE.md"))
-            .expect("failed to read docs/USAGE.md");
+    let docs = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/USAGE.md"))
+        .expect("failed to read docs/USAGE.md");
 
     let mut missing: Vec<(String, String)> = Vec::new();
 
