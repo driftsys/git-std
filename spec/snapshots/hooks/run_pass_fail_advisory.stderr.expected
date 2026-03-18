@@ -1,4 +1,7 @@
+  > true
   [..] true
+  > false
   [..] false (advisory, exit 1)
+  > false
   [..] false (exit 1)
 

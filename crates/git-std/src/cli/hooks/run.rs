@@ -49,10 +49,23 @@ fn format_display(command_text: &str, glob: Option<&str>) -> String {
 
 /// Execute a single hook command and print its result line.
 ///
+/// Prints a pending indicator before spawning the command. On a TTY the
+/// pending line is overwritten in place with the final result; on a
+/// non-TTY the result is printed on a new line below it.
+///
 /// Returns the [`CommandResult`] and whether the command failed (non-advisory).
-fn execute_and_print(cmd: &HookCommand, msg_path: &str) -> (CommandResult, bool) {
+fn execute_and_print(
+    cmd: &HookCommand,
+    msg_path: &str,
+    index: usize,
+    total: usize,
+) -> (CommandResult, bool) {
     let command_text = substitute_msg(&cmd.command, msg_path);
     let is_advisory = cmd.prefix == Prefix::Advisory;
+    let display = format_display(&command_text, cmd.glob.as_deref());
+
+    // Show the pending indicator before spawning.
+    ui::pending(index, total, &display);
 
     // Execute via sh -c
     let status = Command::new("sh").arg("-c").arg(&command_text).status();
@@ -63,7 +76,12 @@ fn execute_and_print(cmd: &HookCommand, msg_path: &str) -> (CommandResult, bool)
     };
 
     let success = exit_code == Some(0);
-    let display = format_display(&command_text, cmd.glob.as_deref());
+
+    // On a TTY, move the cursor back to the start of the pending line and
+    // clear it so the result line overwrites it cleanly.
+    if ui::is_tty() && yansi::is_enabled() {
+        eprint!("\r\x1b[K");
+    }
 
     // Print the result line
     if success {
@@ -132,6 +150,8 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
 
     let mut results: Vec<CommandResult> = Vec::new();
     let mut has_failure = false;
+    let total = commands.len();
+    let mut index: usize = 0;
 
     for cmd in &commands {
         // Glob filtering: skip command if glob doesn't match any files.
@@ -151,7 +171,8 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
             Prefix::Default => mode,
         };
 
-        let (result, failed) = execute_and_print(cmd, msg_path);
+        let (result, failed) = execute_and_print(cmd, msg_path, index, total);
+        index += 1;
         if failed {
             has_failure = true;
         }
