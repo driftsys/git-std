@@ -3,6 +3,7 @@
     "rust-lang.rust-analyzer",
     "tamasfe.even-better-toml",
     "davidanson.vscode-markdownlint",
-    "dprint.dprint"
+    "dprint.dprint",
+    "kokakiwi.vscode-just"
   ]
 }
