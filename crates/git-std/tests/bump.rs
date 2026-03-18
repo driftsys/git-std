@@ -468,3 +468,49 @@ fn bump_prerelease_cycle() {
         "tag v1.1.0-rc.1 should exist"
     );
 }
+
+/// A lock file for a missing tool emits a warning but does not fail the bump.
+#[test]
+fn bump_missing_tool_lock_file_warns_and_continues() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: small fix");
+
+    // Write a uv.lock — `uv` is very unlikely to be installed in CI.
+    // We rely on the warning path (tool not on PATH) rather than a real sync.
+    std::fs::write(dir.path().join("uv.lock"), "# placeholder\n").unwrap();
+
+    // Bump must still succeed.
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // Cargo.toml was updated — version bump happened.
+    let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+    assert!(cargo.contains("version = \"1.0.1\""));
+}
+
+/// dry-run with a lock file present mentions "Would sync".
+#[test]
+fn bump_dry_run_shows_would_sync() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
+
+    // Write a uv.lock so the dry-run path has something to report.
+    std::fs::write(dir.path().join("uv.lock"), "# placeholder\n").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Would sync"))
+        .stderr(predicate::str::contains("uv.lock"));
+}

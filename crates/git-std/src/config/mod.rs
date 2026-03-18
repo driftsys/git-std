@@ -1,8 +1,11 @@
 use std::path::Path;
 
+use serde::Serialize;
+
 mod load;
 
 pub use load::load;
+pub(crate) use load::load_with_raw;
 
 #[cfg(test)]
 mod tests;
@@ -34,7 +37,8 @@ pub fn discover_scopes(repo_root: &Path) -> Vec<String> {
 }
 
 /// Versioning scheme.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Scheme {
     /// Semantic versioning (default).
     #[default]
@@ -57,8 +61,18 @@ pub enum ScopesConfig {
     List(Vec<String>),
 }
 
+impl Serialize for ScopesConfig {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            ScopesConfig::None => serializer.serialize_none(),
+            ScopesConfig::Auto => serializer.serialize_str("auto"),
+            ScopesConfig::List(list) => list.serialize(serializer),
+        }
+    }
+}
+
 /// Versioning configuration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct VersioningConfig {
     /// Tag prefix (default `"v"`).
     pub tag_prefix: String,
@@ -79,7 +93,7 @@ impl Default for VersioningConfig {
 }
 
 /// Changelog-specific configuration.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct ChangelogConfig {
     pub title: Option<String>,
     pub sections: Option<Vec<(String, String)>>,
@@ -88,7 +102,7 @@ pub struct ChangelogConfig {
 }
 
 /// A user-defined version file entry from `[[version_files]]`.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct VersionFileConfig {
     /// Path to the file, relative to the repository root.
     pub path: String,
@@ -97,7 +111,7 @@ pub struct VersionFileConfig {
 }
 
 /// Project configuration loaded from `.git-std.toml`.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub struct ProjectConfig {
     pub types: Vec<String>,
     pub scopes: ScopesConfig,
