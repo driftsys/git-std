@@ -3,6 +3,8 @@
 //! All human-readable output goes to stderr. Symbols use
 //! yansi for colour when enabled.
 
+use std::io::IsTerminal;
+
 use yansi::Paint;
 
 /// Two-space indent for top-level output sections.
@@ -90,4 +92,23 @@ pub fn print(msg: &str) {
 /// Suitable for check/hook result lines: `  ✓ <text>` or `  ✗ <text>`.
 pub fn result_line(msg: &str) {
     eprintln!("{INDENT}{msg}");
+}
+
+/// Return `true` when stderr is connected to a terminal.
+pub fn is_tty() -> bool {
+    std::io::stderr().is_terminal()
+}
+
+/// Print a pending line for a hook command before it starts executing.
+///
+/// On TTY: prints `  [index+1/total] > display` with no trailing newline,
+/// so the caller can overwrite it with `\r\x1b[K` when the command completes.
+///
+/// Non-TTY: prints `  > display` followed by a newline (no position tracking).
+pub fn pending(index: usize, total: usize, display: &str) {
+    if is_tty() {
+        eprint!("{INDENT}[{}/{}] > {display}", index + 1, total);
+    } else {
+        eprintln!("{INDENT}> {display}");
+    }
 }
