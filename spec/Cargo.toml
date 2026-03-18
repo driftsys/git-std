@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [dev-dependencies]
-snapbox = { version = "0.6", features = ["cmd"] }
+snapbox = { version = "1.1", features = ["cmd"] }
 trycmd = "0.15"
 assert_cmd = "2"
 predicates = "3"
