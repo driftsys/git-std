@@ -1,5 +1,116 @@
 # Changelog
 
+## [0.4.0] (2026-03-18)
+
+### Refactoring
+
+- **git-std:** split cli/bump.rs into focused modules ([#232]) ([b567790])
+- **git-std:** split cli/commit.rs into focused modules ([#229]) ([6f7edbc])
+- **git-std:** split config.rs into focused modules ([3310a59])
+- **git-std:** split cli/hooks.rs into focused modules ([#228]) ([ed8b4e8])
+- **tests:** split large test files by tested concept ([#227]) ([3ee6c84])
+- **git-std:** route all eprintln! calls through ui:: helpers ([#226])
+  ([8d1d5b2])
+- **standard-version:** split calver.rs into calver/mod.rs + parse.rs + bump.rs
+  ([#225]) ([fbade38]), closes [#211]
+- **standard-changelog:** extract rendering logic into render.rs ([0d2e48f])
+- **standard-changelog:** extract link utilities into link.rs ([013820c])
+- **standard-changelog:** extract build_release into build.rs ([78c7590])
+- **standard-changelog:** extract host detection into host.rs ([796ad3b])
+- **standard-changelog:** extract date utilities into date.rs ([7b61363])
+- **standard-changelog:** extract model types into model.rs ([6489db7])
+
+### Documentation
+
+- update USAGE.md for release prep ([#255]) ([81f3641])
+
+### Features
+
+- **hooks:** add fix-mode prefix (~) with stash dance for pre-commit ([#197])
+  ([db756a9]), closes [#197]
+- **config:** add config list/get subcommands ([#237]) ([756f31f])
+- **hooks:** add real-time visual feedback during hook execution ([#236])
+  ([ba81961])
+- **bump:** sync ecosystem lock files after version bump ([#233]) ([f4ab29d])
+- **commit:** improve commit command output ([#200]) ([ad0e7d6])
+- **standard-githooks:** enable/disable commands, .off shims, and install prompt
+  ([f29ff70]), closes [#198]
+
+### Bug Fixes
+
+- **git-std:** replace Box<dyn Error> with anyhow::Result ([#224]) ([fe8d246]),
+  closes [#203]
+- **spec:** remove dead_code warnings in spec/support/mod.rs ([#223])
+  ([1f89b39]), closes [#219]
+- **commit:** fail fast with clear error when stdin is not a TTY ([#222])
+  ([dc7062b]), closes [#201]
+- **standard-version:** replace Box<dyn Error> with typed VersionError ([#221])
+  ([5c768ba]), closes [#202]
+- **git-std:** update help snapshot to remove self-update entry ([2adfa52])
+- **git-std:** remove self-update test references after command removal
+  ([7442f77])
+- **git-std:** fix install.sh download URL, target names, and tarball extraction
+  ([a56b5d6]), closes [#187]
+- **standard-commit:** require scope in strict mode when auto-discovery finds
+  none ([b2a57c1]), closes [#190]
+- **git-std:** remove unimplemented self-update command and spec section
+  ([b369b24])
+
+[0.4.0]: https://github.com/driftsys/git-std/compare/v0.3.0...v0.4.0
+[b567790]: https://github.com/driftsys/git-std/commit/b567790
+[#232]: https://github.com/driftsys/git-std/issues/232
+[6f7edbc]: https://github.com/driftsys/git-std/commit/6f7edbc
+[#229]: https://github.com/driftsys/git-std/issues/229
+[3310a59]: https://github.com/driftsys/git-std/commit/3310a59
+[ed8b4e8]: https://github.com/driftsys/git-std/commit/ed8b4e8
+[#228]: https://github.com/driftsys/git-std/issues/228
+[3ee6c84]: https://github.com/driftsys/git-std/commit/3ee6c84
+[#227]: https://github.com/driftsys/git-std/issues/227
+[8d1d5b2]: https://github.com/driftsys/git-std/commit/8d1d5b2
+[#226]: https://github.com/driftsys/git-std/issues/226
+[fbade38]: https://github.com/driftsys/git-std/commit/fbade38
+[#225]: https://github.com/driftsys/git-std/issues/225
+[#211]: https://github.com/driftsys/git-std/issues/211
+[0d2e48f]: https://github.com/driftsys/git-std/commit/0d2e48f
+[013820c]: https://github.com/driftsys/git-std/commit/013820c
+[78c7590]: https://github.com/driftsys/git-std/commit/78c7590
+[796ad3b]: https://github.com/driftsys/git-std/commit/796ad3b
+[7b61363]: https://github.com/driftsys/git-std/commit/7b61363
+[6489db7]: https://github.com/driftsys/git-std/commit/6489db7
+[81f3641]: https://github.com/driftsys/git-std/commit/81f3641
+[#255]: https://github.com/driftsys/git-std/issues/255
+[db756a9]: https://github.com/driftsys/git-std/commit/db756a9
+[#197]: https://github.com/driftsys/git-std/issues/197
+[756f31f]: https://github.com/driftsys/git-std/commit/756f31f
+[#237]: https://github.com/driftsys/git-std/issues/237
+[ba81961]: https://github.com/driftsys/git-std/commit/ba81961
+[#236]: https://github.com/driftsys/git-std/issues/236
+[f4ab29d]: https://github.com/driftsys/git-std/commit/f4ab29d
+[#233]: https://github.com/driftsys/git-std/issues/233
+[ad0e7d6]: https://github.com/driftsys/git-std/commit/ad0e7d6
+[#200]: https://github.com/driftsys/git-std/issues/200
+[f29ff70]: https://github.com/driftsys/git-std/commit/f29ff70
+[#198]: https://github.com/driftsys/git-std/issues/198
+[fe8d246]: https://github.com/driftsys/git-std/commit/fe8d246
+[#224]: https://github.com/driftsys/git-std/issues/224
+[#203]: https://github.com/driftsys/git-std/issues/203
+[1f89b39]: https://github.com/driftsys/git-std/commit/1f89b39
+[#223]: https://github.com/driftsys/git-std/issues/223
+[#219]: https://github.com/driftsys/git-std/issues/219
+[dc7062b]: https://github.com/driftsys/git-std/commit/dc7062b
+[#222]: https://github.com/driftsys/git-std/issues/222
+[#201]: https://github.com/driftsys/git-std/issues/201
+[5c768ba]: https://github.com/driftsys/git-std/commit/5c768ba
+[#221]: https://github.com/driftsys/git-std/issues/221
+[#202]: https://github.com/driftsys/git-std/issues/202
+[2adfa52]: https://github.com/driftsys/git-std/commit/2adfa52
+[7442f77]: https://github.com/driftsys/git-std/commit/7442f77
+[a56b5d6]: https://github.com/driftsys/git-std/commit/a56b5d6
+[#187]: https://github.com/driftsys/git-std/issues/187
+[b2a57c1]: https://github.com/driftsys/git-std/commit/b2a57c1
+[#190]: https://github.com/driftsys/git-std/issues/190
+[b369b24]: https://github.com/driftsys/git-std/commit/b369b24
+
 ## [0.3.0] (2026-03-17)
 
 ### Bug Fixes

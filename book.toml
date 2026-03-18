@@ -5,3 +5,7 @@ src = "docs"
 
 [build]
 build-dir = "target/book"
+
+[output.html]
+git-repository-url = "https://github.com/driftsys/git-std"
+edit-url-template = "https://github.com/driftsys/git-std/edit/main/docs/{path}"

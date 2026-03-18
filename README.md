@@ -50,8 +50,8 @@ git push --follow-tags
 eval "$(git-std completions bash)"   # or zsh, fish
 ```
 
-See the [CLI usage guide](docs/USAGE.md) for all subcommands,
-flags, configuration options, and git aliases.
+See the [user guide](https://driftsys.github.io/git-std/)
+for commands, configuration, and recipes.
 
 ## Workspace crates
 
@@ -74,7 +74,6 @@ MIT
 ## Documentation
 
 - [User guide](https://driftsys.github.io/git-std/) (mdbook)
-- [CLI usage](docs/USAGE.md)
 - [Specification](docs/SPEC.md)
 - [API docs](https://docs.rs/git-std) (docs.rs)
 

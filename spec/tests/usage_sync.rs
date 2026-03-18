@@ -1,16 +1,16 @@
-//! Verify that every CLI flag appears in docs/USAGE.md.
+//! Verify that every CLI flag appears in the docs.
 //!
 //! Runs `git-std <subcommand> --help` for each subcommand and checks
-//! that every long flag (e.g. `--dry-run`) is mentioned in USAGE.md.
+//! that every long flag (e.g. `--dry-run`) is mentioned in the docs.
 //! This catches documentation drift when new flags are added to the
-//! CLI but not reflected in the usage guide.
+//! CLI but not reflected in the documentation.
 
 use assert_cmd::Command;
 
-/// Flags that are ubiquitous or intentionally undocumented in USAGE.md.
+/// Flags that are ubiquitous or intentionally undocumented.
 const SKIP_FLAGS: &[&str] = &["--help", "--version", "--color"];
 
-/// Subcommands whose flags should all appear in USAGE.md.
+/// Subcommands whose flags should all appear in the docs.
 const SUBCOMMANDS: &[&str] = &["commit", "check", "bump", "changelog"];
 
 fn git_std() -> Command {
@@ -40,7 +40,7 @@ fn extract_flags(help: &str) -> Vec<String> {
 
 #[test]
 fn usage_md_documents_all_flags() {
-    let usage_md =
+    let docs =
         std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/USAGE.md"))
             .expect("failed to read docs/USAGE.md");
 
@@ -59,9 +59,8 @@ fn usage_md_documents_all_flags() {
             if SKIP_FLAGS.contains(&flag.as_str()) {
                 continue;
             }
-            // Check that the flag appears in USAGE.md (as `--flag` in a backtick span)
             let pattern = format!("`{flag}");
-            if !usage_md.contains(&pattern) {
+            if !docs.contains(&pattern) {
                 missing.push((subcmd.to_string(), flag.clone()));
             }
         }
@@ -86,7 +85,7 @@ fn usage_md_documents_all_flags() {
                 break;
             }
             if let Some(cmd) = trimmed.split_whitespace().next() {
-                if cmd != "help" && !usage_md.contains(&format!("git std {cmd}")) {
+                if cmd != "help" && !docs.contains(&format!("git std {cmd}")) {
                     missing_cmds.push(cmd.to_string());
                 }
             }
@@ -95,13 +94,13 @@ fn usage_md_documents_all_flags() {
 
     let mut errors = String::new();
     if !missing.is_empty() {
-        errors.push_str("Flags missing from docs/USAGE.md:\n");
+        errors.push_str("Flags missing from docs:\n");
         for (cmd, flag) in &missing {
             errors.push_str(&format!("  git std {cmd} {flag}\n"));
         }
     }
     if !missing_cmds.is_empty() {
-        errors.push_str("Subcommands missing from docs/USAGE.md:\n");
+        errors.push_str("Subcommands missing from docs:\n");
         for cmd in &missing_cmds {
             errors.push_str(&format!("  git std {cmd}\n"));
         }
