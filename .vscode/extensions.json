@@ -4,6 +4,6 @@
     "tamasfe.even-better-toml",
     "davidanson.vscode-markdownlint",
     "dprint.dprint",
-    "kokakiwi.vscode-just"
+    "promptexecution.justlang-lsp"
   ]
 }
