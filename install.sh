@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO="driftsys/git-std"
 INSTALL_DIR="${GIT_STD_INSTALL_DIR:-$HOME/.local/bin}"
+tmp_dir=""
 
 die() { printf 'error: %s\n' "$1" >&2; exit 1; }
 
@@ -41,7 +42,7 @@ detect_target() {
 }
 
 main() {
-  local target version download_url tmp_dir base
+  local target version download_url base
 
   target="$(detect_target)"
   printf 'detected target: %s\n' "$target"
@@ -57,7 +58,7 @@ main() {
   printf 'downloading %s\n' "$download_url"
 
   tmp_dir="$(mktemp -d)"
-  trap 'rm -rf "$tmp_dir"' EXIT
+  trap 'rm -rf "${tmp_dir:-}"' EXIT
 
   curl -sSfL "$download_url" -o "$tmp_dir/$base.tar.gz" \
     || die "download failed — check that the release exists for $target"
