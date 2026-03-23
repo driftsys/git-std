@@ -434,7 +434,7 @@ version = "0.3.0"
 dependencies = [
  "assert_cmd",
  "predicates",
- "snapbox",
+ "snapbox 1.1.0",
  "tempfile",
  "trycmd",
 ]
@@ -973,10 +973,27 @@ dependencies = [
  "normalize-line-endings",
  "os_pipe",
  "similar",
- "snapbox-macros",
+ "snapbox-macros 0.4.0",
  "tempfile",
  "wait-timeout",
  "walkdir",
+ "windows-sys 0.60.2",
+]
+
+[[package]]
+name = "snapbox"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7a2e43da79cf7c50d938bd15e4b17e7fc450113e5ace6e6e9acfe022facbf8d"
+dependencies = [
+ "anstream 1.0.0",
+ "anstyle",
+ "libc",
+ "normalize-line-endings",
+ "os_pipe",
+ "similar",
+ "snapbox-macros 1.0.1",
+ "wait-timeout",
  "windows-sys 0.60.2",
 ]
 
@@ -987,6 +1004,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b750c344002d7cc69afb9da00ebd9b5c0f8ac2eb7d115d9d45d5b5f47718d74"
 dependencies = [
  "anstream 0.6.21",
+]
+
+[[package]]
+name = "snapbox-macros"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d62a48443d404309a6006676336ff6311ef72ee78561d6a7628d952912155386"
+dependencies = [
+ "anstream 1.0.0",
 ]
 
 [[package]]
@@ -1183,7 +1209,7 @@ dependencies = [
  "rayon",
  "serde",
  "shlex",
- "snapbox",
+ "snapbox 0.6.24",
  "toml_edit 0.23.10+spec-1.0.0",
 ]
 
