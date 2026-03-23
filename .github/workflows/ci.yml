@@ -60,6 +60,21 @@ jobs:
           chmod +x /usr/local/bin/convco
       - run: convco check ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
 
+  ci:
+    name: CI
+    if: always()
+    needs: [fmt, dprint, clippy, test, convco]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        run: |
+          results="${{ join(needs.*.result, ' ') }}"
+          for r in $results; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              exit 1
+            fi
+          done
+
   build-release:
     name: Build (${{ matrix.target }})
     if: github.event_name == 'push'
