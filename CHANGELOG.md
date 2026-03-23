@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.2] (2026-03-23)
+
+### Bug Fixes
+
+- **config:** add version_files for workspace crate Cargo.toml files ([041e4a7])
+
+[0.4.2]: https://github.com/driftsys/git-std/compare/v0.4.1...v0.4.2
+[041e4a7]: https://github.com/driftsys/git-std/commit/041e4a7
+
 ## [0.4.1] (2026-03-23)
 
 ### Bug Fixes

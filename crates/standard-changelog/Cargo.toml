@@ -1,6 +1,6 @@
 [package]
 name = "standard-changelog"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2024"
 description = "Changelog generation from conventional commits"
 license = "MIT"

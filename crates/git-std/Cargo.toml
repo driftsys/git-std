@@ -1,6 +1,6 @@
 [package]
 name = "git-std"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2024"
 description = "Standard git workflow — commits, versioning, hooks"
 license = "MIT"
