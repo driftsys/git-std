@@ -302,13 +302,28 @@ changelog, commit, and tag.
    b. Custom files from `.git-std.toml`
    `[[version_files]]` (see §2.3.2).
    c. Report each file updated in the output.
-8. Sync `Cargo.lock` via `cargo update --workspace`
-   (only when `Cargo.toml` was updated).
+8. Sync ecosystem lock files. Only lock files that already
+   exist on disk are synced. Missing tools emit a warning
+   but never abort the bump. The version file name is
+   matched with `ends_with`, so custom `[[version_files]]`
+   entries pointing to subdirectory paths (e.g.
+   `crates/my-crate/Cargo.toml`) are detected correctly.
+
+   | Version file     | Lock file           | Sync command                            |
+   | ---------------- | ------------------- | --------------------------------------- |
+   | `Cargo.toml`     | `Cargo.lock`        | `cargo update --workspace`              |
+   | `package.json`   | `package-lock.json` | `npm install --package-lock-only`       |
+   | `package.json`   | `yarn.lock`         | `yarn install --mode update-lockfile`   |
+   | `package.json`   | `pnpm-lock.yaml`    | `pnpm install --lockfile-only`          |
+   | `deno.json`      | `deno.lock`         | `deno install`                          |
+   | `pyproject.toml` | `uv.lock`           | `uv lock`                               |
+   | `pyproject.toml` | `poetry.lock`       | `poetry lock --no-update`               |
+
 9. Generate changelog section for this release via `standard-changelog`.
 10. Prepend the section to `CHANGELOG.md`.
 11. Create commit: `chore(release): <version>`.
-    All updated version files are included in the
-    release commit.
+    All updated version files and synced lock files are
+    included in the release commit.
 12. Create annotated tag: `<tag_prefix><version>`.
 
 **Flags:**

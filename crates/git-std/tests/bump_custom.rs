@@ -175,6 +175,54 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
     assert!(cargo.contains("version = \"1.1.0\""));
 }
 
+/// Custom [[version_files]] pointing to a subdirectory Cargo.toml triggers
+/// Cargo.lock sync (the name ends with "Cargo.toml" even though it's not
+/// the root Cargo.toml).
+#[test]
+fn bump_custom_cargo_toml_triggers_lock_sync() {
+    let dir = tempfile::tempdir().unwrap();
+    git(dir.path(), &["init"]);
+    git(dir.path(), &["config", "user.name", "Test"]);
+    git(dir.path(), &["config", "user.email", "test@test.com"]);
+
+    // Simulate a workspace: root Cargo.toml has no [package], crate is in a subdir.
+    std::fs::write(
+        dir.path().join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/my-crate\"]\nresolver = \"3\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("crates/my-crate")).unwrap();
+    std::fs::write(
+        dir.path().join("crates/my-crate/Cargo.toml"),
+        "[package]\nname = \"my-crate\"\nversion = \"1.0.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    // Cargo.lock must exist for the sync to be attempted.
+    std::fs::write(dir.path().join("Cargo.lock"), "# placeholder\n").unwrap();
+
+    // Config points to the subdirectory Cargo.toml via custom regex.
+    std::fs::write(
+        dir.path().join(".git-std.toml"),
+        "[[version_files]]\npath = \"crates/my-crate/Cargo.toml\"\nregex = '(?m)^version = \"([^\"]+)\"'\n",
+    )
+    .unwrap();
+
+    git(dir.path(), &["add", "."]);
+    git(dir.path(), &["commit", "-m", "chore: init"]);
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    // Dry-run should report "Would sync: Cargo.lock".
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Would sync"))
+        .stderr(predicate::str::contains("Cargo.lock"));
+}
+
 #[test]
 fn bump_dry_run_shows_custom_files() {
     let dir = tempfile::tempdir().unwrap();

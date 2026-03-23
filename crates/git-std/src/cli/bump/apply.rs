@@ -80,7 +80,7 @@ pub(super) fn finalize_bump(
                         &format!("{} \u{2192} {new_version}", f.old_version),
                     );
                 }
-                detected.iter().any(|f| f.name == "Cargo.toml")
+                detected.iter().any(|f| f.name.ends_with("Cargo.toml"))
             }
             Err(e) => {
                 ui::warning(&format!("cannot detect version files: {e}"));
@@ -121,7 +121,9 @@ pub(super) fn finalize_bump(
         };
 
     // Sync ecosystem lock files.
-    let cargo_updated = version_results.iter().any(|r| r.name == "Cargo.toml");
+    let cargo_updated = version_results
+        .iter()
+        .any(|r| r.name.ends_with("Cargo.toml"));
     let synced_locks = lock_sync::sync_lock_files(workdir, cargo_updated);
 
     // Generate/update changelog.
