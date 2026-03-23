@@ -702,3 +702,50 @@ fn hooks_run_no_stash_dance_without_fix_commands() {
         "no stash messages expected for hook without ~ commands, got:\n{stderr}"
     );
 }
+
+/// #268 — Fix mode preserves staged deletions on fail-fast early exit.
+///
+/// When a `~` fix command fails, the hook aborts early (fail-fast). Staged
+/// deletions must still be preserved in the index after the early exit.
+#[test]
+fn hooks_run_fix_mode_preserves_staged_deletions_on_failfast() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Create and commit two files so we can delete one and modify the other.
+    std::fs::write(dir.path().join("to-delete.txt"), "content\n").unwrap();
+    std::fs::write(dir.path().join("to-keep.txt"), "keep\n").unwrap();
+    git(dir.path(), &["add", "to-delete.txt", "to-keep.txt"]);
+    git(dir.path(), &["commit", "-m", "initial"]);
+
+    // Stage the file for deletion.
+    git(dir.path(), &["rm", "to-delete.txt"]);
+
+    // Stage a modification so the fix command has something to work with.
+    std::fs::write(dir.path().join("to-keep.txt"), "modified\n").unwrap();
+    git(dir.path(), &["add", "to-keep.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // A fix command that always fails — triggers fail-fast early exit.
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "~ false\n").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1);
+
+    // Verify the deletion is still staged in the index after fail-fast.
+    let status_output = std::process::Command::new("git")
+        .args(["diff", "--cached", "--name-only", "--diff-filter=D"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let deleted = String::from_utf8_lossy(&status_output.stdout);
+    assert!(
+        deleted.contains("to-delete.txt"),
+        "to-delete.txt should still be staged for deletion after fail-fast, got:\n{deleted}"
+    );
+}
