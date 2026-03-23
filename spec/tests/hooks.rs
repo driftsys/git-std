@@ -18,8 +18,8 @@ fn hooks_list_shows_configured_hooks() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_eq(file![
-            "../snapshots/hooks/list_shows_configured_hooks.stdout.expected"
+        .stderr_eq(file![
+            "../snapshots/hooks/list_shows_configured_hooks.stderr.expected"
         ]);
 }
 
@@ -36,8 +36,8 @@ fn hooks_list_fail_fast_mode() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_eq(file![
-            "../snapshots/hooks/list_fail_fast_mode.stdout.expected"
+        .stderr_eq(file![
+            "../snapshots/hooks/list_fail_fast_mode.stderr.expected"
         ]);
 }
 
