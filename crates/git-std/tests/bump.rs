@@ -475,6 +475,21 @@ fn bump_missing_tool_lock_file_warns_and_continues() {
     let dir = tempfile::tempdir().unwrap();
     init_bump_repo(dir.path());
     create_tag(dir.path(), "v1.0.0");
+
+    // Write a pyproject.toml so the trigger for uv.lock is satisfied.
+    std::fs::write(
+        dir.path().join("pyproject.toml"),
+        "[project]\nname = \"test\"\nversion = \"1.0.0\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join(".git-std.toml"),
+        "[[version_files]]\npath = \"pyproject.toml\"\nregex = 'version = \"([^\"]+)\"'\n",
+    )
+    .unwrap();
+    git(dir.path(), &["add", "."]);
+    git(dir.path(), &["commit", "-m", "chore: add pyproject"]);
+
     add_commit(dir.path(), "a.txt", "fix: small fix");
 
     // Write a uv.lock — `uv` is very unlikely to be installed in CI.
@@ -500,6 +515,21 @@ fn bump_dry_run_shows_would_sync() {
     let dir = tempfile::tempdir().unwrap();
     init_bump_repo(dir.path());
     create_tag(dir.path(), "v1.0.0");
+
+    // Write a pyproject.toml so the trigger for uv.lock is satisfied.
+    std::fs::write(
+        dir.path().join("pyproject.toml"),
+        "[project]\nname = \"test\"\nversion = \"1.0.0\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join(".git-std.toml"),
+        "[[version_files]]\npath = \"pyproject.toml\"\nregex = 'version = \"([^\"]+)\"'\n",
+    )
+    .unwrap();
+    git(dir.path(), &["add", "."]);
+    git(dir.path(), &["commit", "-m", "chore: add pyproject"]);
+
     add_commit(dir.path(), "a.txt", "feat: new feature");
 
     // Write a uv.lock so the dry-run path has something to report.
@@ -513,4 +543,25 @@ fn bump_dry_run_shows_would_sync() {
         .success()
         .stderr(predicate::str::contains("Would sync"))
         .stderr(predicate::str::contains("uv.lock"));
+}
+
+/// dry-run with a lock file present does NOT mention "Would sync" when the
+/// trigger version file is not in the version_files list.
+#[test]
+fn bump_dry_run_skips_untriggered_lock_file() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
+
+    // Write a uv.lock on disk but NO pyproject.toml in version_files.
+    std::fs::write(dir.path().join("uv.lock"), "# placeholder\n").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Would sync:   uv.lock").not());
 }

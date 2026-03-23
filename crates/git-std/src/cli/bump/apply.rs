@@ -65,30 +65,31 @@ pub(super) fn finalize_bump(
     if opts.dry_run {
         ui::blank();
 
-        let dry_cargo_updated = match standard_version::detect_version_files(workdir, &custom_files)
-        {
-            Ok(detected) if detected.is_empty() => {
-                ui::info("No version files detected");
-                false
-            }
-            Ok(detected) => {
-                ui::info("Would update:");
-                for f in &detected {
-                    let rel = f.path.strip_prefix(workdir).unwrap_or(&f.path).display();
-                    ui::item(
-                        &rel.to_string(),
-                        &format!("{} \u{2192} {new_version}", f.old_version),
-                    );
+        let updated_names: Vec<String> =
+            match standard_version::detect_version_files(workdir, &custom_files) {
+                Ok(detected) if detected.is_empty() => {
+                    ui::info("No version files detected");
+                    Vec::new()
                 }
-                detected.iter().any(|f| f.name.ends_with("Cargo.toml"))
-            }
-            Err(e) => {
-                ui::warning(&format!("cannot detect version files: {e}"));
-                false
-            }
-        };
+                Ok(detected) => {
+                    ui::info("Would update:");
+                    for f in &detected {
+                        let rel = f.path.strip_prefix(workdir).unwrap_or(&f.path).display();
+                        ui::item(
+                            &rel.to_string(),
+                            &format!("{} \u{2192} {new_version}", f.old_version),
+                        );
+                    }
+                    detected.into_iter().map(|f| f.name).collect()
+                }
+                Err(e) => {
+                    ui::warning(&format!("cannot detect version files: {e}"));
+                    Vec::new()
+                }
+            };
+        let updated_refs: Vec<&str> = updated_names.iter().map(|s| s.as_str()).collect();
 
-        lock_sync::dry_run_lock_files(workdir, dry_cargo_updated);
+        lock_sync::dry_run_lock_files(workdir, &updated_refs);
 
         if !opts.skip_changelog {
             ui::info(&format!(
@@ -121,10 +122,8 @@ pub(super) fn finalize_bump(
         };
 
     // Sync ecosystem lock files.
-    let cargo_updated = version_results
-        .iter()
-        .any(|r| r.name.ends_with("Cargo.toml"));
-    let synced_locks = lock_sync::sync_lock_files(workdir, cargo_updated);
+    let updated_names: Vec<&str> = version_results.iter().map(|r| r.name.as_str()).collect();
+    let synced_locks = lock_sync::sync_lock_files(workdir, &updated_names);
 
     // Generate/update changelog.
     if !opts.skip_changelog {
