@@ -56,6 +56,44 @@ fn fetch_staged_files() -> Vec<String> {
     }
 }
 
+/// Fetch the list of files staged for deletion.
+///
+/// Returns file paths with `D` status in the index (i.e. `git rm`'d files).
+/// Used by fix mode to preserve deletions across the stash dance.
+fn fetch_staged_deletions() -> Vec<String> {
+    match Command::new("git")
+        .args(["diff", "--cached", "--name-only", "--diff-filter=D"])
+        .output()
+    {
+        Ok(o) => String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .map(String::from)
+            .collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Re-apply staged deletions after the stash dance.
+///
+/// Runs `git rm --cached --quiet -- <files>` to restore the deletion state
+/// in the index without touching the working tree. This undoes the effect
+/// of `stash apply` which restores deleted files.
+fn restage_deletions(files: &[String]) {
+    if files.is_empty() {
+        return;
+    }
+    let mut cmd = Command::new("git");
+    cmd.args(["rm", "--cached", "--quiet", "--force", "--"]);
+    for f in files {
+        cmd.arg(f);
+    }
+    if let Err(e) = cmd.status() {
+        ui::warning(&format!(
+            "git rm --cached failed after fix-mode stash dance: {e}"
+        ));
+    }
+}
+
 /// Fetch the list of unstaged (working-tree-modified) file paths.
 ///
 /// Returns file paths that differ between index and working tree.
@@ -258,6 +296,15 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
         ui::warning("~ prefix is only supported in pre-commit — treating as !");
     }
 
+    // Capture files staged for deletion before the stash dance.
+    // The stash dance restores deleted files to disk; we must re-delete them
+    // in the index afterwards to preserve the user's `git rm` intent (#268).
+    let staged_deletions: Vec<String> = if use_stash_dance {
+        fetch_staged_deletions()
+    } else {
+        Vec::new()
+    };
+
     // Perform the stash dance if needed.
     // stash_active tracks whether a stash entry was actually created.
     let stash_active = if use_stash_dance {
@@ -330,6 +377,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
             // Re-stage formatted files and clean up stash before returning.
             if use_stash_dance {
                 restage_files(&staged_files);
+                restage_deletions(&staged_deletions);
                 if stash_active {
                     stash_drop();
                 }
@@ -361,6 +409,9 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
         // was created (no stash means no unstaged changes to protect, but
         // re-staging is still needed to pick up formatter output).
         restage_files(&staged_files);
+
+        // Restore staged deletions that the stash dance may have undone (#268).
+        restage_deletions(&staged_deletions);
 
         if stash_active {
             // Warn about any unstaged files that the formatter also touched.
