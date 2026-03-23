@@ -749,3 +749,158 @@ fn hooks_run_fix_mode_preserves_staged_deletions_on_failfast() {
         "to-delete.txt should still be staged for deletion after fail-fast, got:\n{deleted}"
     );
 }
+
+// --- Stash dance corner cases (#280–#282) ---
+
+/// #280 — Renamed files survive the stash dance.
+///
+/// A `git mv` rename should be preserved through the fix-mode stash/unstash
+/// cycle. After the hook runs, the index should still show the rename (R status)
+/// with the new name staged and the old name removed.
+#[test]
+fn hooks_run_fix_mode_preserves_renamed_files() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Create and commit a file so we can rename it.
+    std::fs::write(dir.path().join("old.txt"), "hello").unwrap();
+    git(dir.path(), &["add", "old.txt"]);
+    git(dir.path(), &["commit", "-m", "initial"]);
+
+    // Rename the file (git mv stages the rename automatically).
+    git(dir.path(), &["mv", "old.txt", "new.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // A no-op formatter that succeeds without modifying files.
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "~ true\n").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // Verify the rename is still staged (R status with new.txt present).
+    let status_output = std::process::Command::new("git")
+        .args(["diff", "--cached", "--name-status"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let name_status = String::from_utf8_lossy(&status_output.stdout);
+    assert!(
+        name_status.contains("new.txt"),
+        "new.txt should be in the staged files after stash dance, got:\n{name_status}"
+    );
+
+    // old.txt should NOT be in staged files (it was renamed away).
+    let staged_output = std::process::Command::new("git")
+        .args(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let staged_names = String::from_utf8_lossy(&staged_output.stdout);
+    assert!(
+        !staged_names.contains("old.txt"),
+        "old.txt should not be in the staged files after rename, got:\n{staged_names}"
+    );
+}
+
+/// #281 — Formatter-created files are NOT staged.
+///
+/// When a `~` fix command creates a new file that was not originally staged,
+/// the stash dance must not add it to the index. Only the originally-staged
+/// files should remain staged.
+#[test]
+fn hooks_run_fix_mode_does_not_stage_formatter_created_files() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Create and stage a file.
+    std::fs::write(dir.path().join("src.txt"), "source\n").unwrap();
+    git(dir.path(), &["add", "src.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // Formatter that creates a new file "extra.txt" as a side effect.
+    std::fs::write(
+        hooks_dir.join("pre-commit.hooks"),
+        "~ sh -c \"echo created > extra.txt\"\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // extra.txt should exist on disk (the formatter created it).
+    assert!(
+        dir.path().join("extra.txt").exists(),
+        "extra.txt should exist on disk after formatter ran"
+    );
+
+    // extra.txt should NOT be staged.
+    let staged_output = std::process::Command::new("git")
+        .args(["diff", "--cached", "--name-only"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let staged = String::from_utf8_lossy(&staged_output.stdout);
+    assert!(
+        !staged.contains("extra.txt"),
+        "extra.txt should not be staged (formatter side effect), got:\n{staged}"
+    );
+
+    // src.txt SHOULD still be staged.
+    assert!(
+        staged.contains("src.txt"),
+        "src.txt should still be staged after hook, got:\n{staged}"
+    );
+}
+
+/// #282 — Binary files survive the stash dance.
+///
+/// Binary file content must be preserved byte-for-byte through the
+/// stash/unstash cycle. We stage a file with raw bytes (PNG header) and
+/// verify the staged content is identical after the hook runs.
+#[test]
+fn hooks_run_fix_mode_preserves_binary_files() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Create a binary file with a PNG header signature.
+    let png_header: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    std::fs::write(dir.path().join("image.bin"), png_header).unwrap();
+    git(dir.path(), &["add", "image.bin"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // A no-op formatter that succeeds without modifying files.
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "~ true\n").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // The staged content of image.bin should be byte-identical to the original.
+    let show_output = std::process::Command::new("git")
+        .args(["show", ":image.bin"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(
+        show_output.status.success(),
+        "git show :image.bin should succeed"
+    );
+    assert_eq!(
+        show_output.stdout, png_header,
+        "staged binary content should be byte-identical after stash dance"
+    );
+}
