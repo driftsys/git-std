@@ -564,6 +564,114 @@ fn hooks_run_fix_mode_non_pre_commit_failing_command_fails() {
         .code(1);
 }
 
+/// #268 — Fix mode preserves staged deletions.
+///
+/// When a file is staged for deletion (`git rm`), a `~` fix command must not
+/// undo the deletion. After the hook runs, the file should still be staged
+/// for deletion in the index.
+#[test]
+fn hooks_run_fix_mode_preserves_staged_deletions() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Create and commit a file so we can delete it later.
+    std::fs::write(dir.path().join("to-delete.txt"), "content\n").unwrap();
+    std::fs::write(dir.path().join("to-keep.txt"), "keep\n").unwrap();
+    git(dir.path(), &["add", "to-delete.txt", "to-keep.txt"]);
+    git(dir.path(), &["commit", "-m", "initial"]);
+
+    // Stage the file for deletion.
+    git(dir.path(), &["rm", "to-delete.txt"]);
+
+    // Also stage a modification so the fix command has something to work with.
+    std::fs::write(dir.path().join("to-keep.txt"), "modified\n").unwrap();
+    git(dir.path(), &["add", "to-keep.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // A no-op formatter that succeeds without modifying files.
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "~ true\n").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // Verify the deletion is still staged in the index.
+    let status_output = std::process::Command::new("git")
+        .args(["diff", "--cached", "--name-only", "--diff-filter=D"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let deleted = String::from_utf8_lossy(&status_output.stdout);
+    assert!(
+        deleted.contains("to-delete.txt"),
+        "to-delete.txt should still be staged for deletion after fix-mode hook, got:\n{deleted}"
+    );
+
+    // Verify the kept file is still staged.
+    let status_output = std::process::Command::new("git")
+        .args(["diff", "--cached", "--name-only", "--diff-filter=M"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let modified = String::from_utf8_lossy(&status_output.stdout);
+    assert!(
+        modified.contains("to-keep.txt"),
+        "to-keep.txt should still be staged after fix-mode hook, got:\n{modified}"
+    );
+}
+
+/// #268 — Deleted files are not passed as $@ to fix commands.
+///
+/// Files staged for deletion should not appear in the positional parameters
+/// passed to fix-mode commands, since formatters cannot operate on deleted files.
+#[test]
+fn hooks_run_fix_mode_excludes_deleted_files_from_args() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Create and commit files.
+    std::fs::write(dir.path().join("deleted.txt"), "gone\n").unwrap();
+    std::fs::write(dir.path().join("kept.txt"), "here\n").unwrap();
+    git(dir.path(), &["add", "deleted.txt", "kept.txt"]);
+    git(dir.path(), &["commit", "-m", "initial"]);
+
+    // Stage one for deletion, modify the other.
+    git(dir.path(), &["rm", "deleted.txt"]);
+    std::fs::write(dir.path().join("kept.txt"), "modified\n").unwrap();
+    git(dir.path(), &["add", "kept.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // Echo $@ so we can verify which files are passed.
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "~ echo \"args: $@\"\n").unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    let combined = format!("{stdout}{stderr}");
+
+    // kept.txt should be in $@.
+    assert!(
+        combined.contains("kept.txt"),
+        "kept.txt should appear in $@, got:\n{combined}"
+    );
+    // deleted.txt should NOT be in $@ (already excluded by ACMR filter).
+    assert!(
+        !combined.contains("deleted.txt"),
+        "deleted.txt should not appear in $@, got:\n{combined}"
+    );
+}
+
 /// #197 — No stash dance when no `~` commands are present.
 ///
 /// A plain pre-commit hook with no `~` commands should not attempt any stash
