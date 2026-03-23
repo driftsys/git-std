@@ -110,6 +110,21 @@ fn fetch_unstaged_files() -> Vec<String> {
     }
 }
 
+/// Check whether any staged entries are submodules (mode `160000`).
+///
+/// Parses `git diff --cached --diff-filter=ACMR --raw` and looks for the
+/// submodule file mode. Returns `true` if at least one submodule entry is
+/// staged.
+fn has_staged_submodules() -> bool {
+    let output = Command::new("git")
+        .args(["diff", "--cached", "--diff-filter=ACMR", "--raw"])
+        .output();
+    match output {
+        Ok(o) => String::from_utf8_lossy(&o.stdout).contains(" 160000 "),
+        Err(_) => false,
+    }
+}
+
 /// Run `git stash push --quiet`. Returns `true` if the stash was created
 /// successfully (something was stashed), `false` otherwise (nothing to stash
 /// or git error).
@@ -121,16 +136,14 @@ fn stash_push() -> bool {
         .unwrap_or(false)
 }
 
-/// Run `git stash apply --quiet`. Warns on failure.
-fn stash_apply() {
-    let ok = Command::new("git")
+/// Run `git stash apply --quiet`. Returns `true` on success, `false` on
+/// failure (e.g. merge conflicts).
+fn stash_apply() -> bool {
+    Command::new("git")
         .args(["stash", "apply", "--quiet"])
         .status()
         .map(|s| s.success())
-        .unwrap_or(false);
-    if !ok {
-        ui::warning("git stash apply failed — working tree may be inconsistent");
-    }
+        .unwrap_or(false)
 }
 
 /// Run `git stash drop --quiet`. Warns on failure.
@@ -148,17 +161,32 @@ fn stash_drop() {
 /// Re-stage the given files after a formatter has run.
 ///
 /// Runs `git add -- <files>` to pick up any formatting changes.
-fn restage_files(files: &[String]) {
+///
+/// Returns `true` on success, `false` if the command fails. A failure means
+/// formatted changes would be silently lost — callers must treat this as a
+/// fatal error.
+fn restage_files(files: &[String]) -> bool {
     if files.is_empty() {
-        return;
+        return true;
     }
     let mut cmd = Command::new("git");
     cmd.arg("add").arg("--");
     for f in files {
         cmd.arg(f);
     }
-    if let Err(e) = cmd.status() {
-        ui::warning(&format!("git add failed after fix-mode formatting: {e}"));
+    match cmd.status() {
+        Ok(s) if s.success() => true,
+        Ok(s) => {
+            let code = s.code().unwrap_or(-1);
+            ui::error(&format!(
+                "git add failed (exit {code}) — formatted changes may be lost"
+            ));
+            false
+        }
+        Err(e) => {
+            ui::error(&format!("git add failed after fix-mode formatting: {e}"));
+            false
+        }
     }
 }
 
@@ -299,6 +327,17 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
         ui::warning("~ prefix is only supported in pre-commit — treating as !");
     }
 
+    // Reject submodule entries when fix mode is active (#283).
+    // The stash dance does not handle submodule state correctly.
+    if use_stash_dance && has_staged_submodules() {
+        ui::error("fix mode (~) does not support submodule entries");
+        ui::hint(
+            "remove ~ prefix from commands in .githooks/pre-commit.hooks, \
+             or unstage the submodule",
+        );
+        return 1;
+    }
+
     // Capture files staged for deletion before the stash dance.
     // The stash dance restores deleted files to disk; we must re-delete them
     // in the index afterwards to preserve the user's `git rm` intent (#268).
@@ -318,10 +357,11 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
         false
     };
 
-    if use_stash_dance && stash_active {
-        // Restore staged + unstaged content to the working tree so formatters
-        // can see the full context.
-        stash_apply();
+    if use_stash_dance && stash_active && !stash_apply() {
+        ui::error("git stash apply failed — your working tree may have conflicts");
+        ui::hint("resolve conflicts manually, then re-run your commit");
+        stash_drop();
+        return 1;
     }
 
     let mut results: Vec<CommandResult> = Vec::new();
@@ -354,9 +394,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
             Prefix::FailFast => HookMode::FailFast,
             Prefix::Advisory => HookMode::Collect, // advisory always runs
             Prefix::Default => mode,
-            // Fix is resolved to FailFast above, so this arm is unreachable,
-            // but the compiler requires exhaustiveness.
-            Prefix::Fix => HookMode::FailFast,
+            Prefix::Fix => unreachable!("Fix prefix resolved to FailFast above"),
         };
 
         // Build a temporary cmd view with the resolved prefix for execute_and_print.
@@ -379,8 +417,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
         if failed && effective_mode == HookMode::FailFast {
             // Re-stage formatted files and clean up stash before returning.
             if use_stash_dance {
-                restage_files(&staged_files);
-                if !restage_deletions(&staged_deletions) {
+                if !restage_files(&staged_files) || !restage_deletions(&staged_deletions) {
                     // Already returning 1 for the fail-fast failure, but
                     // ensure the stash is cleaned up before returning.
                     if stash_active {
@@ -419,10 +456,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
         // This always runs when fix-mode is active, whether or not a stash
         // was created (no stash means no unstaged changes to protect, but
         // re-staging is still needed to pick up formatter output).
-        restage_files(&staged_files);
-
-        // Restore staged deletions that the stash dance may have undone (#268).
-        if !restage_deletions(&staged_deletions) {
+        if !restage_files(&staged_files) || !restage_deletions(&staged_deletions) {
             if stash_active {
                 stash_drop();
             }
