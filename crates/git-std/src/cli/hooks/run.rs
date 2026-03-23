@@ -39,30 +39,18 @@ fn fetch_file_list(hook: &str) -> Option<Vec<String>> {
     }
 }
 
-/// Fetch the list of staged file paths (for pre-commit stash dance and $@ passing).
+/// Fetch staged file paths matching the given `--diff-filter`.
 ///
-/// Returns all staged files (added, copied, modified, renamed) relative to the
-/// working tree root. Returns an empty vec on failure.
-fn fetch_staged_files() -> Vec<String> {
+/// Returns file paths from `git diff --cached --name-only --diff-filter=<filter>`
+/// relative to the working tree root. Returns an empty vec on failure.
+fn fetch_staged(filter: &str) -> Vec<String> {
     match Command::new("git")
-        .args(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
-        .output()
-    {
-        Ok(o) => String::from_utf8_lossy(&o.stdout)
-            .lines()
-            .map(String::from)
-            .collect(),
-        Err(_) => Vec::new(),
-    }
-}
-
-/// Fetch the list of files staged for deletion.
-///
-/// Returns file paths with `D` status in the index (i.e. `git rm`'d files).
-/// Used by fix mode to preserve deletions across the stash dance.
-fn fetch_staged_deletions() -> Vec<String> {
-    match Command::new("git")
-        .args(["diff", "--cached", "--name-only", "--diff-filter=D"])
+        .args([
+            "diff",
+            "--cached",
+            "--name-only",
+            &format!("--diff-filter={filter}"),
+        ])
         .output()
     {
         Ok(o) => String::from_utf8_lossy(&o.stdout)
@@ -78,19 +66,34 @@ fn fetch_staged_deletions() -> Vec<String> {
 /// Runs `git rm --cached --quiet -- <files>` to restore the deletion state
 /// in the index without touching the working tree. This undoes the effect
 /// of `stash apply` which restores deleted files.
-fn restage_deletions(files: &[String]) {
+///
+/// Returns `true` on success, `false` if the command fails. A failure means
+/// the user's `git rm` intent would be silently lost — callers must treat
+/// this as a fatal error.
+fn restage_deletions(files: &[String]) -> bool {
     if files.is_empty() {
-        return;
+        return true;
     }
     let mut cmd = Command::new("git");
     cmd.args(["rm", "--cached", "--quiet", "--force", "--"]);
     for f in files {
         cmd.arg(f);
     }
-    if let Err(e) = cmd.status() {
-        ui::warning(&format!(
-            "git rm --cached failed after fix-mode stash dance: {e}"
-        ));
+    match cmd.status() {
+        Ok(s) if s.success() => true,
+        Ok(s) => {
+            let code = s.code().unwrap_or(-1);
+            ui::error(&format!(
+                "git rm --cached failed (exit {code}) — staged deletions may be lost"
+            ));
+            false
+        }
+        Err(e) => {
+            ui::error(&format!(
+                "git rm --cached failed after fix-mode stash dance: {e}"
+            ));
+            false
+        }
     }
 }
 
@@ -281,7 +284,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
 
     // For pre-commit: fetch staged files for $@ passing and stash dance.
     let staged_files: Vec<String> = if hook == "pre-commit" {
-        fetch_staged_files()
+        fetch_staged("ACMR")
     } else {
         Vec::new()
     };
@@ -300,7 +303,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
     // The stash dance restores deleted files to disk; we must re-delete them
     // in the index afterwards to preserve the user's `git rm` intent (#268).
     let staged_deletions: Vec<String> = if use_stash_dance {
-        fetch_staged_deletions()
+        fetch_staged("D")
     } else {
         Vec::new()
     };
@@ -377,7 +380,15 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
             // Re-stage formatted files and clean up stash before returning.
             if use_stash_dance {
                 restage_files(&staged_files);
-                restage_deletions(&staged_deletions);
+                if !restage_deletions(&staged_deletions) {
+                    // Already returning 1 for the fail-fast failure, but
+                    // ensure the stash is cleaned up before returning.
+                    if stash_active {
+                        stash_drop();
+                    }
+                    ui::blank();
+                    return 1;
+                }
                 if stash_active {
                     stash_drop();
                 }
@@ -411,7 +422,12 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
         restage_files(&staged_files);
 
         // Restore staged deletions that the stash dance may have undone (#268).
-        restage_deletions(&staged_deletions);
+        if !restage_deletions(&staged_deletions) {
+            if stash_active {
+                stash_drop();
+            }
+            return 1;
+        }
 
         if stash_active {
             // Warn about any unstaged files that the formatter also touched.
