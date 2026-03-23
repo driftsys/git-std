@@ -16,19 +16,11 @@ struct CommandResult {
     advisory: bool,
 }
 
-/// Fetch the file list for glob filtering.
+/// Fetch all tracked files for glob filtering (non-pre-commit hooks).
 ///
-/// For `pre-commit`, returns staged files; for other hooks, returns all
-/// tracked files. Only called when at least one command has a glob pattern.
-fn fetch_file_list(hook: &str) -> Option<Vec<String>> {
-    let output = if hook == "pre-commit" {
-        Command::new("git")
-            .args(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
-            .output()
-    } else {
-        Command::new("git").args(["ls-files"]).output()
-    };
-    match output {
+/// Returns file paths from `git ls-files`.
+fn fetch_tracked_files() -> Option<Vec<String>> {
+    match Command::new("git").args(["ls-files"]).output() {
         Ok(o) => Some(
             String::from_utf8_lossy(&o.stdout)
                 .lines()
@@ -39,10 +31,10 @@ fn fetch_file_list(hook: &str) -> Option<Vec<String>> {
     }
 }
 
-/// Fetch the list of staged file paths (for pre-commit stash dance and $@ passing).
+/// Fetch the list of staged file paths (added, copied, modified, renamed).
 ///
-/// Returns all staged files (added, copied, modified, renamed) relative to the
-/// working tree root. Returns an empty vec on failure.
+/// Used for pre-commit: $@ passing, stash dance, and glob filtering.
+/// Returns an empty vec on failure.
 fn fetch_staged_files() -> Vec<String> {
     match Command::new("git")
         .args(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
@@ -204,6 +196,26 @@ fn execute_and_print(
     )
 }
 
+/// Print contextual hints after a hook failure.
+///
+/// Shows how to skip the current hook, skip all hooks, or disable individual
+/// commands.
+fn print_failure_hints(hook: &str) {
+    let skip_flag = match hook {
+        "pre-commit" | "commit-msg" => "git commit --no-verify",
+        "pre-push" => "git push --no-verify",
+        _ => &format!(
+            "GIT_STD_SKIP_HOOKS=1 git {}",
+            hook.trim_start_matches("pre-").trim_start_matches("post-")
+        ),
+    };
+    ui::hint(&format!("to skip this hook:    {skip_flag}"));
+    ui::hint("to skip all hooks:    GIT_STD_SKIP_HOOKS=1 git ...");
+    ui::hint(&format!(
+        "to disable a command: comment it out in .githooks/{hook}.hooks"
+    ));
+}
+
 /// Run the `hooks run <hook>` subcommand. Returns the process exit code.
 ///
 /// Reads `.githooks/<hook>.hooks`, parses commands, executes them
@@ -234,18 +246,23 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
     // Determine the msg_path from args (first argument after --)
     let msg_path = args.first().map(|s| s.as_str()).unwrap_or("");
 
-    // Collect file list for glob filtering (lazy -- only fetched if needed).
-    let file_list: Option<Vec<String>> = if commands.iter().any(|c| c.glob.is_some()) {
-        fetch_file_list(hook)
-    } else {
-        None
-    };
-
-    // For pre-commit: fetch staged files for $@ passing and stash dance.
+    // For pre-commit: fetch staged files once for $@ passing, stash dance,
+    // AND glob filtering (avoids a duplicate `git diff --cached` call).
     let staged_files: Vec<String> = if hook == "pre-commit" {
         fetch_staged_files()
     } else {
         Vec::new()
+    };
+
+    // Glob file list: for pre-commit reuse staged_files, for others fetch tracked files.
+    let file_list: Option<Vec<String>> = if commands.iter().any(|c| c.glob.is_some()) {
+        if hook == "pre-commit" {
+            Some(staged_files.clone())
+        } else {
+            fetch_tracked_files()
+        }
+    } else {
+        None
     };
 
     // Determine whether we need the stash dance.
@@ -350,6 +367,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
                 ));
             }
             ui::blank();
+            print_failure_hints(hook);
             return 1;
         }
     }
@@ -406,5 +424,11 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
         ui::info(&parts.join(", "));
     }
 
-    if has_failure { 1 } else { 0 }
+    if has_failure {
+        ui::blank();
+        print_failure_hints(hook);
+        1
+    } else {
+        0
+    }
 }

@@ -19,7 +19,7 @@ pub fn list() -> i32 {
 
     for (i, hook_name) in KNOWN_HOOKS.iter().enumerate() {
         if i > 0 {
-            println!();
+            ui::blank();
         }
 
         let enabled = is_enabled(hooks_dir, hook_name);
@@ -42,13 +42,10 @@ pub fn list() -> i32 {
             HookMode::FailFast => "fail-fast",
         };
 
-        println!(
-            "{INDENT}{hook_name} ({mode_label}) [{status_label}]:",
-            INDENT = ui::INDENT
-        );
+        ui::info(&format!("{hook_name} ({mode_label}) [{status_label}]:"));
 
         if commands.is_empty() {
-            println!("{INDENT}  (no commands)", INDENT = ui::INDENT);
+            ui::detail("(no commands)");
         } else {
             for cmd in &commands {
                 let prefix_char = match cmd.prefix {
@@ -67,16 +64,16 @@ pub fn list() -> i32 {
                         4
                     };
                     format!(
-                        "  {prefix_char} {}{:width$}{glob}",
+                        "{prefix_char} {}{:width$}{glob}",
                         cmd.command,
                         "",
                         width = padding
                     )
                 } else {
-                    format!("  {prefix_char} {}", cmd.command)
+                    format!("{prefix_char} {}", cmd.command)
                 };
 
-                println!("{INDENT}{display}", INDENT = ui::INDENT);
+                ui::detail(&display);
             }
         }
     }
