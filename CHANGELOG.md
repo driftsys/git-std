@@ -38,13 +38,13 @@
 
 ### Bug Fixes
 
-- **git-std:** replace Box<dyn Error> with anyhow::Result ([#224]) ([fe8d246]),
+- **git-std:** replace `Box<dyn Error>` with anyhow::Result ([#224]) ([fe8d246]),
   closes [#203]
 - **spec:** remove dead_code warnings in spec/support/mod.rs ([#223])
   ([1f89b39]), closes [#219]
 - **commit:** fail fast with clear error when stdin is not a TTY ([#222])
   ([dc7062b]), closes [#201]
-- **standard-version:** replace Box<dyn Error> with typed VersionError ([#221])
+- **standard-version:** replace `Box<dyn Error>` with typed VersionError ([#221])
   ([5c768ba]), closes [#202]
 - **git-std:** update help snapshot to remove self-update entry ([2adfa52])
 - **git-std:** remove self-update test references after command removal
