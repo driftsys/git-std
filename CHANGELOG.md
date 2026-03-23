@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.4.1] (2026-03-23)
+
+### Bug Fixes
+
+- **hooks:** harden stash apply, restage exit check, unreachable, submodule
+  guard ([#286]) ([7545fb2]), closes [#251], [#252], [#278], [#283]
+- **hooks:** harden restage_deletions and deduplicate staged queries ([#275])
+  ([0b86b3e])
+- **hooks:** preserve staged deletions in pre-commit fix mode ([#273])
+  ([f1a50b5]), closes [#268]
+- **install:** handle unbound tmp_dir in cleanup trap ([#272]) ([24a6e62]),
+  closes [#267]
+
+[0.4.1]: https://github.com/driftsys/git-std/compare/v0.4.0...v0.4.1
+[7545fb2]: https://github.com/driftsys/git-std/commit/7545fb2
+[#286]: https://github.com/driftsys/git-std/issues/286
+[#251]: https://github.com/driftsys/git-std/issues/251
+[#252]: https://github.com/driftsys/git-std/issues/252
+[#278]: https://github.com/driftsys/git-std/issues/278
+[#283]: https://github.com/driftsys/git-std/issues/283
+[0b86b3e]: https://github.com/driftsys/git-std/commit/0b86b3e
+[#275]: https://github.com/driftsys/git-std/issues/275
+[f1a50b5]: https://github.com/driftsys/git-std/commit/f1a50b5
+[#273]: https://github.com/driftsys/git-std/issues/273
+[#268]: https://github.com/driftsys/git-std/issues/268
+[24a6e62]: https://github.com/driftsys/git-std/commit/24a6e62
+[#272]: https://github.com/driftsys/git-std/issues/272
+[#267]: https://github.com/driftsys/git-std/issues/267
+
 ## [0.4.0] (2026-03-18)
 
 ### Refactoring
