@@ -309,15 +309,15 @@ changelog, commit, and tag.
    entries pointing to subdirectory paths (e.g.
    `crates/my-crate/Cargo.toml`) are detected correctly.
 
-   | Version file     | Lock file           | Sync command                            |
-   | ---------------- | ------------------- | --------------------------------------- |
-   | `Cargo.toml`     | `Cargo.lock`        | `cargo update --workspace`              |
-   | `package.json`   | `package-lock.json` | `npm install --package-lock-only`       |
-   | `package.json`   | `yarn.lock`         | `yarn install --mode update-lockfile`   |
-   | `package.json`   | `pnpm-lock.yaml`    | `pnpm install --lockfile-only`          |
-   | `deno.json`      | `deno.lock`         | `deno install`                          |
-   | `pyproject.toml` | `uv.lock`           | `uv lock`                               |
-   | `pyproject.toml` | `poetry.lock`       | `poetry lock --no-update`               |
+   | Version file     | Lock file           | Sync command                          |
+   | ---------------- | ------------------- | ------------------------------------- |
+   | `Cargo.toml`     | `Cargo.lock`        | `cargo update --workspace`            |
+   | `package.json`   | `package-lock.json` | `npm install --package-lock-only`     |
+   | `package.json`   | `yarn.lock`         | `yarn install --mode update-lockfile` |
+   | `package.json`   | `pnpm-lock.yaml`    | `pnpm install --lockfile-only`        |
+   | `deno.json`      | `deno.lock`         | `deno install`                        |
+   | `pyproject.toml` | `uv.lock`           | `uv lock`                             |
+   | `pyproject.toml` | `poetry.lock`       | `poetry lock --no-update`             |
 
 9. Generate changelog section for this release via `standard-changelog`.
 10. Prepend the section to `CHANGELOG.md`.
