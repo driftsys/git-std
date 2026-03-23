@@ -157,14 +157,14 @@ fn hooks_list_shows_configured_hooks() {
         .assert()
         .success();
 
-    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stdout.contains("pre-commit (collect)"),
-        "should show hook name and mode, got: {stdout}"
+        stderr.contains("pre-commit (collect)"),
+        "should show hook name and mode, got: {stderr}"
     );
-    assert!(stdout.contains("dprint check"), "should list commands");
-    assert!(stdout.contains("*.rs"), "should show glob pattern");
-    assert!(stdout.contains("?"), "should show advisory prefix");
+    assert!(stderr.contains("dprint check"), "should list commands");
+    assert!(stderr.contains("*.rs"), "should show glob pattern");
+    assert!(stderr.contains("?"), "should show advisory prefix");
 }
 
 #[test]
@@ -186,13 +186,13 @@ fn hooks_list_fail_fast_mode() {
         .assert()
         .success();
 
-    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stdout.contains("pre-push (fail-fast)"),
+        stderr.contains("pre-push (fail-fast)"),
         "should show fail-fast mode"
     );
     assert!(
-        stdout.contains("! cargo build --workspace"),
+        stderr.contains("! cargo build --workspace"),
         "should show fail-fast prefix"
     );
 }
@@ -216,13 +216,13 @@ fn hooks_list_commit_msg() {
         .assert()
         .success();
 
-    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stdout.contains("commit-msg (fail-fast)"),
+        stderr.contains("commit-msg (fail-fast)"),
         "should show commit-msg with fail-fast mode"
     );
     assert!(
-        stdout.contains("git std check --file {msg}"),
+        stderr.contains("git std check --file {msg}"),
         "should show command with {{msg}} token"
     );
 }
@@ -257,9 +257,9 @@ fn hooks_list_multiple_hooks() {
         .assert()
         .success();
 
-    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stdout.contains("pre-commit") && stdout.contains("pre-push"),
+        stderr.contains("pre-commit") && stderr.contains("pre-push"),
         "should list all hooks"
     );
 }
