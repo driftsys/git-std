@@ -42,11 +42,7 @@ pub fn run(dry_run: bool) -> i32 {
     // Tier 2 — custom bootstrap.hooks
     if Path::new(BOOTSTRAP_HOOKS_FILE).exists() {
         if dry_run {
-            ui::result_line(&format!(
-                "{}  would run {}",
-                ui::pass(),
-                BOOTSTRAP_HOOKS_FILE
-            ));
+            ui::result_line(&format!("{}  custom bootstrap hooks executed", ui::pass()));
         } else {
             let code = super::hooks::run("bootstrap", &[]);
             if code != 0 {
@@ -62,18 +58,11 @@ pub fn run(dry_run: bool) -> i32 {
 fn check_hooks_path(dry_run: bool) -> bool {
     let hooks_dir = Path::new(".githooks");
     if !hooks_dir.exists() {
-        ui::result_line(&format!(
-            "{}  .githooks/ not found, skipping hooksPath",
-            ui::pass()
-        ));
         return true;
     }
 
     if dry_run {
-        ui::result_line(&format!(
-            "{}  would set core.hooksPath → .githooks",
-            ui::pass()
-        ));
+        ui::result_line(&format!("{}  git hooks configured", ui::pass()));
         return true;
     }
 
@@ -83,7 +72,7 @@ fn check_hooks_path(dry_run: bool) -> bool {
 
     match status {
         Ok(s) if s.success() => {
-            ui::result_line(&format!("{}  core.hooksPath → .githooks", ui::pass()));
+            ui::result_line(&format!("{}  git hooks configured", ui::pass()));
             true
         }
         _ => {
@@ -100,10 +89,6 @@ fn check_hooks_path(dry_run: bool) -> bool {
 fn check_lfs(dry_run: bool) -> bool {
     let attrs = Path::new(".gitattributes");
     if !attrs.exists() {
-        ui::result_line(&format!(
-            "{}  .gitattributes not found, skipping LFS",
-            ui::pass()
-        ));
         return true;
     }
 
@@ -116,10 +101,6 @@ fn check_lfs(dry_run: bool) -> bool {
     };
 
     if !content.lines().any(|line| line.contains("filter=lfs")) {
-        ui::result_line(&format!(
-            "{}  no LFS rules in .gitattributes, skipping",
-            ui::pass()
-        ));
         return true;
     }
 
@@ -137,10 +118,7 @@ fn check_lfs(dry_run: bool) -> bool {
     }
 
     if dry_run {
-        ui::result_line(&format!(
-            "{}  would run git lfs install + git lfs pull",
-            ui::pass()
-        ));
+        ui::result_line(&format!("{}  LFS objects downloaded", ui::pass()));
         return true;
     }
 
@@ -168,7 +146,7 @@ fn check_lfs(dry_run: bool) -> bool {
         return false;
     }
 
-    ui::result_line(&format!("{}  git lfs install + pull", ui::pass()));
+    ui::result_line(&format!("{}  LFS objects downloaded", ui::pass()));
     true
 }
 
@@ -176,18 +154,11 @@ fn check_lfs(dry_run: bool) -> bool {
 fn check_blame_ignore_revs(dry_run: bool) -> bool {
     let path = Path::new(".git-blame-ignore-revs");
     if !path.exists() {
-        ui::result_line(&format!(
-            "{}  .git-blame-ignore-revs not found, skipping",
-            ui::pass()
-        ));
         return true;
     }
 
     if dry_run {
-        ui::result_line(&format!(
-            "{}  would set blame.ignoreRevsFile → .git-blame-ignore-revs",
-            ui::pass()
-        ));
+        ui::result_line(&format!("{}  blame ignore revs configured", ui::pass()));
         return true;
     }
 
@@ -197,10 +168,7 @@ fn check_blame_ignore_revs(dry_run: bool) -> bool {
 
     match status {
         Ok(s) if s.success() => {
-            ui::result_line(&format!(
-                "{}  blame.ignoreRevsFile → .git-blame-ignore-revs",
-                ui::pass()
-            ));
+            ui::result_line(&format!("{}  blame ignore revs configured", ui::pass()));
             true
         }
         _ => {
@@ -270,12 +238,12 @@ pub fn install(force: bool) -> i32 {
     // Print summary
     ui::blank();
     for path in &created {
-        ui::result_line(&format!("{}  created {path}", ui::pass()));
+        ui::result_line(&format!("{}  {path} created", ui::pass()));
     }
     for path in &skipped {
         ui::result_line(&format!(
-            "{}  skipped {path} (already exists, use --force to overwrite)",
-            ui::pass()
+            "{}  {path} already exists (use --force to overwrite)",
+            ui::warn()
         ));
     }
 

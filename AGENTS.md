@@ -156,6 +156,10 @@ when they reflect a genuine concern, but keep each module focused and small.
   - Human output → stderr via `ui::` helpers. Never call `eprintln!` directly in
     command handlers.
   - Machine/pipeable output → stdout only.
+  - Messages are human-first: describe what was done in plain language
+    (e.g. "git hooks configured"), not internal details
+    (e.g. "core.hooksPath → .githooks"). Use past tense for completed actions.
+    Stay silent when nothing was done — don't report skips.
   - Prompts use `inquire`. Disable prompts when stdin is not a TTY (CI safety) —
     fail fast with a clear error instead of hanging.
   - Exit codes: `0` success, non-zero failure. Be consistent — a command either
