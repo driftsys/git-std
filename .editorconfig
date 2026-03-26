@@ -1,0 +1,26 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+# MarkSpec uses trailing backslash for hard line breaks,
+# not trailing spaces — safe to trim.
+max_line_length = 80
+
+[*.{json,yaml,yml,toml}]
+indent_size = 2
+
+[*.ts]
+indent_size = 2
+
+[Makefile]
+indent_style = tab
+
+[justfile]
+indent_size = 4
