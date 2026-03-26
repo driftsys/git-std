@@ -64,8 +64,8 @@ fn bootstrap_sets_hooks_path_when_githooks_exists() {
     let a = run_bootstrap(dir.path(), &[]).success();
     let err = stderr_text(&a);
     assert!(
-        err.contains("core.hooksPath"),
-        "should mention hooksPath, got: {err}"
+        err.contains("git hooks configured"),
+        "should confirm hooks configured, got: {err}"
     );
 
     let val = git(dir.path(), &["config", "core.hooksPath"]);
@@ -79,9 +79,10 @@ fn bootstrap_skips_hooks_path_when_no_githooks() {
 
     let a = run_bootstrap(dir.path(), &[]).success();
     let err = stderr_text(&a);
+    // No output when nothing to do
     assert!(
-        err.contains("skipping hooksPath"),
-        "should skip, got: {err}"
+        !err.contains("hooks"),
+        "should be silent on skip, got: {err}"
     );
 }
 
@@ -92,7 +93,8 @@ fn bootstrap_skips_lfs_when_no_gitattributes() {
 
     let a = run_bootstrap(dir.path(), &[]).success();
     let err = stderr_text(&a);
-    assert!(err.contains("skipping LFS"), "should skip LFS, got: {err}");
+    // No output when nothing to do
+    assert!(!err.contains("LFS"), "should be silent on skip, got: {err}");
 }
 
 #[test]
@@ -103,7 +105,7 @@ fn bootstrap_skips_lfs_when_no_filter_lfs() {
 
     let a = run_bootstrap(dir.path(), &[]).success();
     let err = stderr_text(&a);
-    assert!(err.contains("no LFS rules"), "should skip LFS, got: {err}");
+    assert!(!err.contains("LFS"), "should be silent on skip, got: {err}");
 }
 
 #[test]
@@ -115,8 +117,8 @@ fn bootstrap_sets_blame_ignore_revs() {
     let a = run_bootstrap(dir.path(), &[]).success();
     let err = stderr_text(&a);
     assert!(
-        err.contains("blame.ignoreRevsFile"),
-        "should set blame config, got: {err}"
+        err.contains("blame ignore revs configured"),
+        "should confirm blame config, got: {err}"
     );
 
     let val = git(dir.path(), &["config", "blame.ignoreRevsFile"]);
@@ -131,8 +133,8 @@ fn bootstrap_skips_blame_when_no_file() {
     let a = run_bootstrap(dir.path(), &[]).success();
     let err = stderr_text(&a);
     assert!(
-        err.contains(".git-blame-ignore-revs not found"),
-        "should skip, got: {err}"
+        !err.contains("blame"),
+        "should be silent on skip, got: {err}"
     );
 }
 
@@ -168,8 +170,8 @@ fn bootstrap_dry_run_no_side_effects() {
     let a = run_bootstrap(dir.path(), &["--dry-run"]).success();
     let err = stderr_text(&a);
     assert!(
-        err.contains("would set"),
-        "should mention 'would', got: {err}"
+        err.contains("configured"),
+        "should show what would be done, got: {err}"
     );
 
     // Verify no config was actually set
@@ -285,8 +287,8 @@ fn bootstrap_install_skips_existing_without_force() {
     let a = run_bootstrap_install(dir.path(), &[]).success();
     let err = stderr_text(&a);
     assert!(
-        err.contains("skipped"),
-        "should skip existing files, got: {err}"
+        err.contains("already exists"),
+        "should warn about existing files, got: {err}"
     );
 
     // Verify content unchanged
