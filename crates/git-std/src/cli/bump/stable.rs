@@ -167,7 +167,7 @@ pub(super) fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     }
 
     ui::blank();
-    ui::info(&format!("Advancing {original_branch}..."));
+    ui::info(&format!("Advancing {original_branch}:"));
     ui::detail(&format!(
         "{} ({bump_kind})",
         format!("{cur_ver} \u{2192} {new_version}").bold(),
