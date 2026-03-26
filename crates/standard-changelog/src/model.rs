@@ -67,6 +67,7 @@ impl Default for ChangelogConfig {
                 ("feat".to_string(), "Features".to_string()),
                 ("fix".to_string(), "Bug Fixes".to_string()),
                 ("perf".to_string(), "Performance".to_string()),
+                ("revert".to_string(), "Reverts".to_string()),
                 ("refactor".to_string(), "Refactoring".to_string()),
                 ("docs".to_string(), "Documentation".to_string()),
             ],
@@ -97,6 +98,7 @@ mod tests {
                 ("feat".to_string(), "Features".to_string()),
                 ("fix".to_string(), "Bug Fixes".to_string()),
                 ("perf".to_string(), "Performance".to_string()),
+                ("revert".to_string(), "Reverts".to_string()),
                 ("refactor".to_string(), "Refactoring".to_string()),
                 ("docs".to_string(), "Documentation".to_string()),
             ]

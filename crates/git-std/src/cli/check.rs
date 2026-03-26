@@ -1,20 +1,11 @@
 use std::path::Path;
 
-use clap::ValueEnum;
 use serde::Serialize;
 use yansi::Paint;
 
+use crate::app::OutputFormat;
 use crate::ui;
 use standard_commit::LintConfig;
-
-/// Output format for the check subcommand.
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-pub enum OutputFormat {
-    /// Human-readable text (default).
-    Text,
-    /// Machine-readable JSON.
-    Json,
-}
 
 /// JSON output schema for a single commit check.
 #[derive(Serialize)]
@@ -29,6 +20,8 @@ struct CheckResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     breaking: Option<bool>,
     errors: Vec<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    skipped: bool,
 }
 
 /// Run the `check` subcommand with an inline message. Returns the exit code.
@@ -77,6 +70,7 @@ fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
                 description: None,
                 breaking: None,
                 errors: errors.iter().map(|e| e.to_string()).collect(),
+                skipped: false,
             }
         }
     } else {
@@ -89,6 +83,7 @@ fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
                 description: None,
                 breaking: None,
                 errors: vec![e.to_string()],
+                skipped: false,
             },
         }
     };
@@ -108,6 +103,7 @@ fn build_valid_result(message: &str) -> CheckResult {
             description: Some(commit.description),
             breaking: Some(commit.is_breaking),
             errors: vec![],
+            skipped: false,
         },
         Err(_) => CheckResult {
             valid: true,
@@ -116,6 +112,7 @@ fn build_valid_result(message: &str) -> CheckResult {
             description: None,
             breaking: None,
             errors: vec![],
+            skipped: false,
         },
     }
 }
@@ -156,8 +153,16 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
 
     let total = commits.len();
     let mut failures = 0;
+    let mut skipped = 0;
     for (oid, message) in &commits {
         let short = &oid[..7];
+
+        if standard_commit::is_process_commit(message) {
+            ui::result_line(&format!("~ {} {}", short, first_line(message).dim(),));
+            skipped += 1;
+            continue;
+        }
+
         let valid = if let Some(config) = lint_config {
             let errors = standard_commit::lint(message, config);
             if errors.is_empty() {
@@ -202,9 +207,14 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
         }
     }
 
-    let valid_count = total - failures;
+    let checked = total - skipped;
+    let valid_count = checked - failures;
     ui::blank();
-    ui::summary_counts(valid_count, total);
+    if skipped > 0 {
+        eprintln!("{valid_count}/{checked} valid  ({skipped} skipped)");
+    } else {
+        ui::summary_counts(valid_count, checked);
+    }
 
     if failures > 0 { 1 } else { 0 }
 }
@@ -215,6 +225,19 @@ fn run_range_json(commits: &[(String, String)], lint_config: Option<&LintConfig>
     let mut any_invalid = false;
 
     for (_oid, message) in commits {
+        if standard_commit::is_process_commit(message) {
+            results.push(CheckResult {
+                valid: true,
+                r#type: None,
+                scope: None,
+                description: None,
+                breaking: None,
+                errors: vec![],
+                skipped: true,
+            });
+            continue;
+        }
+
         let result = if let Some(config) = lint_config {
             let errors = standard_commit::lint(message, config);
             if errors.is_empty() {
@@ -227,6 +250,7 @@ fn run_range_json(commits: &[(String, String)], lint_config: Option<&LintConfig>
                     description: None,
                     breaking: None,
                     errors: errors.iter().map(|e| e.to_string()).collect(),
+                    skipped: false,
                 }
             }
         } else {
@@ -239,6 +263,7 @@ fn run_range_json(commits: &[(String, String)], lint_config: Option<&LintConfig>
                     description: None,
                     breaking: None,
                     errors: vec![e.to_string()],
+                    skipped: false,
                 },
             }
         };

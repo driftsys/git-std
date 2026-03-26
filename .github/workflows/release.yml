@@ -33,11 +33,14 @@ jobs:
           key: ${{ matrix.target }}
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }} -p git-std
+      - name: Collect man pages
+        run: |
+          mkdir -p staging
+          cp target/${{ matrix.target }}/release/git-std staging/
+          find target/ -path '*/build/git-std-*/out/man/*.1' -exec cp {} staging/ \;
       - name: Create tarball
         run: |
-          cd target/${{ matrix.target }}/release
-          tar czf ../../../git-std-${{ matrix.target }}.tar.gz git-std
-          cd ../../..
+          tar czf git-std-${{ matrix.target }}.tar.gz -C staging .
       - name: Generate SHA256 checksum
         run: shasum -a 256 git-std-${{ matrix.target }}.tar.gz > git-std-${{ matrix.target }}.tar.gz.sha256
       - name: Upload artifacts
@@ -64,3 +67,45 @@ jobs:
           files: |
             git-std-*.tar.gz
             git-std-*.tar.gz.sha256
+
+  publish:
+    name: Publish to crates.io
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Publish crates
+        continue-on-error: true
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          publish() {
+            local crate="$1"
+            # Skip if already published.
+            local pkg_version
+            pkg_version=$(cargo metadata --no-deps --format-version 1 \
+              | jq -r ".packages[] | select(.name == \"$crate\") | .version")
+            local published
+            published=$(cargo search "$crate" --limit 1 2>/dev/null \
+              | grep "^$crate " | sed 's/.*= "\(.*\)".*/\1/' || true)
+            if [ "$pkg_version" = "$published" ]; then
+              echo "==> $crate $pkg_version already published, skipping"
+              return 0
+            fi
+            echo "==> Publishing $crate $pkg_version"
+            cargo publish -p "$crate"
+            # Wait for the crate index to update before publishing dependents.
+            sleep 30
+          }
+
+          publish standard-commit
+          publish standard-changelog
+          publish standard-version
+          publish standard-githooks
+          publish git-std
+
+          echo "==> All crates published."

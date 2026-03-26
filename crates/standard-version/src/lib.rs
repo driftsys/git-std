@@ -112,7 +112,7 @@ fn commit_bump(commit: &ConventionalCommit) -> Option<BumpLevel> {
 
     match commit.r#type.as_str() {
         "feat" => Some(BumpLevel::Minor),
-        "fix" | "perf" => Some(BumpLevel::Patch),
+        "fix" | "perf" | "revert" => Some(BumpLevel::Patch),
         _ => None,
     }
 }
