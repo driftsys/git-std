@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.1] (2026-03-26)
+
+### Refactoring
+
+- **git-std:** use human-first messages across CLI output ([7f23198]), closes
+  [#300]
+
+### Bug Fixes
+
+- **git-std:** use human-first messages in bootstrap output ([67386d6]), refs
+  [#300]
+
+[0.5.1]: https://github.com/driftsys/git-std/compare/v0.5.0...v0.5.1
+[7f23198]: https://github.com/driftsys/git-std/commit/7f23198
+[#300]: https://github.com/driftsys/git-std/issues/300
+[67386d6]: https://github.com/driftsys/git-std/commit/67386d6
+
 ## [0.5.0] (2026-03-26)
 
 ### Bug Fixes
