@@ -34,6 +34,8 @@ pub fn generate_shim(hook_name: &str) -> String {
 /// Generate the `.hooks` template file content for a given hook name.
 ///
 /// Includes a full header comment explaining the prefix system with examples.
+/// For `commit-msg`, adds a default validation command that is active out of
+/// the box.
 pub fn generate_hooks_template(hook_name: &str) -> String {
     let fix_line = if hook_name == "pre-commit" {
         "#   ~  fix       auto-format staged files and re-stage (pre-commit only)\n\
@@ -41,6 +43,13 @@ pub fn generate_hooks_template(hook_name: &str) -> String {
     } else {
         ""
     };
+
+    let default_commands = if hook_name == "commit-msg" {
+        "! git std check --file {msg}\n"
+    } else {
+        ""
+    };
+
     format!(
         "# git-std hooks — {hook_name}.hooks\n\
          #\n\
@@ -61,7 +70,8 @@ pub fn generate_hooks_template(hook_name: &str) -> String {
          # Enable/disable this hook:\n\
          #   git std hooks enable {hook_name}\n\
          #   git std hooks disable {hook_name}\n\
-         #\n"
+         #\n\
+         {default_commands}"
     )
 }
 
@@ -95,6 +105,18 @@ mod tests {
     fn hooks_template_no_fix_line_for_non_precommit() {
         let t = generate_hooks_template("commit-msg");
         assert!(!t.contains("~  fix"));
+    }
+
+    #[test]
+    fn commit_msg_template_has_default_check_command() {
+        let t = generate_hooks_template("commit-msg");
+        assert!(t.contains("! git std check --file {msg}"));
+    }
+
+    #[test]
+    fn non_commit_msg_template_has_no_default_commands() {
+        let t = generate_hooks_template("pre-push");
+        assert!(!t.contains("git std check"));
     }
 
     #[test]

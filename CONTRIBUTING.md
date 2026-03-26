@@ -27,6 +27,7 @@ You need the Rust toolchain and a few extra tools:
 # Clone and build
 git clone https://github.com/driftsys/git-std.git
 cd git-std
+./bootstrap          # post-clone setup (optional, requires git-std)
 just build
 ```
 

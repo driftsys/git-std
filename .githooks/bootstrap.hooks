@@ -1,0 +1,13 @@
+# git-std hooks — bootstrap.hooks
+#
+# Commands run by `git std bootstrap` after built-in checks.
+# Prefix controls behavior:
+#
+#   !  required   fail bootstrap on failure
+#   ?  advisory   run command, never fail bootstrap
+#
+# Examples:
+#   ! npm install          # install dependencies
+#   ! pip install -r requirements.txt
+#   ? pre-commit install   # optional tool setup
+#

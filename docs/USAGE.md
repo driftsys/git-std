@@ -138,6 +138,39 @@ git std hooks disable <hook>   # deactivate a hook (rename shim → .off)
 **Known hook types:** `pre-commit`, `commit-msg`, `pre-push`,
 `post-commit`, `prepare-commit-msg`, `post-merge`.
 
+## `git std bootstrap`
+
+Post-clone environment setup. Detects convention files and
+configures the local environment.
+
+```bash
+git std bootstrap              # run built-in checks + bootstrap.hooks
+git std bootstrap --dry-run    # print what would be done
+git std bootstrap install      # scaffold bootstrap files for contributors
+```
+
+**Built-in checks:**
+
+| Convention file          | Action                                                   |
+| ------------------------ | -------------------------------------------------------- |
+| `.githooks/`             | `git config core.hooksPath .githooks`                    |
+| `.gitattributes`         | `git lfs install` + `git lfs pull` (if `filter=lfs`)     |
+| `.git-blame-ignore-revs` | `git config blame.ignoreRevsFile .git-blame-ignore-revs` |
+
+After built-in checks, runs `.githooks/bootstrap.hooks` if present.
+
+**`bootstrap install` flags:**
+
+| Flag      | Description              |
+| --------- | ------------------------ |
+| `--force` | Overwrite existing files |
+
+**`bootstrap` flags:**
+
+| Flag        | Description                             |
+| ----------- | --------------------------------------- |
+| `--dry-run` | Print what would be done without acting |
+
 ## `git std completions`
 
 Generate shell completion scripts.
