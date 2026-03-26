@@ -34,6 +34,13 @@ fmt:
     dprint fmt
     npx markdownlint-cli '**/*.md' --ignore node_modules --fix
 
+# Generate man pages to target/man/
+man:
+    cargo build -p git-std
+    mkdir -p target/man
+    find target/ -path '*/build/git-std-*/out/man/*.1' -exec cp {} target/man/ \;
+    @echo "man pages written to target/man/"
+
 # Generate and open rustdoc
 doc:
     cargo doc --open

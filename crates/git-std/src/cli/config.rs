@@ -1,18 +1,8 @@
 use std::path::Path;
 
-use clap::ValueEnum;
-
+use crate::app::OutputFormat;
 use crate::config::{self, ScopesConfig};
 use crate::ui;
-
-/// Output format for the config subcommands.
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-pub enum OutputFormat {
-    /// Human-readable text (default).
-    Text,
-    /// Machine-readable JSON.
-    Json,
-}
 
 /// Source annotation for a configuration value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

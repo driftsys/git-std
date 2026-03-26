@@ -77,6 +77,14 @@ main() {
 
   printf 'installed git-std to %s/git-std\n' "$INSTALL_DIR"
 
+  # Install man pages if present in the tarball.
+  local man_dir="${GIT_STD_MAN_DIR:-$HOME/.local/share/man/man1}"
+  if ls "$tmp_dir"/git-std*.1 >/dev/null 2>&1; then
+    mkdir -p "$man_dir"
+    cp "$tmp_dir"/git-std*.1 "$man_dir/"
+    printf 'installed man pages to %s\n' "$man_dir"
+  fi
+
   # Verify
   if command -v git-std >/dev/null 2>&1; then
     printf 'version: %s\n' "$(git-std --version)"

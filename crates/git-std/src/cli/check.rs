@@ -1,20 +1,11 @@
 use std::path::Path;
 
-use clap::ValueEnum;
 use serde::Serialize;
 use yansi::Paint;
 
+use crate::app::OutputFormat;
 use crate::ui;
 use standard_commit::LintConfig;
-
-/// Output format for the check subcommand.
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-pub enum OutputFormat {
-    /// Human-readable text (default).
-    Text,
-    /// Machine-readable JSON.
-    Json,
-}
 
 /// JSON output schema for a single commit check.
 #[derive(Serialize)]
