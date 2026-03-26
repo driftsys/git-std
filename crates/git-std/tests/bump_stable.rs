@@ -160,7 +160,7 @@ fn bump_stable_creates_branch_and_bumps_major() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stderr(predicate::str::contains("Creating stable branch"))
+        .stderr(predicate::str::contains("Stable branch created"))
         .stderr(predicate::str::contains("stable-v1.0"))
         .stderr(predicate::str::contains("patch (patch-only bumps)"))
         .stderr(predicate::str::contains("Committed"))
@@ -254,11 +254,11 @@ fn bump_stable_dry_run() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stderr(predicate::str::contains("Creating stable branch"))
+        .stderr(predicate::str::contains("Would create stable branch"))
         .stderr(predicate::str::contains("stable-v1.0"))
         .stderr(predicate::str::contains("Would commit"))
         .stderr(predicate::str::contains("Would tag"))
-        .stderr(predicate::str::contains("Advancing"))
+        .stderr(predicate::str::contains("Would advance"))
         .stderr(predicate::str::contains("1.0.0 \u{2192} 2.0.0"));
 
     // No branch should be created.
