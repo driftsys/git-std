@@ -1,6 +1,6 @@
 scheme = "semver"
 strict = true
-scopes = "auto"
+scopes = ["git-std", "standard-changelog", "standard-commit", "standard-githooks", "standard-version", "release"]
 
 [versioning]
 tag_prefix = "v"

@@ -81,7 +81,7 @@ pub(super) fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     if opts.dry_run {
         ui::blank();
-        ui::info("Creating stable branch...");
+        ui::info("Would create stable branch:");
         ui::item("Branch:", &stable_branch_name);
         ui::item("Scheme:", "patch (patch-only bumps)");
         ui::blank();
@@ -90,7 +90,7 @@ pub(super) fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
             cur_ver.major, cur_ver.minor,
         ));
         ui::blank();
-        ui::info(&format!("Advancing {original_branch}..."));
+        ui::info(&format!("Would advance {original_branch}:"));
         ui::detail(&format!(
             "{} ({bump_kind})",
             format!("{cur_ver} \u{2192} {new_version}").bold(),
@@ -155,7 +155,7 @@ pub(super) fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     }
 
     ui::blank();
-    ui::info("Creating stable branch...");
+    ui::info("Stable branch created:");
     ui::item("Branch:", &stable_branch_name);
     ui::item("Scheme:", "patch (patch-only bumps)");
     ui::blank();
