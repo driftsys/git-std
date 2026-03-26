@@ -63,7 +63,7 @@ dependencies.
 
 ### 1.3 Scope
 
-git-std covers four concerns:
+git-std covers five concerns:
 
 | Concern                      | Subcommand                                                         |
 | ---------------------------- | ------------------------------------------------------------------ |
@@ -71,6 +71,7 @@ git-std covers four concerns:
 | Commit message validation    | `git std check`                                                    |
 | Version bump + changelog     | `git std bump`, `git std changelog`                                |
 | Git hooks management         | `git std hooks install`, `git std hooks run`, `git std hooks list` |
+| Post-clone bootstrap         | `git std bootstrap`, `git std bootstrap install`                   |
 | Shell completions            | `git std completions`                                              |
 
 **Out of scope:** repo scaffolding, directory structure
@@ -663,7 +664,65 @@ cargo test --workspace --lib *.rs
 ! git std check --file {msg}
 ```
 
-### 2.7 `git std completions`
+### 2.7 `git std bootstrap`
+
+Post-clone environment setup. Detects convention files
+in the repository and configures the local environment.
+
+#### 2.7.1 Built-in checks
+
+| Convention file          | Action                                                   | Condition             |
+| ------------------------ | -------------------------------------------------------- | --------------------- |
+| `.githooks/`             | `git config core.hooksPath .githooks`                    | directory exists      |
+| `.gitattributes`         | `git lfs install` + `git lfs pull`                       | contains `filter=lfs` |
+| `.git-blame-ignore-revs` | `git config blame.ignoreRevsFile .git-blame-ignore-revs` | file exists           |
+
+If LFS rules are detected but `git-lfs` is not installed,
+prints an error with install URL and exits 1.
+
+#### 2.7.2 Custom commands (`.githooks/bootstrap.hooks`)
+
+After built-in checks, runs `.githooks/bootstrap.hooks`
+through the existing hooks runner if the file exists.
+Uses the standard `.hooks` file format:
+
+- `!` prefix = required (fail bootstrap on failure)
+- `?` prefix = advisory (best-effort)
+- No prefix = default mode
+
+#### 2.7.3 `git std bootstrap install`
+
+Scaffolds bootstrap files for a project maintainer to
+commit:
+
+1. Generates `./bootstrap` at repo root — a bash script
+   that checks `MIN_VERSION`, installs git-std from
+   GitHub Releases if missing or outdated, then runs
+   `git std bootstrap`.
+2. Generates `.githooks/bootstrap.hooks` with a commented
+   template.
+3. Appends a post-clone reminder to `AGENTS.md` and
+   `README.md` (idempotent, uses HTML comment marker).
+
+**Flags:**
+
+| Flag      | Description              |
+| --------- | ------------------------ |
+| `--force` | Overwrite existing files |
+
+**Flags for `git std bootstrap`:**
+
+| Flag        | Description                             |
+| ----------- | --------------------------------------- |
+| `--dry-run` | Print what would be done without acting |
+
+**Exit codes:** `0` success (including nothing to do),
+`1` failure.
+
+All steps are idempotent — running twice produces the
+same result.
+
+### 2.8 `git std completions`
 
 Generate shell completion scripts for bash, zsh, or fish.
 
@@ -686,7 +745,7 @@ eval "$(git std completions zsh)"
 git std completions fish | source
 ```
 
-### 2.8 Global Flags
+### 2.9 Global Flags
 
 | Flag               | Description                         |
 | ------------------ | ----------------------------------- |

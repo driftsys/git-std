@@ -7,9 +7,9 @@ Commands:
   check        Validate commit messages
   bump         Version bump, changelog, commit, and tag
   changelog    Generate a changelog (incremental by default, --full to regenerate)
+  bootstrap    Post-clone environment setup
   hooks        Git hooks management
   config       Inspect effective git-std configuration
   completions  Generate shell completion scripts
   help         Print this message or the help of the given subcommand(s)
-
 ...

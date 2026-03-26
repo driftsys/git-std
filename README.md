@@ -36,6 +36,7 @@ cargo install git-std
 
 ```bash
 git std hooks install                # set up hooks
+git std bootstrap install            # scaffold ./bootstrap for contributors
 git add .
 git std commit                       # interactive commit
 git std check --range main..HEAD     # validate commits
@@ -95,3 +96,9 @@ MIT
 [standard-version]: crates/standard-version/
 [standard-changelog]: crates/standard-changelog/
 [standard-githooks]: crates/standard-githooks/
+
+<!-- git-std:bootstrap -->
+
+## Post-clone setup
+
+Run `./bootstrap` after `git clone` or `git worktree add`.

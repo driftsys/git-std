@@ -43,7 +43,7 @@ Library crates are pure — no git2, no I/O, no terminal output — except
 `standard-version`, which performs file I/O for version file detection and
 updates.
 
-**Six subcommands**, each a separate concern:
+**Seven subcommands**, each a separate concern:
 
 | Subcommand            | Purpose                                                |
 | --------------------- | ------------------------------------------------------ |
@@ -51,6 +51,7 @@ updates.
 | `git std check`       | Commit message validation                              |
 | `git std bump`        | Version bump + changelog + commit + tag                |
 | `git std changelog`   | Changelog generation (incremental or full)             |
+| `git std bootstrap`   | Post-clone environment setup                           |
 | `git std hooks`       | Git hooks management (install/run/list/enable/disable) |
 | `git std completions` | Generate shell completion scripts                      |
 
@@ -161,3 +162,9 @@ when they reflect a genuine concern, but keep each module focused and small.
     use ANSI escape codes directly. Respect `NO_COLOR`.
 - **Comments:** doc comments on all public API items, brief inline comments on
   tricky internals only.
+
+<!-- git-std:bootstrap -->
+
+## Post-clone setup
+
+Run `./bootstrap` after `git clone` or `git worktree add`.

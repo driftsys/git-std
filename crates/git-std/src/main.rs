@@ -129,6 +129,14 @@ enum Command {
         #[arg(long)]
         range: Option<String>,
     },
+    /// Post-clone environment setup.
+    Bootstrap {
+        #[command(subcommand)]
+        subcommand: Option<BootstrapCommand>,
+        /// Print what would be done without executing.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Git hooks management.
     Hooks {
         #[command(subcommand)]
@@ -143,6 +151,17 @@ enum Command {
     Completions {
         /// Target shell.
         shell: Shell,
+    },
+}
+
+/// Bootstrap subcommands.
+#[derive(Subcommand)]
+enum BootstrapCommand {
+    /// Generate bootstrap script and hooks template.
+    Install {
+        /// Overwrite existing files.
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -309,6 +328,16 @@ fn main() {
                 minor,
             };
             let code = cli::bump::run(&project_config, &opts);
+            std::process::exit(code);
+        }
+        Command::Bootstrap {
+            subcommand,
+            dry_run,
+        } => {
+            let code = match subcommand {
+                Some(BootstrapCommand::Install { force }) => cli::bootstrap::install(force),
+                None => cli::bootstrap::run(dry_run),
+            };
             std::process::exit(code);
         }
         Command::Hooks { subcommand } => {
