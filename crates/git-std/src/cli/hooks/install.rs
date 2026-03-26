@@ -22,10 +22,7 @@ pub fn install() -> i32 {
 
     match status {
         Ok(s) if s.success() => {
-            ui::result_line(&format!(
-                "{}  core.hooksPath \u{2192} .githooks",
-                ui::pass()
-            ));
+            ui::result_line(&format!("{}  git hooks configured", ui::pass()));
         }
         _ => {
             ui::error("failed to set core.hooksPath");

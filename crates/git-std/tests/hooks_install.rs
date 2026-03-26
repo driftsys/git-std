@@ -43,7 +43,7 @@ fn hooks_install_creates_shims() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stderr(predicate::str::contains("core.hooksPath"));
+        .stderr(predicate::str::contains("git hooks configured"));
 
     // Active shim should exist.
     let shim_path = hooks_dir.join("pre-commit");
