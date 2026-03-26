@@ -155,6 +155,8 @@ fn stash_drop() {
 /// Re-stage the given files after a formatter has run.
 ///
 /// Runs `git add -- <files>` to pick up any formatting changes.
+/// Files that no longer exist on disk are skipped with a warning to
+/// prevent a formatter-caused deletion from being silently staged (#279).
 ///
 /// Returns `true` on success, `false` if the command fails. A failure means
 /// formatted changes would be silently lost — callers must treat this as a
@@ -163,9 +165,20 @@ fn restage_files(files: &[String]) -> bool {
     if files.is_empty() {
         return true;
     }
+    let mut existing: Vec<&String> = Vec::new();
+    for f in files {
+        if std::path::Path::new(f).exists() {
+            existing.push(f);
+        } else {
+            ui::warning(&format!("{f} was deleted by formatter — skipping restage"));
+        }
+    }
+    if existing.is_empty() {
+        return true;
+    }
     let mut cmd = Command::new("git");
     cmd.arg("add").arg("--");
-    for f in files {
+    for f in &existing {
         cmd.arg(f);
     }
     match cmd.status() {
@@ -377,9 +390,10 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
     };
 
     if use_stash_dance && stash_active && !stash_apply() {
-        ui::error("git stash apply failed — your working tree may have conflicts");
-        ui::hint("resolve conflicts manually, then re-run your commit");
+        ui::error("stash apply failed — working tree has conflicting unstaged changes");
+        ui::hint("commit or stash your unstaged changes first, then retry");
         stash_drop();
+        print_failure_hints(hook);
         return 1;
     }
 
@@ -443,6 +457,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
                         stash_drop();
                     }
                     ui::blank();
+                    print_failure_hints(hook);
                     return 1;
                 }
                 if stash_active {
@@ -480,6 +495,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
             if stash_active {
                 stash_drop();
             }
+            print_failure_hints(hook);
             return 1;
         }
 

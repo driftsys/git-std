@@ -904,3 +904,181 @@ fn hooks_run_fix_mode_preserves_binary_files() {
         "staged binary content should be byte-identical after stash dance"
     );
 }
+
+/// #277 + #278 — Fix-mode failure prints actionable hints.
+///
+/// When a `~` fix command fails, the output must include hint lines telling
+/// the user how to skip the hook, skip all hooks, and disable the command.
+#[test]
+fn hooks_run_fix_mode_failure_prints_hints() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    std::fs::write(dir.path().join("file.txt"), "content\n").unwrap();
+    git(dir.path(), &["add", "file.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "~ false\n").unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1);
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+
+    assert!(
+        stderr.contains("hint: to skip this hook:"),
+        "should print skip-hook hint, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("--no-verify"),
+        "should mention --no-verify, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("GIT_STD_SKIP_HOOKS=1"),
+        "should mention GIT_STD_SKIP_HOOKS, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains(".githooks/pre-commit.hooks"),
+        "should reference the hooks file, got:\n{stderr}"
+    );
+}
+
+/// #279 — Formatter-deleted files are not re-staged as deletions.
+///
+/// If a fix-mode formatter deletes a file that was staged for modification,
+/// `restage_files()` should skip it with a warning instead of silently
+/// staging a deletion.
+#[test]
+fn hooks_run_fix_mode_skips_restage_of_formatter_deleted_files() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Create and commit a file.
+    std::fs::write(dir.path().join("victim.txt"), "original\n").unwrap();
+    std::fs::write(dir.path().join("survivor.txt"), "keep\n").unwrap();
+    git(dir.path(), &["add", "victim.txt", "survivor.txt"]);
+    git(dir.path(), &["commit", "-m", "initial"]);
+
+    // Stage modifications.
+    std::fs::write(dir.path().join("victim.txt"), "modified\n").unwrap();
+    std::fs::write(dir.path().join("survivor.txt"), "also modified\n").unwrap();
+    git(dir.path(), &["add", "victim.txt", "survivor.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // Formatter that deletes victim.txt.
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "~ rm -f victim.txt\n").unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+
+    // Warning about the deleted file.
+    assert!(
+        stderr.contains("victim.txt") && stderr.contains("deleted by formatter"),
+        "should warn about formatter-deleted file, got:\n{stderr}"
+    );
+
+    // victim.txt should NOT be staged as a deletion.
+    let deletions = std::process::Command::new("git")
+        .args(["diff", "--cached", "--name-only", "--diff-filter=D"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let deleted = String::from_utf8_lossy(&deletions.stdout);
+    assert!(
+        !deleted.contains("victim.txt"),
+        "victim.txt should not be staged as deletion, got:\n{deleted}"
+    );
+
+    // survivor.txt should still be staged.
+    let staged = std::process::Command::new("git")
+        .args(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let staged_files = String::from_utf8_lossy(&staged.stdout);
+    assert!(
+        staged_files.contains("survivor.txt"),
+        "survivor.txt should still be staged, got:\n{staged_files}"
+    );
+}
+
+/// #283 — Fix mode rejects submodule entries.
+///
+/// When a submodule is staged and fix-mode commands exist, the hook
+/// should reject execution with a clear error and hint.
+#[test]
+fn hooks_run_fix_mode_rejects_staged_submodules() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Create a bare repo to use as a submodule source.
+    let sub_source = tempfile::tempdir().unwrap();
+    git(sub_source.path(), &["init", "--bare"]);
+
+    // We need a commit in the bare repo for submodule add to work.
+    let sub_work = tempfile::tempdir().unwrap();
+    git(sub_work.path(), &["init"]);
+    git(sub_work.path(), &["config", "user.name", "Test"]);
+    git(sub_work.path(), &["config", "user.email", "test@test.com"]);
+    std::fs::write(sub_work.path().join("readme.txt"), "sub\n").unwrap();
+    git(sub_work.path(), &["add", "readme.txt"]);
+    git(sub_work.path(), &["commit", "-m", "init sub"]);
+    git(
+        sub_work.path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            sub_source.path().to_str().unwrap(),
+        ],
+    );
+    git(sub_work.path(), &["push", "origin", "HEAD"]);
+
+    // Add the submodule to the main repo.
+    let sub_url = sub_source.path().to_str().unwrap();
+    let output = std::process::Command::new("git")
+        .args(["submodule", "add", sub_url, "submod"])
+        .current_dir(dir.path())
+        .env("GIT_ALLOW_PROTOCOL", "file")
+        .output()
+        .unwrap();
+    if !output.status.success() {
+        // If submodule add is unsupported in this git version, skip the test.
+        eprintln!(
+            "skipping: git submodule add failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "~ true\n").unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1);
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+
+    // Should report that fix mode doesn't support submodules.
+    assert!(
+        stderr.contains("submodule"),
+        "should mention submodules in error, got:\n{stderr}"
+    );
+}
