@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.5.0] (2026-03-26)
+
+### Bug Fixes
+
+- **bump:** gate lock file sync on whether corresponding version file was
+  updated ([#291]) ([0b78fa5]), closes [#290]
+- **bump:** detect workspace Cargo.toml in lock sync via ends_with match
+  ([7aac99e]), closes [#289]
+- **release:** include Cargo.lock in v0.4.2 release ([a64f245])
+
+### Features
+
+- **git-std:** add bootstrap subcommand for post-clone setup ([8f4af3d]), closes
+  [#294], closes #295, closes #296
+
+[0.5.0]: https://github.com/driftsys/git-std/compare/v0.4.2...v0.5.0
+[0b78fa5]: https://github.com/driftsys/git-std/commit/0b78fa5
+[#291]: https://github.com/driftsys/git-std/issues/291
+[#290]: https://github.com/driftsys/git-std/issues/290
+[7aac99e]: https://github.com/driftsys/git-std/commit/7aac99e
+[#289]: https://github.com/driftsys/git-std/issues/289
+[a64f245]: https://github.com/driftsys/git-std/commit/a64f245
+[8f4af3d]: https://github.com/driftsys/git-std/commit/8f4af3d
+[#294]: https://github.com/driftsys/git-std/issues/294
+
 ## [0.4.2] (2026-03-23)
 
 ### Bug Fixes
