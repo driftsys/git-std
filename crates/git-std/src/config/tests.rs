@@ -67,7 +67,7 @@ fn to_lint_config_strict() {
     };
     let lint = config.to_lint_config(true, dir.path());
     assert_eq!(lint.types, Some(vec!["feat".into()]));
-    assert_eq!(lint.scopes, Some(vec!["auth".into()]));
+    assert_eq!(lint.scopes, Some(vec!["auth".into(), "release".into()]));
     assert!(lint.require_scope);
 }
 
@@ -108,7 +108,7 @@ fn to_lint_config_strict_from_config() {
     // strict=true in config, flag=false → still strict
     let lint = config.to_lint_config(false, dir.path());
     assert_eq!(lint.types, Some(vec!["feat".into()]));
-    assert_eq!(lint.scopes, Some(vec!["auth".into()]));
+    assert_eq!(lint.scopes, Some(vec!["auth".into(), "release".into()]));
     assert!(lint.require_scope);
 }
 
@@ -224,7 +224,10 @@ fn to_lint_config_auto_discovers_scopes() {
         ..Default::default()
     };
     let lint = config.to_lint_config(true, dir.path());
-    assert_eq!(lint.scopes, Some(vec!["api".into(), "auth".into()]));
+    assert_eq!(
+        lint.scopes,
+        Some(vec!["api".into(), "auth".into(), "release".into()])
+    );
     assert!(lint.require_scope);
 }
 
@@ -451,6 +454,37 @@ calver_format = "YYYY.INVALID"
     assert_eq!(config.scheme, Scheme::Semver);
     // Invalid format is kept as-is because scheme is not calver.
     assert_eq!(config.versioning.calver_format, "YYYY.INVALID");
+}
+
+#[test]
+fn release_scope_always_allowed_with_explicit_list() {
+    let dir = tempfile::tempdir().unwrap();
+    let config = ProjectConfig {
+        types: vec!["feat".into()],
+        scopes: ScopesConfig::List(vec!["api".into()]),
+        ..Default::default()
+    };
+    let lint = config.to_lint_config(true, dir.path());
+    let scopes = lint.scopes.unwrap();
+    assert!(scopes.contains(&"release".to_string()));
+}
+
+#[test]
+fn release_scope_not_duplicated_when_already_present() {
+    let dir = tempfile::tempdir().unwrap();
+    let config = ProjectConfig {
+        types: vec!["feat".into()],
+        scopes: ScopesConfig::List(vec!["release".into(), "api".into()]),
+        ..Default::default()
+    };
+    let lint = config.to_lint_config(true, dir.path());
+    let count = lint
+        .scopes
+        .unwrap()
+        .iter()
+        .filter(|s| *s == "release")
+        .count();
+    assert_eq!(count, 1);
 }
 
 #[test]

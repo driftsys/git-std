@@ -166,6 +166,15 @@ impl ProjectConfig {
                 }
                 ScopesConfig::List(list) => (Some(list.clone()), true),
             };
+            // `chore(release)` is the standard commit message produced by
+            // `git std bump`. Always allow it so the tool's own commits
+            // pass validation regardless of the configured scope list.
+            let scopes = scopes.map(|mut s| {
+                if !s.iter().any(|v| v == "release") {
+                    s.push("release".to_string());
+                }
+                s
+            });
             standard_commit::LintConfig {
                 types: Some(self.types.clone()),
                 scopes,
