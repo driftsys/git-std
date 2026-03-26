@@ -63,7 +63,7 @@ dependencies.
 
 ### 1.3 Scope
 
-git-std covers five concerns:
+git-std covers six concerns:
 
 | Concern                      | Subcommand                                                         |
 | ---------------------------- | ------------------------------------------------------------------ |
