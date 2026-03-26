@@ -92,8 +92,10 @@ severity/effort/priority, and review flow.
 - **PR review.** After opening a PR, review it and submit findings. Triage each
   finding:
   - **Must fix (`K0`)** — fix immediately before merging.
-  - **Should fix (`K1`)** — open a debt issue.
-  - **Nice to have (`K2`)** — open a debt issue.
+  - **Should fix (`K1`)** — open a debt issue linking to the PR.
+  - **Nice to have (`K2`)** — open a debt issue linking to the PR.
+  Debt issues must link to the PR that surfaced the finding and include
+  enough context to understand the problem without reading the PR.
 
 **Issue labels and priority:**
 
