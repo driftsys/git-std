@@ -238,6 +238,9 @@ Validate one or more commit messages against the conventional commit specificati
 4. Body, if present, is separated from subject by a blank line.
 5. Footer tokens (`BREAKING CHANGE:`, `Refs:`, etc.)
    follow the conventional commit footer spec.
+6. In `--range` mode: process commits (merges, reverts,
+   fixups, squashes, initial commits) are automatically
+   skipped and excluded from the valid/total count.
 
 **Input modes:**
 
@@ -270,14 +273,18 @@ $ git std check "added new feature"
 
 **Output with `--range`:**
 
+Process commits (merges, reverts, fixups) are automatically skipped
+and not counted as failures.
+
 ```text
 $ git std check --range main..HEAD
   ✓ feat(auth): add OAuth2 PKCE flow
   ✓ fix(auth): handle expired refresh tokens
+  ~ abc1234 Merge pull request #42 from owner/branch
   ✗ updated readme
     → missing type prefix
 
-2/3 valid
+2/3 valid  (1 skipped)
 ```
 
 ### 2.3 `git std bump`
@@ -796,18 +803,18 @@ regex = '<version>(.*)</version>'
 
 **Defaults when `.git-std.toml` is absent:**
 
-| Field                       | Default                                                                            |
-| --------------------------- | ---------------------------------------------------------------------------------- |
-| `scheme`                    | `semver`                                                                           |
-| `types`                     | `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build` |
-| `scopes`                    | None (no scope validation)                                                         |
-| `strict`                    | `false`                                                                            |
-| `versioning.tag_prefix`     | `v`                                                                                |
-| `versioning.prerelease_tag` | `rc`                                                                               |
-| `versioning.calver_format`  | `YYYY.MM.PATCH`                                                                    |
-| `changelog.hidden`          | `chore`, `ci`, `build`, `style`, `test`                                            |
-| `changelog.sections`        | Sensible defaults for each type                                                    |
-| `version_files`             | `[]` (empty — built-in files are always auto-detected)                             |
+| Field                       | Default                                                                                      |
+| --------------------------- | -------------------------------------------------------------------------------------------- |
+| `scheme`                    | `semver`                                                                                     |
+| `types`                     | `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, `revert` |
+| `scopes`                    | None (no scope validation)                                                                   |
+| `strict`                    | `false`                                                                                      |
+| `versioning.tag_prefix`     | `v`                                                                                          |
+| `versioning.prerelease_tag` | `rc`                                                                                         |
+| `versioning.calver_format`  | `YYYY.MM.PATCH`                                                                              |
+| `changelog.hidden`          | `chore`, `ci`, `build`, `style`, `test`                                                      |
+| `changelog.sections`        | Sensible defaults for each type                                                              |
+| `version_files`             | `[]` (empty — built-in files are always auto-detected)                                       |
 
 **Inferred (not configurable):**
 
