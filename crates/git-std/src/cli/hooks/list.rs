@@ -38,8 +38,8 @@ pub fn list() -> i32 {
 
         let mode = default_mode(hook_name);
         let mode_label = match mode {
-            HookMode::Collect => "collect",
-            HookMode::FailFast => "fail-fast",
+            HookMode::Collect => "collect mode",
+            HookMode::FailFast => "fail-fast mode",
         };
 
         ui::info(&format!("{hook_name} ({mode_label}) [{status_label}]:"));
@@ -47,6 +47,16 @@ pub fn list() -> i32 {
         if commands.is_empty() {
             ui::detail("(no commands)");
         } else {
+            // Compute max command width for dynamic glob alignment.
+            let max_cmd_width = commands
+                .iter()
+                .filter(|c| c.glob.is_some())
+                .map(|c| c.command.len() + 2) // +2 for prefix char + space
+                .max()
+                .unwrap_or(0);
+            // Minimum column width of 48, with at least 4 chars padding.
+            let col_width = max_cmd_width.max(48);
+
             for cmd in &commands {
                 let prefix_char = match cmd.prefix {
                     Prefix::FailFast => "!",
@@ -57,9 +67,8 @@ pub fn list() -> i32 {
 
                 let display = if let Some(ref glob) = cmd.glob {
                     let cmd_part = format!("{prefix_char} {}", cmd.command);
-                    let total_width = 48;
-                    let padding = if cmd_part.len() < total_width {
-                        total_width - cmd_part.len()
+                    let padding = if cmd_part.len() < col_width {
+                        col_width - cmd_part.len()
                     } else {
                         4
                     };
