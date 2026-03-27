@@ -263,3 +263,84 @@ fn hooks_list_multiple_hooks() {
         "should list all hooks"
     );
 }
+
+// --- Additional acceptance tests for hooks install (#195) ---
+
+#[test]
+fn hooks_install_sets_core_hooks_path() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "install"])
+        .env("GIT_STD_HOOKS_ENABLE", "none")
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let hooks_path = git(dir.path(), &["config", "core.hooksPath"]);
+    assert_eq!(hooks_path, ".githooks");
+}
+
+#[test]
+fn hooks_install_creates_githooks_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Do NOT pre-create .githooks/ — the install command should create it.
+    assert!(!dir.path().join(".githooks").exists());
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "install"])
+        .env("GIT_STD_HOOKS_ENABLE", "none")
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    assert!(
+        dir.path().join(".githooks").exists(),
+        ".githooks/ should be created by install"
+    );
+}
+
+#[test]
+fn hooks_install_enable_all() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "install"])
+        .env("GIT_STD_HOOKS_ENABLE", "all")
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let hooks_dir = dir.path().join(".githooks");
+    // All known hooks should be active (no .off).
+    assert!(hooks_dir.join("pre-commit").exists());
+    assert!(hooks_dir.join("commit-msg").exists());
+    assert!(hooks_dir.join("pre-push").exists());
+    assert!(!hooks_dir.join("pre-commit.off").exists());
+}
+
+#[test]
+fn hooks_install_enable_none() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "install"])
+        .env("GIT_STD_HOOKS_ENABLE", "none")
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let hooks_dir = dir.path().join(".githooks");
+    // All hooks should be .off.
+    assert!(!hooks_dir.join("pre-commit").exists());
+    assert!(hooks_dir.join("pre-commit.off").exists());
+}

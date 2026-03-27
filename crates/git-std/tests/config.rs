@@ -119,7 +119,7 @@ fn config_get_scheme_returns_semver_by_default() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stdout(contains("semver"));
+        .stderr(contains("semver"));
 }
 
 #[test]
@@ -130,7 +130,7 @@ fn config_get_strict_returns_false_by_default() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stdout(contains("false"));
+        .stderr(contains("false"));
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn config_get_versioning_tag_prefix() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stdout(contains("v"));
+        .stderr(contains("v"));
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn config_get_changelog_title() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stdout(contains("Changelog"));
+        .stderr(contains("Changelog"));
 }
 
 #[test]
@@ -163,8 +163,8 @@ fn config_get_types_lists_defaults() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stdout(contains("feat"))
-        .stdout(contains("fix"));
+        .stderr(contains("feat"))
+        .stderr(contains("fix"));
 }
 
 #[test]
@@ -224,7 +224,7 @@ fn config_get_reflects_toml_value() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stdout(contains("true"));
+        .stderr(contains("true"));
 }
 
 // ── config subcommand requires subcommand ────────────────────────

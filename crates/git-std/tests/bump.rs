@@ -492,15 +492,32 @@ fn bump_missing_tool_lock_file_warns_and_continues() {
 
     add_commit(dir.path(), "a.txt", "fix: small fix");
 
-    // Write a uv.lock — `uv` is very unlikely to be installed in CI.
-    // We rely on the warning path (tool not on PATH) rather than a real sync.
+    // Write a uv.lock — override PATH to only include git's directory so `uv`
+    // cannot be found regardless of the host environment, isolating the
+    // "tool not on PATH" warning path.
     std::fs::write(dir.path().join("uv.lock"), "# placeholder\n").unwrap();
+
+    // Build a minimal PATH that contains git (needed for bump internals)
+    // but excludes ecosystem tools like uv, npm, etc.
+    let git_dir = std::process::Command::new("which")
+        .arg("git")
+        .output()
+        .map(|o| {
+            let p = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            std::path::PathBuf::from(p)
+                .parent()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        })
+        .unwrap();
 
     // Bump must still succeed.
     Command::cargo_bin("git-std")
         .unwrap()
         .args(["bump"])
         .current_dir(dir.path())
+        .env("PATH", &git_dir)
         .assert()
         .success();
 
@@ -564,4 +581,43 @@ fn bump_dry_run_skips_untriggered_lock_file() {
         .assert()
         .success()
         .stderr(predicate::str::contains("Would sync:   uv.lock").not());
+}
+
+/// Cargo.lock is synced when `cargo` is available and Cargo.toml was updated.
+#[test]
+fn bump_cargo_lock_sync_happy_path() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+
+    // Generate a real Cargo.lock so the lock sync has a file to update.
+    std::fs::create_dir_all(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("src/lib.rs"), "").unwrap();
+    std::process::Command::new("cargo")
+        .args(["generate-lockfile"])
+        .current_dir(dir.path())
+        .status()
+        .expect("cargo must be available");
+    git(dir.path(), &["add", "."]);
+    git(dir.path(), &["commit", "-m", "chore: add lock"]);
+
+    add_commit(dir.path(), "a.txt", "fix: a bug");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Synced:"));
+
+    // Verify the lock file was staged as part of the bump commit.
+    let files_in_commit = git(
+        dir.path(),
+        &["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+    );
+    assert!(
+        files_in_commit.contains("Cargo.lock"),
+        "Cargo.lock should be staged in the bump commit, got: {files_in_commit}"
+    );
 }

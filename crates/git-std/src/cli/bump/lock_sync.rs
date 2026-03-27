@@ -52,7 +52,8 @@ const LOCK_ENTRIES: &[LockEntry] = &[
         filename: "deno.lock",
         trigger: "deno.json",
         tool: "deno",
-        args: &["install"],
+        // Deno 2.x requires --frozen=false to allow lock file updates.
+        args: &["install", "--frozen=false"],
     },
     LockEntry {
         filename: "uv.lock",
@@ -101,7 +102,7 @@ pub(super) fn dry_run_lock_files(workdir: &Path, updated_names: &[&str]) {
             .iter()
             .any(|name| name.ends_with(entry.trigger));
         if triggered && workdir.join(entry.filename).exists() {
-            ui::info(&format!("Would sync:   {}", entry.filename));
+            ui::item("Would sync:", entry.filename);
         }
     }
 }
@@ -123,7 +124,7 @@ fn run_sync(workdir: &Path, filename: &str, tool: &str, args: &[&str], synced: &
             ));
         }
         Ok(status) if status.success() => {
-            ui::info(&format!("Synced:  {filename}"));
+            ui::item("Synced:", filename);
             synced.push(filename.to_string());
         }
         Ok(status) => {

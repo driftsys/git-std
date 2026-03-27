@@ -40,22 +40,17 @@ pub fn load(dir: &Path) -> ProjectConfig {
 pub(crate) fn load_with_raw(dir: &Path) -> (ProjectConfig, Option<toml::Table>) {
     let path = dir.join(CONFIG_FILE);
     match std::fs::read_to_string(&path) {
-        Ok(content) => {
-            let table: Option<toml::Table> = content.parse().ok();
-            (parse_config(&content), table)
-        }
-        Err(_) => {
-            let config = ProjectConfig {
-                types: default_types(),
-                scopes: ScopesConfig::None,
-                strict: false,
-                scheme: Scheme::default(),
-                changelog: ChangelogConfig::default(),
-                versioning: VersioningConfig::default(),
-                version_files: Vec::new(),
-            };
-            (config, None)
-        }
+        Ok(content) => match content.parse::<toml::Table>() {
+            Ok(table) => {
+                let cfg = build_config(&table);
+                (cfg, Some(table))
+            }
+            Err(e) => {
+                eprintln!("warning: invalid .git-std.toml, using defaults: {e}");
+                (default_config(), None)
+            }
+        },
+        Err(_) => (default_config(), None),
     }
 }
 
@@ -64,18 +59,25 @@ pub(crate) fn parse_config(content: &str) -> ProjectConfig {
         Ok(t) => t,
         Err(e) => {
             eprintln!("warning: invalid .git-std.toml, using defaults: {e}");
-            return ProjectConfig {
-                types: default_types(),
-                scopes: ScopesConfig::None,
-                strict: false,
-                scheme: Scheme::default(),
-                changelog: ChangelogConfig::default(),
-                versioning: VersioningConfig::default(),
-                version_files: Vec::new(),
-            };
+            return default_config();
         }
     };
+    build_config(&table)
+}
 
+fn default_config() -> ProjectConfig {
+    ProjectConfig {
+        types: default_types(),
+        scopes: ScopesConfig::None,
+        strict: false,
+        scheme: Scheme::default(),
+        changelog: ChangelogConfig::default(),
+        versioning: VersioningConfig::default(),
+        version_files: Vec::new(),
+    }
+}
+
+fn build_config(table: &toml::Table) -> ProjectConfig {
     let types = match table.get("types").and_then(|v| v.as_array()) {
         Some(arr) => {
             let parsed: Vec<String> = arr
@@ -118,9 +120,9 @@ pub(crate) fn parse_config(content: &str) -> ProjectConfig {
         _ => Scheme::Semver,
     };
 
-    let changelog = parse_changelog_config(&table);
-    let versioning = parse_versioning_config(&table);
-    let version_files = parse_version_files(&table);
+    let changelog = parse_changelog_config(table);
+    let versioning = parse_versioning_config(table);
+    let version_files = parse_version_files(table);
 
     // Validate calver_format when scheme is calver.
     let versioning = if scheme == Scheme::Calver {

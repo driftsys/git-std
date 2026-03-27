@@ -119,12 +119,15 @@ fn has_staged_submodules() -> bool {
     }
 }
 
-/// Run `git stash push --quiet`. Returns `true` if the stash was created
-/// successfully (something was stashed), `false` otherwise (nothing to stash
-/// or git error).
+/// Run `git stash push --quiet --include-untracked`. Returns `true` if the
+/// stash was created successfully (something was stashed), `false` otherwise
+/// (nothing to stash or git error).
+///
+/// `--include-untracked` ensures formatter-generated new files are captured
+/// in the stash backup so they can be detected by the post-run diff check.
 fn stash_push() -> bool {
     Command::new("git")
-        .args(["stash", "push", "--quiet"])
+        .args(["stash", "push", "--quiet", "--include-untracked"])
         .status()
         .map(|s| s.success())
         .unwrap_or(false)

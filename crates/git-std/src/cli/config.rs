@@ -63,7 +63,7 @@ pub fn list(dir: &Path, format: OutputFormat) -> i32 {
         config::Scheme::Calver => "calver",
         config::Scheme::Patch => "patch",
     };
-    print_kv("scheme", &format!("{scheme_label:?}"), scheme_src);
+    print_kv("scheme", scheme_label, scheme_src);
 
     let strict_src = if has_key("strict") {
         Source::File
@@ -182,6 +182,15 @@ pub fn list(dir: &Path, format: OutputFormat) -> i32 {
         .map_or("null".to_string(), |u| format!("{u:?}"));
     print_kv("bug_url", &bug_url_value, bug_url_src);
 
+    // ── [[version_files]] ───────────────────────────────────────
+    if !cfg.version_files.is_empty() {
+        ui::blank();
+        ui::info("[[version_files]]");
+        for vf in &cfg.version_files {
+            ui::detail(&format!("path = {:?}, regex = {:?}", vf.path, vf.regex));
+        }
+    }
+
     0
 }
 
@@ -208,7 +217,7 @@ pub fn get(dir: &Path, key: &str, format: OutputFormat) -> i32 {
             if format == OutputFormat::Json {
                 println!("{}", serde_json::to_string(&cfg.types).unwrap());
             } else {
-                println!("{}", format_str_list(&cfg.types));
+                eprintln!("{}", format_str_list(&cfg.types));
             }
             0
         }
@@ -221,7 +230,7 @@ pub fn get(dir: &Path, key: &str, format: OutputFormat) -> i32 {
                     ScopesConfig::Auto => "auto".to_string(),
                     ScopesConfig::List(list) => format_str_list(list),
                 };
-                println!("{v}");
+                eprintln!("{v}");
             }
             0
         }
@@ -247,7 +256,7 @@ pub fn get(dir: &Path, key: &str, format: OutputFormat) -> i32 {
             if format == OutputFormat::Json {
                 println!("{}", serde_json::to_string(v).unwrap());
             } else {
-                println!("{}", format_str_list(v));
+                eprintln!("{}", format_str_list(v));
             }
             0
         }
@@ -265,14 +274,14 @@ pub fn get(dir: &Path, key: &str, format: OutputFormat) -> i32 {
                     .collect();
                 println!("{}", serde_json::to_string(&map).unwrap());
             } else {
-                println!("{}", format_sections(v));
+                eprintln!("{}", format_sections(v));
             }
             0
         }
         "changelog.bug_url" => {
             match &cfg.changelog.bug_url {
                 Some(u) => print_value(u, format),
-                None => println!("null"),
+                None => eprintln!("null"),
             }
             0
         }
@@ -337,12 +346,12 @@ fn list_json(cfg: &config::ProjectConfig) -> i32 {
     0
 }
 
-/// Print a plain value to stdout (text or JSON string).
+/// Print a plain value: text to stderr, JSON to stdout.
 fn print_value(value: &str, format: OutputFormat) {
     if format == OutputFormat::Json {
         println!("{}", serde_json::to_string(value).unwrap());
     } else {
-        println!("{value}");
+        eprintln!("{value}");
     }
 }
 

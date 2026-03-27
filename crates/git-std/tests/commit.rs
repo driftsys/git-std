@@ -344,3 +344,52 @@ fn commit_dry_run_auto_scopes() {
         .success()
         .stderr(predicate::str::contains("feat(web): add page"));
 }
+
+// ── post-commit confirmation output (#220) ──────────────────────
+
+#[test]
+fn commit_prints_committed_confirmation() {
+    let dir = tempfile::tempdir().unwrap();
+    init_commit_repo(dir.path());
+
+    std::fs::write(dir.path().join("new.txt"), "new").unwrap();
+    git(dir.path(), &["add", "new.txt"]);
+
+    let branch = git(dir.path(), &["rev-parse", "--abbrev-ref", "HEAD"]);
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["commit", "--type", "feat", "-m", "add new"])
+        .assert()
+        .success()
+        .stderr(
+            predicate::str::is_match(&format!(r"committed \[{branch} [0-9a-f]{{7}}\]")).unwrap(),
+        );
+}
+
+#[test]
+fn commit_amend_prints_amended_confirmation() {
+    let dir = tempfile::tempdir().unwrap();
+    init_commit_repo(dir.path());
+
+    std::fs::write(dir.path().join("fix.txt"), "fix").unwrap();
+    git(dir.path(), &["add", "fix.txt"]);
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["commit", "--type", "fix", "-m", "original"])
+        .assert()
+        .success();
+
+    let branch = git(dir.path(), &["rev-parse", "--abbrev-ref", "HEAD"]);
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["commit", "--amend", "--type", "fix", "-m", "corrected"])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_match(&format!(r"amended \[{branch} [0-9a-f]{{7}}\]")).unwrap());
+}

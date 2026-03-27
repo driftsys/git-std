@@ -55,6 +55,8 @@ pub fn install() -> i32 {
     // 4. Determine which hooks to enable — via env var (for tests/CI) or interactive prompt
     let default_enabled = ["pre-commit", "commit-msg"];
 
+    // Test/CI escape hatch — not a supported public API.
+    // Accepts "all", "none", or a comma-separated list of hook names.
     let env_enable = std::env::var("GIT_STD_HOOKS_ENABLE").ok();
     let selected: Vec<&str> = if let Some(ref val) = env_enable {
         // Comma-separated list of hook names, or "all" or "none"
