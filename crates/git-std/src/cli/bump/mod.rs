@@ -4,6 +4,8 @@ mod lock_sync;
 mod plan;
 mod stable;
 
+use crate::app::OutputFormat;
+
 /// Options for the bump subcommand.
 pub struct BumpOptions {
     /// Print the plan without writing anything.
@@ -31,6 +33,8 @@ pub struct BumpOptions {
     pub stable: Option<Option<String>>,
     /// Use minor bump instead of major when advancing main after `--stable`.
     pub minor: bool,
+    /// Output format (text or json).
+    pub format: OutputFormat,
 }
 
 /// Context passed from the version-computation phase to the shared finalize logic.

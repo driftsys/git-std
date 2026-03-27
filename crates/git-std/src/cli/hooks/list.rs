@@ -1,20 +1,57 @@
+use serde::Serialize;
 use yansi::Paint;
 
 use standard_githooks::{HookCommand, HookMode, KNOWN_HOOKS, Prefix, default_mode};
 
+use crate::app::OutputFormat;
 use crate::ui;
 
 use super::{is_enabled, read_and_parse_hooks};
 
+/// JSON output schema for a single hook command.
+#[derive(Serialize)]
+struct HookCommandJson {
+    command: String,
+    prefix: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    glob: Option<String>,
+}
+
+/// JSON output schema for a single hook.
+#[derive(Serialize)]
+struct HookJson {
+    name: String,
+    enabled: bool,
+    mode: &'static str,
+    commands: Vec<HookCommandJson>,
+}
+
+fn prefix_label(prefix: Prefix) -> &'static str {
+    match prefix {
+        Prefix::FailFast => "fail-fast",
+        Prefix::Advisory => "advisory",
+        Prefix::Fix => "fix",
+        Prefix::Default => "default",
+    }
+}
+
 /// Run the `hooks list` subcommand. Returns the process exit code.
 ///
 /// Shows all known hooks with enabled/disabled status and their commands.
-pub fn list() -> i32 {
+pub fn list(format: OutputFormat) -> i32 {
     let hooks_dir = std::path::Path::new(".githooks");
 
     if !hooks_dir.exists() {
-        ui::info("no hooks installed — run 'git std hooks install'");
+        if format == OutputFormat::Json {
+            println!("[]");
+        } else {
+            ui::info("no hooks installed — run 'git std hooks install'");
+        }
         return 0;
+    }
+
+    if format == OutputFormat::Json {
+        return list_json(hooks_dir);
     }
 
     for (i, hook_name) in KNOWN_HOOKS.iter().enumerate() {
@@ -87,5 +124,41 @@ pub fn list() -> i32 {
         }
     }
 
+    0
+}
+
+fn list_json(hooks_dir: &std::path::Path) -> i32 {
+    let hooks: Vec<HookJson> = KNOWN_HOOKS
+        .iter()
+        .map(|hook_name| {
+            let enabled = is_enabled(hooks_dir, hook_name);
+            let template_path = hooks_dir.join(format!("{hook_name}.hooks"));
+            let commands: Vec<HookCommand> = if template_path.exists() {
+                read_and_parse_hooks(hook_name).unwrap_or_default()
+            } else {
+                vec![]
+            };
+            let mode = default_mode(hook_name);
+
+            HookJson {
+                name: hook_name.to_string(),
+                enabled,
+                mode: match mode {
+                    HookMode::Collect => "collect",
+                    HookMode::FailFast => "fail-fast",
+                },
+                commands: commands
+                    .iter()
+                    .map(|c| HookCommandJson {
+                        command: c.command.clone(),
+                        prefix: prefix_label(c.prefix),
+                        glob: c.glob.clone(),
+                    })
+                    .collect(),
+            }
+        })
+        .collect();
+
+    println!("{}", serde_json::to_string(&hooks).unwrap());
     0
 }
