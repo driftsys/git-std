@@ -158,7 +158,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
         let short = &oid[..7];
 
         if standard_commit::is_process_commit(message) {
-            ui::result_line(&format!("~ {} {}", short, first_line(message).dim(),));
+            ui::info(&format!("~ {} {}", short, first_line(message).dim(),));
             skipped += 1;
             continue;
         }
@@ -168,7 +168,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
             if errors.is_empty() {
                 true
             } else {
-                ui::result_line(&format!(
+                ui::info(&format!(
                     "{} {} {}",
                     ui::fail(),
                     short,
@@ -183,7 +183,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
             match standard_commit::parse(message) {
                 Ok(_) => true,
                 Err(e) => {
-                    ui::result_line(&format!(
+                    ui::info(&format!(
                         "{} {} {}",
                         ui::fail(),
                         short,
@@ -196,7 +196,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
         };
 
         if valid {
-            ui::result_line(&format!(
+            ui::info(&format!(
                 "{} {} {}",
                 ui::pass(),
                 short,
