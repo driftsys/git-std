@@ -17,7 +17,7 @@ pub fn enable(hook_name: &str) -> i32 {
     let off_path = hooks_dir.join(format!("{hook_name}.off"));
 
     if active_path.exists() {
-        ui::result_line(&format!("{} {hook_name} is already enabled", ui::warn()));
+        ui::info(&format!("{} {hook_name} is already enabled", ui::warn()));
         return 0;
     }
 
@@ -40,7 +40,7 @@ pub fn enable(hook_name: &str) -> i32 {
         let _ = std::fs::set_permissions(&active_path, perms);
     }
 
-    ui::result_line(&format!("{}  {hook_name} enabled", ui::pass()));
+    ui::info(&format!("{}  {hook_name} enabled", ui::pass()));
     0
 }
 
@@ -59,7 +59,7 @@ pub fn disable(hook_name: &str) -> i32 {
     let off_path = hooks_dir.join(format!("{hook_name}.off"));
 
     if off_path.exists() {
-        ui::result_line(&format!("{} {hook_name} is already disabled", ui::warn()));
+        ui::info(&format!("{} {hook_name} is already disabled", ui::warn()));
         return 0;
     }
 
@@ -75,6 +75,6 @@ pub fn disable(hook_name: &str) -> i32 {
         return 1;
     }
 
-    ui::result_line(&format!("{}  {hook_name} disabled", ui::pass()));
+    ui::info(&format!("{}  {hook_name} disabled", ui::pass()));
     0
 }

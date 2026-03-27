@@ -277,19 +277,19 @@ fn execute_and_print(
 
     // Print the result line
     if success {
-        ui::result_line(&format!("{} {}", ui::pass(), display));
+        ui::info(&format!("{} {}", ui::pass(), display));
     } else if is_advisory {
         let info = match exit_code {
             Some(code) => format!("(advisory, exit {code})"),
             None => "(advisory, killed)".to_string(),
         };
-        ui::result_line(&format!("{} {} {}", ui::warn(), display, info.yellow()));
+        ui::info(&format!("{} {} {}", ui::warn(), display, info.yellow()));
     } else {
         let info = match exit_code {
             Some(code) => format!("(exit {code})"),
             None => "(killed)".to_string(),
         };
-        ui::result_line(&format!("{} {} {}", ui::fail(), display, info.red()));
+        ui::info(&format!("{} {} {}", ui::fail(), display, info.red()));
     }
 
     let failed = !success && !is_advisory;
@@ -313,7 +313,7 @@ pub fn run(hook: &str, args: &[String]) -> i32 {
     if let Ok(val) = std::env::var("GIT_STD_SKIP_HOOKS")
         && (val == "1" || val.eq_ignore_ascii_case("true"))
     {
-        ui::result_line(&format!(
+        ui::info(&format!(
             "{} hooks skipped (GIT_STD_SKIP_HOOKS)",
             ui::warn()
         ));

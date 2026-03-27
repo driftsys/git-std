@@ -87,13 +87,6 @@ pub fn print(msg: &str) {
     eprintln!("{msg}");
 }
 
-/// Print a plain indented line to stderr (two-space indent) with a leading symbol.
-///
-/// Suitable for check/hook result lines: `  ✓ <text>` or `  ✗ <text>`.
-pub fn result_line(msg: &str) {
-    eprintln!("{INDENT}{msg}");
-}
-
 /// Return `true` when stderr is connected to a terminal.
 pub fn is_tty() -> bool {
     std::io::stderr().is_terminal()
