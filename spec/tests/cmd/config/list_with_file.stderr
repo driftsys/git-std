@@ -1,0 +1,15 @@
+  scheme = calver                                 .git-std.toml
+  strict = false                                  (default)
+  types = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "chore", "ci", "build", "revert"]  (default)
+  scopes = none                                   (default)
+
+  [versioning]
+  tag_prefix = "v"                                (default)
+  prerelease_tag = "rc"                           (default)
+  calver_format = "YYYY.MM.PATCH"                 (default)
+
+  [changelog]
+  title = "Changelog"                             (default)
+  hidden = ["chore", "ci", "build", "style", "test"]  (default)
+  sections = {"feat": "Features", "fix": "Bug Fixes", "perf": "Performance", "revert": "Reverts", "refactor": "Refactoring", "docs": "Documentation"}  (default)
+  bug_url = null                                  (default)
