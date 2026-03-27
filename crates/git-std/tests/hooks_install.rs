@@ -159,7 +159,7 @@ fn hooks_list_shows_configured_hooks() {
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stderr.contains("pre-commit (collect)"),
+        stderr.contains("pre-commit (collect mode)"),
         "should show hook name and mode, got: {stderr}"
     );
     assert!(stderr.contains("dprint check"), "should list commands");
@@ -188,7 +188,7 @@ fn hooks_list_fail_fast_mode() {
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stderr.contains("pre-push (fail-fast)"),
+        stderr.contains("pre-push (fail-fast mode)"),
         "should show fail-fast mode"
     );
     assert!(
@@ -218,7 +218,7 @@ fn hooks_list_commit_msg() {
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stderr.contains("commit-msg (fail-fast)"),
+        stderr.contains("commit-msg (fail-fast mode)"),
         "should show commit-msg with fail-fast mode"
     );
     assert!(

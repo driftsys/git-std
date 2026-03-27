@@ -1,0 +1,3 @@
+bin.name = "git-std"
+args = ["config", "get", "versioning.tag_prefix"]
+status = "success"
