@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.6.0] (2026-03-27)
+
+### Bug Fixes
+
+- **git-std:** align hooks list output with spec ([ad29f1c]), closes [#113]
+- **git-std:** harden pre-commit stash dance ([c8a6fcb])
+- **git-std:** always allow release scope in lint config ([cb572b5])
+
+### Refactoring
+
+- **git-std:** remove result_line, unify with info ([166f874]), closes [#243]
+- **git-std:** use neutral label for stable advance output ([7d2d7a8]), closes
+  [#303]
+
+### Features
+
+- **git-std:** add --format json to bump, hooks list, and hooks run ([#62])
+  ([afed2b0]), closes [#62]
+- **git-std:** generate man pages and auto-publish to crates.io ([5c897a5]),
+  closes [#192], closes #265
+- **standard-commit:** add process commit detection and revert type ([c10accb])
+
+### Documentation
+
+- **git-std:** publish JSON Schema for .git-std.toml ([#61]) ([c9c0307]), closes
+  [#61]
+
+[0.6.0]: https://github.com/driftsys/git-std/compare/v0.5.1...v0.6.0
+[ad29f1c]: https://github.com/driftsys/git-std/commit/ad29f1c
+[#113]: https://github.com/driftsys/git-std/issues/113
+[c8a6fcb]: https://github.com/driftsys/git-std/commit/c8a6fcb
+[cb572b5]: https://github.com/driftsys/git-std/commit/cb572b5
+[166f874]: https://github.com/driftsys/git-std/commit/166f874
+[#243]: https://github.com/driftsys/git-std/issues/243
+[7d2d7a8]: https://github.com/driftsys/git-std/commit/7d2d7a8
+[#303]: https://github.com/driftsys/git-std/issues/303
+[afed2b0]: https://github.com/driftsys/git-std/commit/afed2b0
+[#62]: https://github.com/driftsys/git-std/issues/62
+[5c897a5]: https://github.com/driftsys/git-std/commit/5c897a5
+[#192]: https://github.com/driftsys/git-std/issues/192
+[c10accb]: https://github.com/driftsys/git-std/commit/c10accb
+[c9c0307]: https://github.com/driftsys/git-std/commit/c9c0307
+[#61]: https://github.com/driftsys/git-std/issues/61
+
 ## [0.5.1] (2026-03-26)
 
 ### Refactoring
