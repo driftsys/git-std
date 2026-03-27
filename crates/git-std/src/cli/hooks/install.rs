@@ -22,7 +22,7 @@ pub fn install() -> i32 {
 
     match status {
         Ok(s) if s.success() => {
-            ui::result_line(&format!("{}  git hooks configured", ui::pass()));
+            ui::info(&format!("{}  git hooks configured", ui::pass()));
         }
         _ => {
             ui::error("failed to set core.hooksPath");
@@ -133,7 +133,7 @@ pub fn install() -> i32 {
             "disabled".dim().to_string()
         };
 
-        ui::result_line(&format!("{}  {hook_name:<22} {status_label}", ui::pass()));
+        ui::info(&format!("{}  {hook_name:<22} {status_label}", ui::pass()));
     }
 
     0
