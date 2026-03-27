@@ -1,14 +1,39 @@
 use std::path::PathBuf;
 
+use serde::Serialize;
 use standard_changelog::VersionRelease;
 use yansi::Paint;
 
+use crate::app::OutputFormat;
 use crate::config::ProjectConfig;
 use crate::git;
 use crate::ui;
 
 use super::lock_sync;
 use super::{BumpOptions, FinalizeContext};
+
+/// JSON output schema for a version file update.
+#[derive(Serialize)]
+struct UpdatedFileJson {
+    path: String,
+    old_version: String,
+    new_version: String,
+}
+
+/// JSON output schema for the bump result.
+#[derive(Serialize)]
+struct BumpResultJson {
+    version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    previous_version: Option<String>,
+    tag: Option<String>,
+    updated_files: Vec<UpdatedFileJson>,
+    synced_locks: Vec<String>,
+    changelog: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    commit: Option<String>,
+    dry_run: bool,
+}
 
 /// Build a `VersionRelease` from raw commits for changelog generation.
 pub(super) fn build_version_release(
@@ -63,30 +88,65 @@ pub(super) fn finalize_bump(
 
     // --- Dry run: print plan and exit ---
     if opts.dry_run {
+        let detected = match standard_version::detect_version_files(workdir, &custom_files) {
+            Ok(d) => d,
+            Err(e) => {
+                ui::warning(&format!("cannot detect version files: {e}"));
+                Vec::new()
+            }
+        };
+
+        if opts.format == OutputFormat::Json {
+            let result = BumpResultJson {
+                version: new_version.clone(),
+                previous_version: ctx.prev_version.map(String::from),
+                tag: if !opts.no_commit && !opts.no_tag {
+                    Some(format!("{tag_prefix}{new_version}"))
+                } else {
+                    None
+                },
+                updated_files: detected
+                    .iter()
+                    .map(|f| UpdatedFileJson {
+                        path: f
+                            .path
+                            .strip_prefix(workdir)
+                            .unwrap_or(&f.path)
+                            .display()
+                            .to_string(),
+                        old_version: f.old_version.clone(),
+                        new_version: new_version.clone(),
+                    })
+                    .collect(),
+                synced_locks: Vec::new(),
+                changelog: !opts.skip_changelog,
+                commit: if !opts.no_commit {
+                    Some(format!("chore(release): {new_version}"))
+                } else {
+                    None
+                },
+                dry_run: true,
+            };
+            println!("{}", serde_json::to_string(&result).unwrap());
+            return 0;
+        }
+
         ui::blank();
 
-        let updated_names: Vec<String> =
-            match standard_version::detect_version_files(workdir, &custom_files) {
-                Ok(detected) if detected.is_empty() => {
-                    ui::info("No version files detected");
-                    Vec::new()
-                }
-                Ok(detected) => {
-                    ui::info("Would update:");
-                    for f in &detected {
-                        let rel = f.path.strip_prefix(workdir).unwrap_or(&f.path).display();
-                        ui::item(
-                            &rel.to_string(),
-                            &format!("{} \u{2192} {new_version}", f.old_version),
-                        );
-                    }
-                    detected.into_iter().map(|f| f.name).collect()
-                }
-                Err(e) => {
-                    ui::warning(&format!("cannot detect version files: {e}"));
-                    Vec::new()
-                }
-            };
+        let updated_names: Vec<String> = if detected.is_empty() {
+            ui::info("No version files detected");
+            Vec::new()
+        } else {
+            ui::info("Would update:");
+            for f in &detected {
+                let rel = f.path.strip_prefix(workdir).unwrap_or(&f.path).display();
+                ui::item(
+                    &rel.to_string(),
+                    &format!("{} \u{2192} {new_version}", f.old_version),
+                );
+            }
+            detected.into_iter().map(|f| f.name).collect()
+        };
         let updated_refs: Vec<&str> = updated_names.iter().map(|s| s.as_str()).collect();
 
         lock_sync::dry_run_lock_files(workdir, &updated_refs);
@@ -150,7 +210,7 @@ pub(super) fn finalize_bump(
     }
 
     // Print updated files.
-    if !version_results.is_empty() {
+    if !version_results.is_empty() && opts.format != OutputFormat::Json {
         ui::blank();
         ui::info("Updated:");
         for r in &version_results {
@@ -165,7 +225,7 @@ pub(super) fn finalize_bump(
         }
     }
 
-    if !opts.skip_changelog {
+    if !opts.skip_changelog && opts.format != OutputFormat::Json {
         ui::blank();
         ui::info("Changelog:");
         ui::item(
@@ -212,7 +272,9 @@ pub(super) fn finalize_bump(
         }
 
         ui::blank();
-        ui::info(&format!("Committed: {}", commit_msg.green()));
+        if opts.format != OutputFormat::Json {
+            ui::info(&format!("Committed: {}", commit_msg.green()));
+        }
     }
 
     // Create annotated tag.
@@ -230,12 +292,50 @@ pub(super) fn finalize_bump(
             return 1;
         }
 
-        ui::info(&format!("Tagged:    {}", tag_name.green()));
+        if opts.format != OutputFormat::Json {
+            ui::info(&format!("Tagged:    {}", tag_name.green()));
+        }
     }
 
-    ui::blank();
-    ui::info("Push with: git push --follow-tags");
-    ui::blank();
+    if opts.format == OutputFormat::Json {
+        let tag_name = if !opts.no_commit && !opts.no_tag {
+            Some(format!("{tag_prefix}{new_version}"))
+        } else {
+            None
+        };
+        let commit_msg = if !opts.no_commit {
+            Some(format!("chore(release): {new_version}"))
+        } else {
+            None
+        };
+        let result = BumpResultJson {
+            version: new_version.clone(),
+            previous_version: ctx.prev_version.map(String::from),
+            tag: tag_name,
+            updated_files: version_results
+                .iter()
+                .map(|r| UpdatedFileJson {
+                    path: r
+                        .path
+                        .strip_prefix(workdir)
+                        .unwrap_or(&r.path)
+                        .display()
+                        .to_string(),
+                    old_version: r.old_version.clone(),
+                    new_version: r.new_version.clone(),
+                })
+                .collect(),
+            synced_locks: synced_locks.clone(),
+            changelog: !opts.skip_changelog,
+            commit: commit_msg,
+            dry_run: false,
+        };
+        println!("{}", serde_json::to_string(&result).unwrap());
+    } else {
+        ui::blank();
+        ui::info("Push with: git push --follow-tags");
+        ui::blank();
+    }
 
     0
 }

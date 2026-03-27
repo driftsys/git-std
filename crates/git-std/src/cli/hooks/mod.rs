@@ -2,6 +2,7 @@ mod enable;
 mod install;
 mod list;
 mod run;
+mod stash;
 
 pub use enable::{disable, enable};
 pub use install::install;

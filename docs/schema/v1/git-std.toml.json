@@ -1,0 +1,133 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://driftsys.github.io/git-std/schema/v1/git-std.toml.json",
+  "title": "git-std configuration",
+  "description": "Schema for .git-std.toml — the configuration file for git-std, a single CLI that replaces commitizen, commitlint, standard-version, husky, and lefthook.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URL for editor validation and autocomplete."
+    },
+    "scheme": {
+      "type": "string",
+      "enum": ["semver", "calver", "patch"],
+      "default": "semver",
+      "description": "Versioning scheme. semver: conventional bump rules (breaking → major, feat → minor, else → patch). calver: date-based versioning using calver_format. patch: always increments patch only, rejects breaking changes unless --force."
+    },
+    "types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": [
+        "feat", "fix", "docs", "style", "refactor",
+        "perf", "test", "chore", "ci", "build"
+      ],
+      "description": "Allowed conventional commit types. Used for validation in strict mode and for the interactive commit prompt."
+    },
+    "scopes": {
+      "oneOf": [
+        {
+          "const": "auto",
+          "description": "Auto-discover scopes from workspace layout (crates/*, packages/*, modules/*)."
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Explicit list of allowed scopes."
+        }
+      ],
+      "description": "Scope validation. Omit for no validation, set to \"auto\" for workspace discovery, or provide an explicit list."
+    },
+    "strict": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enforce types and scopes validation without requiring the --strict CLI flag."
+    },
+    "versioning": {
+      "type": "object",
+      "description": "Version bump settings.",
+      "additionalProperties": false,
+      "properties": {
+        "tag_prefix": {
+          "type": "string",
+          "default": "v",
+          "description": "Git tag prefix (e.g. v1.0.0, release-1.0.0)."
+        },
+        "prerelease_tag": {
+          "type": "string",
+          "default": "rc",
+          "description": "Default pre-release identifier (e.g. 1.0.0-rc.1)."
+        },
+        "calver_format": {
+          "type": "string",
+          "default": "YYYY.MM.PATCH",
+          "description": "Calendar version format. Tokens: YYYY (full year), YY (short year), 0M (zero-padded month), MM (month), WW (ISO week), DD (day), PATCH (auto-incrementing counter), DP (day-of-week + patch). Only used when scheme = \"calver\"."
+        }
+      }
+    },
+    "changelog": {
+      "type": "object",
+      "description": "Changelog generation settings.",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Custom changelog title heading. If absent, no title is added."
+        },
+        "hidden": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": ["chore", "ci", "build", "style", "test"],
+          "description": "Commit types excluded from the changelog."
+        },
+        "bug_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Base URL for bug/issue links in changelog entries (e.g. https://github.com/org/repo/issues)."
+        },
+        "sections": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Map commit types to changelog section headings. Unlisted types use the type name as heading.",
+          "default": {
+            "feat": "Features",
+            "fix": "Bug Fixes",
+            "perf": "Performance",
+            "refactor": "Refactoring",
+            "docs": "Documentation"
+          }
+        }
+      }
+    },
+    "version_files": {
+      "type": "array",
+      "description": "Custom version files to update during bump, in addition to auto-detected files.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "regex"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "File path relative to the repository root."
+          },
+          "regex": {
+            "type": "string",
+            "description": "Regex whose first capture group contains the version string."
+          }
+        }
+      }
+    }
+  }
+}

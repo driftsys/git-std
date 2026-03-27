@@ -110,6 +110,7 @@ fn main() {
             force,
             stable,
             minor,
+            format,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
             let stable = stable.map(|s| if s.is_empty() { None } else { Some(s) });
@@ -125,6 +126,7 @@ fn main() {
                 force,
                 stable,
                 minor,
+                format,
             };
             let code = cli::bump::run(&project_config, &opts);
             std::process::exit(code);
@@ -142,8 +144,8 @@ fn main() {
         Command::Hooks { subcommand } => {
             let code = match subcommand {
                 HooksCommand::Install => cli::hooks::install(),
-                HooksCommand::Run { hook, args } => cli::hooks::run(&hook, &args),
-                HooksCommand::List => cli::hooks::list(),
+                HooksCommand::Run { hook, args, format } => cli::hooks::run(&hook, &args, format),
+                HooksCommand::List { format } => cli::hooks::list(format),
                 HooksCommand::Enable { hook } => cli::hooks::enable(&hook),
                 HooksCommand::Disable { hook } => cli::hooks::disable(&hook),
             };

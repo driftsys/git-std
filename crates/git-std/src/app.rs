@@ -115,6 +115,9 @@ pub enum Command {
         /// Use minor bump (instead of major) when advancing main after --stable.
         #[arg(long)]
         minor: bool,
+        /// Output format.
+        #[arg(long, default_value = "text")]
+        format: OutputFormat,
     },
     /// Generate a changelog (incremental by default, --full to regenerate).
     Changelog {
@@ -198,9 +201,16 @@ pub enum HooksCommand {
         /// Arguments passed through to hook commands (after `--`).
         #[arg(last = true)]
         args: Vec<String>,
+        /// Output format.
+        #[arg(long, default_value = "text")]
+        format: OutputFormat,
     },
     /// Display all configured hooks and their commands.
-    List,
+    List {
+        /// Output format.
+        #[arg(long, default_value = "text")]
+        format: OutputFormat,
+    },
     /// Enable a hook (activate its shim).
     Enable {
         /// Hook name (e.g. pre-commit, commit-msg).
