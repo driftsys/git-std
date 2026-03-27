@@ -1,11 +1,11 @@
 [package]
 name = "git-std"
-version = "0.5.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 description = "Standard git workflow — commits, versioning, hooks"
-license = "MIT"
+license.workspace = true
 readme = "README.md"
-repository = "https://github.com/driftsys/git-std"
+repository.workspace = true
 documentation = "https://driftsys.github.io/git-std/"
 homepage = "https://github.com/driftsys/git-std"
 keywords = ["git", "conventional-commits", "hooks", "versioning", "changelog"]
@@ -23,10 +23,10 @@ inquire = "0.9"
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-standard-changelog = { version = "0.5.0", path = "../standard-changelog" }
-standard-commit = { version = "0.5.0", path = "../standard-commit" }
-standard-githooks = { version = "0.5.0", path = "../standard-githooks" }
-standard-version = { version = "0.5.0", path = "../standard-version" }
+standard-changelog.workspace = true
+standard-commit.workspace = true
+standard-githooks.workspace = true
+standard-version.workspace = true
 toml = "1.1"
 yansi = "1"
 

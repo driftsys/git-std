@@ -1,11 +1,11 @@
 [package]
 name = "standard-commit"
-version = "0.5.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 description = "Conventional commit parsing, validation, and formatting"
-license = "MIT"
+license.workspace = true
 readme = "README.md"
-repository = "https://github.com/driftsys/git-std"
+repository.workspace = true
 documentation = "https://docs.rs/standard-commit"
 keywords = ["conventional-commits", "commit", "lint", "git", "validation"]
 categories = ["development-tools", "parser-implementations"]

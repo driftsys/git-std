@@ -6,21 +6,21 @@ scopes = "auto"
 tag_prefix = "v"
 
 [[version_files]]
-path = "crates/git-std/Cargo.toml"
+path = "Cargo.toml"
 regex = '(?m)^version = "([^"]+)"'
 
 [[version_files]]
-path = "crates/standard-commit/Cargo.toml"
-regex = '(?m)^version = "([^"]+)"'
+path = "Cargo.toml"
+regex = 'standard-commit = \{ version = "([^"]+)"'
 
 [[version_files]]
-path = "crates/standard-changelog/Cargo.toml"
-regex = '(?m)^version = "([^"]+)"'
+path = "Cargo.toml"
+regex = 'standard-changelog = \{ version = "([^"]+)"'
 
 [[version_files]]
-path = "crates/standard-githooks/Cargo.toml"
-regex = '(?m)^version = "([^"]+)"'
+path = "Cargo.toml"
+regex = 'standard-version = \{ version = "([^"]+)"'
 
 [[version_files]]
-path = "crates/standard-version/Cargo.toml"
-regex = '(?m)^version = "([^"]+)"'
+path = "Cargo.toml"
+regex = 'standard-githooks = \{ version = "([^"]+)"'
