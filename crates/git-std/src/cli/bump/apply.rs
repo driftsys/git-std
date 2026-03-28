@@ -9,7 +9,6 @@ use crate::config::ProjectConfig;
 use crate::git;
 use crate::ui;
 
-use super::lock_sync;
 use super::{BumpOptions, FinalizeContext};
 
 /// JSON output schema for a version file update.
@@ -133,9 +132,8 @@ pub(super) fn finalize_bump(
 
         ui::blank();
 
-        let updated_names: Vec<String> = if detected.is_empty() {
+        if detected.is_empty() {
             ui::info("No version files detected");
-            Vec::new()
         } else {
             ui::info("Would update:");
             for f in &detected {
@@ -145,11 +143,8 @@ pub(super) fn finalize_bump(
                     &format!("{} \u{2192} {new_version}", f.old_version),
                 );
             }
-            detected.into_iter().map(|f| f.name).collect()
-        };
-        let updated_refs: Vec<&str> = updated_names.iter().map(|s| s.as_str()).collect();
-
-        lock_sync::dry_run_lock_files(workdir, &updated_refs);
+        }
+        crate::ecosystem::dry_run_lock_sync(workdir);
 
         if !opts.skip_changelog {
             ui::info(&format!(
@@ -171,19 +166,11 @@ pub(super) fn finalize_bump(
 
     // --- Actual execution ---
 
-    // Update all detected version files.
-    let version_results: Vec<standard_version::UpdateResult> =
-        match standard_version::update_version_files(workdir, new_version, &custom_files) {
-            Ok(r) => r,
-            Err(e) => {
-                ui::error(&format!("cannot update version files: {e}"));
-                return 1;
-            }
-        };
-
-    // Sync ecosystem lock files.
-    let updated_names: Vec<&str> = version_results.iter().map(|r| r.name.as_str()).collect();
-    let synced_locks = lock_sync::sync_lock_files(workdir, &updated_names);
+    // Update all detected version files and sync ecosystem lock files.
+    let bump_result = crate::ecosystem::run_bump(workdir, new_version, &custom_files);
+    let version_results = bump_result.update_results;
+    let extra_modified = bump_result.modified_paths;
+    let synced_locks = bump_result.synced_locks;
 
     // Generate/update changelog.
     if !opts.skip_changelog {
@@ -236,7 +223,7 @@ pub(super) fn finalize_bump(
 
     // Create commit.
     if !opts.no_commit {
-        let rel_paths: Vec<String> = version_results
+        let mut rel_paths: Vec<String> = version_results
             .iter()
             .filter_map(|r| {
                 r.path
@@ -245,6 +232,12 @@ pub(super) fn finalize_bump(
                     .map(|p| p.to_string_lossy().into_owned())
             })
             .collect();
+        // Include files modified by ecosystem CLI tools.
+        for p in &extra_modified {
+            if let Ok(rel) = p.strip_prefix(workdir) {
+                rel_paths.push(rel.to_string_lossy().into_owned());
+            }
+        }
         let mut paths_to_stage: Vec<&str> = rel_paths.iter().map(|s| s.as_str()).collect();
         if !opts.skip_changelog {
             paths_to_stage.push("CHANGELOG.md");
