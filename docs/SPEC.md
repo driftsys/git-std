@@ -495,6 +495,90 @@ Rules:
 - If the regex doesn't match, warn and skip.
 - Multiple `[[version_files]]` entries are supported.
 
+#### 2.3.3 Monorepo Mode
+
+When `monorepo = true` in `.git-std.toml`, `git std bump`
+performs per-package versioning in addition to the root
+version bump.
+
+**Package discovery:**
+
+1. Explicit `[[packages]]` entries in config (highest
+   priority).
+2. Auto-discovery from workspace manifests:
+   - `Cargo.toml` `[workspace] members`
+   - `package.json` `workspaces`
+   - `deno.json` `workspace`
+3. Fallback: subdirectories containing version files.
+
+**Per-package bump algorithm:**
+
+1. Collect all tags once.
+2. For each package:
+   a. Find the latest tag matching `tag_template` for
+   that package name.
+   b. Walk commits between that tag and HEAD, filtered
+   by the package path (`git log --first-parent -- {path}`).
+   c. Parse conventional commits and determine bump
+   level (same rules as root bump).
+   d. Compute new version string.
+3. If `scheme = "calver"` for a package (via per-package
+   `scheme` override or global), use date-based versioning:
+   any commit touching the package path triggers a new
+   version. Same date period increments the patch counter.
+
+**Dependency cascade:**
+
+After computing direct bumps, git-std resolves runtime
+dependencies from workspace manifests (Cargo, npm). If
+package A bumps and package B depends on A, B receives
+at least a patch bump. Dev-dependencies are excluded.
+The cascade iterates until stable (no new bumps).
+
+The `-p` / `--package` flag skips cascade — only the
+named packages are bumped.
+
+**Apply phase:**
+
+1. Write version files for each bumped package (respecting
+   per-package `[[packages.version_files]]` overrides).
+2. Write per-package `CHANGELOG.md` in each package root
+   (respecting per-package `[packages.changelog]` overrides).
+3. Write root `CHANGELOG.md` from all commits.
+4. Sync lock files once.
+5. Single commit: `chore(release): v{root}, {pkg}@{ver}, ...`
+6. Multiple tags: root `v{version}` + per-package tags
+   from `tag_template` (default `{name}@{version}`).
+
+**Flags:**
+
+| Flag               | Description                                   |
+| ------------------ | --------------------------------------------- |
+| `--package <name>` | Filter bump to specific packages (repeatable) |
+
+All existing bump flags (`--dry-run`, `--no-tag`,
+`--no-commit`, `--skip-changelog`, `--format json`, etc.)
+work in monorepo mode.
+
+**Output (monorepo dry-run):**
+
+```text
+$ git std bump --dry-run
+
+  core    0.2.0 → 0.3.0   minor — new feature
+  cli     0.1.4 → 0.1.5   patch — dependency cascade (core)
+  root    0.8.0 → 0.9.0   minor — new feature
+
+  Tags:
+    v0.9.0
+    core@0.3.0
+    cli@0.1.5
+```
+
+**First release:** when no tag and no version file exist
+for a package, the first semver release defaults to
+`0.1.0`. Calver packages use the current date.
+
 ### 2.4 `git std changelog`
 
 Generate or update the changelog from git commit history
@@ -777,12 +861,14 @@ types = ["feat", "fix", "docs", "style",
 scopes = ["auth", "api", "ci", "deps"]         # "auto" | string[] | omit
 # "auto" discovers directory names from crates/*/, packages/*/, modules/*/
 strict = true                                  # enforce types/scopes without --strict flag
+monorepo = false                               # per-package versioning
 
 # ── Versioning ────────────────────────────────────────────────────
 [versioning]
 tag_prefix = "v"                               # git tag prefix
 prerelease_tag = "rc"                          # default pre-release id
 calver_format = "YYYY.MM.PATCH"                # only used when scheme = "calver"
+tag_template = "{name}@{version}"              # per-package tag format (monorepo)
 
 # ── Changelog ─────────────────────────────────────────────────────
 [changelog]
@@ -799,6 +885,12 @@ docs = "Documentation"
 [[version_files]]
 path = "pom.xml"
 regex = '<version>(.*)</version>'
+
+# ── Packages (monorepo) ──────────────────────────────────
+# [[packages]]
+# name = "core"
+# path = "crates/core"
+# scheme = "patch"                             # optional override
 ```
 
 **Defaults when `.git-std.toml` is absent:**
@@ -809,22 +901,26 @@ regex = '<version>(.*)</version>'
 | `types`                     | `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, `revert` |
 | `scopes`                    | None (no scope validation)                                                                   |
 | `strict`                    | `false`                                                                                      |
+| `monorepo`                  | `false`                                                                                      |
 | `versioning.tag_prefix`     | `v`                                                                                          |
 | `versioning.prerelease_tag` | `rc`                                                                                         |
 | `versioning.calver_format`  | `YYYY.MM.PATCH`                                                                              |
+| `versioning.tag_template`   | `{name}@{version}`                                                                           |
 | `changelog.hidden`          | `chore`, `ci`, `build`, `style`, `test`                                                      |
 | `changelog.sections`        | Sensible defaults for each type                                                              |
 | `version_files`             | `[]` (empty — built-in files are always auto-detected)                                       |
+| `packages`                  | `[]` (auto-discovered from workspace manifests when `monorepo = true`)                       |
 
 **Inferred (not configurable):**
 
-| Concern          | How it's resolved                                              |
-| ---------------- | -------------------------------------------------------------- |
-| Bump rules       | Inferred from `scheme` (semver/calver/patch)                   |
-| Version files    | Auto-detected (see §2.3.1); extensible via `[[version_files]]` |
-| URLs             | Inferred from `git remote get-url origin`                      |
-| Changelog output | Always `CHANGELOG.md`                                          |
-| Release commit   | Always `chore(release): <version>`                             |
+| Concern              | How it's resolved                                              |
+| -------------------- | -------------------------------------------------------------- |
+| Bump rules           | Inferred from `scheme` (semver/calver/patch)                   |
+| Version files        | Auto-detected (see §2.3.1); extensible via `[[version_files]]` |
+| URLs                 | Inferred from `git remote get-url origin`                      |
+| Changelog output     | `CHANGELOG.md` at root; `{path}/CHANGELOG.md` per package      |
+| Release commit       | `chore(release): <version>` (includes all packages)            |
+| Package dependencies | Resolved from workspace manifests (runtime only)               |
 
 ---
 

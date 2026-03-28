@@ -16,6 +16,10 @@ footprint, zero runtime dependencies. Works out of the box
 with sensible defaults, which can be overridden with a
 `.git-std.toml`.
 
+Supports per-package monorepo versioning with automatic
+dependency cascades, per-package changelogs, and polyglot
+workspace discovery (Cargo, npm, Deno).
+
 Invoked as `git std` via git's subcommand discovery.
 
 ## Install

@@ -98,6 +98,30 @@ update version files, generate changelog, commit, and tag.
 
 **Exit codes:** `0` = success, `1` = error.
 
+### Monorepo bump
+
+When `monorepo = true`, each package is versioned
+independently based on commits touching its path.
+
+```bash
+# Bump all packages with changes
+git std bump
+
+# Preview monorepo bump
+git std bump --dry-run
+
+# Bump specific package(s)
+git std bump -p core
+git std bump -p core -p cli
+
+# JSON output for CI
+git std bump --dry-run --format json
+```
+
+Dependency cascade: when package A bumps and package B
+depends on A, B gets at least a patch bump. Use `-p` to
+skip cascade and bump only the named packages.
+
 ## `git std changelog`
 
 Generate or update the changelog from git history.

@@ -220,13 +220,14 @@ Entries with missing `name` or `path` are silently skipped.
 
 These are not configurable — git-std resolves them automatically:
 
-| Concern          | Resolution                                |
-| ---------------- | ----------------------------------------- |
-| Bump rules       | Inferred from `scheme`                    |
-| Version files    | Auto-detected (Cargo.toml)                |
-| URLs             | Inferred from `git remote get-url origin` |
-| Changelog output | Always `CHANGELOG.md`                     |
-| Release commit   | Always `chore(release): <version>`        |
+| Concern              | Resolution                                                |
+| -------------------- | --------------------------------------------------------- |
+| Bump rules           | Inferred from `scheme`                                    |
+| Version files        | Auto-detected (Cargo.toml)                                |
+| URLs                 | Inferred from `git remote get-url origin`                 |
+| Changelog output     | `CHANGELOG.md` at root; `{path}/CHANGELOG.md` per package |
+| Release commit       | `chore(release): <version>` (includes packages)           |
+| Package dependencies | Resolved from workspace manifests (runtime only)          |
 
 ## Minimal examples
 
@@ -278,4 +279,38 @@ path = "crates/core"
 [[packages]]
 name = "cli"
 path = "crates/cli"
+```
+
+When `monorepo = true`, each package is bumped independently
+based on commits touching its path. Packages are
+auto-discovered from workspace manifests if `[[packages]]`
+is omitted.
+
+**Dependency cascade:** if package A bumps and package B
+depends on A (runtime dependency in Cargo.toml or
+package.json), B receives at least a patch bump. Use
+`-p` to skip cascade.
+
+**Per-package changelogs:** each bumped package gets a
+`CHANGELOG.md` in its root directory. The root
+`CHANGELOG.md` includes all commits.
+
+**Mixed versioning schemes:**
+
+```toml
+monorepo = true
+scheme = "semver"
+
+[versioning]
+tag_template = "{name}@{version}"
+calver_format = "YYYY.0M.PATCH"
+
+[[packages]]
+name = "core"
+path = "crates/core"
+
+[[packages]]
+name = "api"
+path = "crates/api"
+scheme = "calver"              # override: date-based versioning
 ```

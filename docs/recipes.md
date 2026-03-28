@@ -156,6 +156,83 @@ These are updated alongside auto-detected files during
 `git std bump`. Use `--dry-run` to preview which files
 would be updated.
 
+## Monorepo workflow
+
+Enable per-package versioning for multi-package repositories:
+
+```toml
+monorepo = true
+scheme = "semver"
+scopes = "auto"
+
+[versioning]
+tag_template = "{name}@{version}"
+
+# Optional — auto-discovered from workspace manifests if omitted
+# [[packages]]
+# name = "core"
+# path = "crates/core"
+```
+
+Packages are auto-discovered from `Cargo.toml` workspace
+members, `package.json` workspaces, or `deno.json` workspace.
+
+### Bump all packages
+
+```bash
+git std bump                   # bumps all packages with changes
+git std bump --dry-run         # preview what would change
+```
+
+### Bump specific packages
+
+```bash
+git std bump -p core           # bump only core
+git std bump -p core -p cli    # bump core and cli
+```
+
+The `-p` flag skips dependency cascade — only the named
+packages are bumped.
+
+### Per-package scheme override
+
+Mix versioning schemes in the same monorepo:
+
+```toml
+monorepo = true
+scheme = "semver"              # default for all packages
+
+[versioning]
+tag_template = "{name}@{version}"
+calver_format = "YYYY.0M.PATCH"
+
+[[packages]]
+name = "core"
+path = "crates/core"
+
+[[packages]]
+name = "api"
+path = "crates/api"
+scheme = "calver"              # this package uses calver
+```
+
+### Per-package changelog config
+
+Override changelog settings per package:
+
+```toml
+[[packages]]
+name = "core"
+path = "crates/core"
+
+[packages.changelog]
+hidden = ["chore"]             # show more commit types for core
+```
+
+Each package gets its own `CHANGELOG.md` in its root
+directory (e.g. `crates/core/CHANGELOG.md`). The root
+`CHANGELOG.md` includes all commits from all packages.
+
 ## Git hooks
 
 ### Setting up hooks
