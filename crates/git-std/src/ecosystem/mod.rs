@@ -93,11 +93,7 @@ pub struct BumpResult {
 /// Write a version using a `standard_version::VersionFile` engine (string
 /// manipulation). This is the fallback path used when no ecosystem CLI tool
 /// is available.
-pub fn native_write(
-    root: &Path,
-    engine: &dyn VersionFile,
-    new_version: &str,
-) -> WriteOutcome {
+pub fn native_write(root: &Path, engine: &dyn VersionFile, new_version: &str) -> WriteOutcome {
     let mut results = Vec::new();
 
     for filename in engine.filenames() {
@@ -205,11 +201,7 @@ fn all_ecosystems() -> Vec<Box<dyn Ecosystem>> {
 /// 2. Write versions (CLI-first, fallback to string manipulation).
 /// 3. Sync lock files (always delegated to ecosystem tool).
 /// 4. Process custom `[[version_files]]` via regex engine.
-pub fn run_bump(
-    root: &Path,
-    new_version: &str,
-    custom_files: &[CustomVersionFile],
-) -> BumpResult {
+pub fn run_bump(root: &Path, new_version: &str, custom_files: &[CustomVersionFile]) -> BumpResult {
     let ecosystems = all_ecosystems();
     let mut update_results: Vec<UpdateResult> = Vec::new();
     let mut modified_paths: Vec<PathBuf> = Vec::new();
@@ -249,13 +241,9 @@ pub fn run_bump(
                     synced_locks.push(lock_file);
                 }
                 SyncOutcome::ToolMissing {
-                    lock_file,
-                    hint,
-                    ..
+                    lock_file, hint, ..
                 } => {
-                    ui::warning(&format!(
-                        "{lock_file} not synced \u{2014} run '{hint}'"
-                    ));
+                    ui::warning(&format!("{lock_file} not synced \u{2014} run '{hint}'"));
                 }
                 SyncOutcome::Failed {
                     lock_file,
@@ -269,7 +257,13 @@ pub fn run_bump(
     }
 
     // Process custom [[version_files]] via regex engine.
-    process_custom_files(root, new_version, custom_files, &mut update_results, &mut modified_paths);
+    process_custom_files(
+        root,
+        new_version,
+        custom_files,
+        &mut update_results,
+        &mut modified_paths,
+    );
 
     BumpResult {
         update_results,

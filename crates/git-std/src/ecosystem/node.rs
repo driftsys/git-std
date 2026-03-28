@@ -90,9 +90,7 @@ fn try_npm_version(root: &Path, new_version: &str) -> WriteOutcome {
             files: vec![root.join("package.json")],
         },
         _ => {
-            ui::warning(
-                "npm version not available \u{2014} using built-in version update",
-            );
+            ui::warning("npm version not available \u{2014} using built-in version update");
             native_write(root, &JsonVersionFile, new_version)
         }
     }
@@ -102,15 +100,18 @@ fn try_yarn_version(root: &Path, new_version: &str) -> WriteOutcome {
     match cmd::run_tool(
         root,
         "yarn",
-        &["version", "--new-version", new_version, "--no-git-tag-version"],
+        &[
+            "version",
+            "--new-version",
+            new_version,
+            "--no-git-tag-version",
+        ],
     ) {
         Ok(status) if status.success() => WriteOutcome::CliModified {
             files: vec![root.join("package.json")],
         },
         _ => {
-            ui::warning(
-                "yarn version not available \u{2014} using built-in version update",
-            );
+            ui::warning("yarn version not available \u{2014} using built-in version update");
             native_write(root, &JsonVersionFile, new_version)
         }
     }

@@ -60,7 +60,12 @@ impl Ecosystem for Rust {
     }
 
     fn sync_lock(&self, root: &Path) -> Vec<SyncOutcome> {
-        vec![try_sync(root, "Cargo.lock", "cargo", &["update", "--workspace"])]
+        vec![try_sync(
+            root,
+            "Cargo.lock",
+            "cargo",
+            &["update", "--workspace"],
+        )]
     }
 
     fn lock_files(&self) -> &[&str] {

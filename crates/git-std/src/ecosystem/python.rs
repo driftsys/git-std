@@ -72,9 +72,7 @@ fn try_poetry_version(root: &Path, new_version: &str) -> WriteOutcome {
             files: vec![root.join("pyproject.toml")],
         },
         _ => {
-            ui::warning(
-                "poetry version not available \u{2014} using built-in version update",
-            );
+            ui::warning("poetry version not available \u{2014} using built-in version update");
             native_write(root, &PyprojectVersionFile, new_version)
         }
     }
