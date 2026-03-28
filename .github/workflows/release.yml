@@ -81,7 +81,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Publish crates
-        continue-on-error: true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
@@ -89,13 +88,13 @@ jobs:
 
           publish() {
             local crate="$1"
-            # Skip if already published.
+            # Skip if already published (uses crates.io API — more reliable than cargo search).
             local pkg_version
             pkg_version=$(cargo metadata --no-deps --format-version 1 \
               | jq -r ".packages[] | select(.name == \"$crate\") | .version")
             local published
-            published=$(cargo search "$crate" --limit 1 2>/dev/null \
-              | grep "^$crate " | sed 's/.*= "\(.*\)".*/\1/' || true)
+            published=$(curl -sf "https://crates.io/api/v1/crates/$crate" \
+              | jq -r '.crate.newest_version // ""' || true)
             if [ "$pkg_version" = "$published" ]; then
               echo "==> $crate $pkg_version already published, skipping"
               return 0
