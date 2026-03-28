@@ -19,10 +19,16 @@ jobs:
         include:
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            use_cross: true
           - target: x86_64-apple-darwin
             os: macos-latest
           - target: aarch64-apple-darwin
             os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            ext: .exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -32,20 +38,30 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-      - name: Install musl tools
-        if: contains(matrix.target, 'musl')
+      - name: Install musl tools (x86_64)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
-      - name: Build release binary
+      - name: Install cross (aarch64-musl)
+        if: matrix.use_cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.5
+      - name: Build release binary (cross)
+        if: matrix.use_cross
+        run: cross build --release --target ${{ matrix.target }} -p git-std
+      - name: Build release binary (cargo)
+        if: "!matrix.use_cross"
         run: cargo build --release --target ${{ matrix.target }} -p git-std
       - name: Collect man pages
+        shell: bash
         run: |
           mkdir -p staging
-          cp target/${{ matrix.target }}/release/git-std staging/
+          cp target/${{ matrix.target }}/release/git-std${{ matrix.ext || '' }} staging/
           find target/ -path '*/build/git-std-*/out/man/*.1' -exec cp {} staging/ \;
       - name: Create tarball
+        shell: bash
         run: |
           tar czf git-std-${{ matrix.target }}.tar.gz -C staging .
       - name: Generate SHA256 checksum
+        shell: bash
         run: shasum -a 256 git-std-${{ matrix.target }}.tar.gz > git-std-${{ matrix.target }}.tar.gz.sha256
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
