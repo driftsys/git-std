@@ -62,7 +62,7 @@ jobs:
           tar czf git-std-${{ matrix.target }}.tar.gz -C staging .
       - name: Generate SHA256 checksum
         shell: bash
-        run: shasum -a 256 git-std-${{ matrix.target }}.tar.gz > git-std-${{ matrix.target }}.tar.gz.sha256
+        run: sha256sum git-std-${{ matrix.target }}.tar.gz > git-std-${{ matrix.target }}.tar.gz.sha256
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
