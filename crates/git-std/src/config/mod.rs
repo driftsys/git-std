@@ -2,6 +2,7 @@ use std::path::Path;
 
 use serde::Serialize;
 
+pub(crate) mod deps;
 mod load;
 mod workspace;
 

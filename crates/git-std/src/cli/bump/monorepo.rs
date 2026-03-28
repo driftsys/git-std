@@ -1,11 +1,13 @@
 //! Per-package version planning for monorepo workspaces.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use serde::Serialize;
 use yansi::Paint;
 
 use crate::app::OutputFormat;
+use crate::config::deps::{self, DependencyGraph};
 use crate::config::{PackageConfig, ProjectConfig};
 use crate::git;
 use crate::ui;
@@ -28,6 +30,9 @@ pub(crate) struct PackageBumpPlan {
     pub raw_commits: Vec<(String, String)>,
     /// Full tag name for the new version.
     pub tag_name: String,
+    /// If this bump was caused (or elevated) by a dependency cascade, the
+    /// source package name is recorded here.
+    pub cascade_from: Option<String>,
 }
 
 /// JSON schema for a per-package bump plan entry.
@@ -41,6 +46,8 @@ struct PackagePlanJson {
     bump_level: String,
     tag: String,
     commit_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cascade_from: Option<String>,
 }
 
 /// JSON schema for the full monorepo bump plan.
@@ -162,6 +169,7 @@ fn plan_package(
         bump_level,
         raw_commits,
         tag_name,
+        cascade_from: None,
     })
 }
 
@@ -224,6 +232,20 @@ pub(super) fn plan_monorepo_bump(
         }
     }
 
+    // Apply dependency cascade when not filtering to specific packages.
+    if packages_filter.is_empty() {
+        let dep_graph = deps::resolve_dependency_graph(&workdir, &all_packages);
+        if !dep_graph.is_empty() {
+            apply_cascade(
+                &mut package_plans,
+                &all_packages,
+                &dep_graph,
+                &workdir,
+                tag_template,
+            );
+        }
+    }
+
     // Plan root version bump via existing dispatch logic.
     let root_plan = plan_root(config, dir);
 
@@ -242,6 +264,86 @@ pub(super) fn plan_monorepo_bump(
     }
 
     0
+}
+
+/// Apply dependency cascade: when a package bumps, its dependents get at
+/// least a patch bump. Iterates until stable (transitive cascade).
+fn apply_cascade(
+    plans: &mut Vec<PackageBumpPlan>,
+    all_packages: &[PackageConfig],
+    dep_graph: &DependencyGraph,
+    workdir: &Path,
+    tag_template: &str,
+) {
+    let pkg_by_name: std::collections::HashMap<&str, &PackageConfig> =
+        all_packages.iter().map(|p| (p.name.as_str(), p)).collect();
+
+    // Iterate until no new cascade bumps are added.
+    loop {
+        let bumped: HashSet<String> = plans.iter().map(|p| p.name.clone()).collect();
+        let mut new_cascades: Vec<PackageBumpPlan> = Vec::new();
+
+        for plan in plans.iter() {
+            for dependent_name in dep_graph.dependents_of(&plan.name) {
+                if bumped.contains(dependent_name.as_str()) {
+                    continue;
+                }
+                let Some(pkg) = pkg_by_name.get(dependent_name.as_str()) else {
+                    continue;
+                };
+
+                let cascade_plan = create_cascade_plan(workdir, pkg, tag_template, &plan.name);
+                if let Some(cp) = cascade_plan {
+                    new_cascades.push(cp);
+                }
+            }
+        }
+
+        if new_cascades.is_empty() {
+            break;
+        }
+
+        // Deduplicate (a package may be reachable from multiple bumped deps).
+        let mut seen = HashSet::new();
+        new_cascades.retain(|p| seen.insert(p.name.clone()));
+
+        plans.extend(new_cascades);
+    }
+}
+
+/// Create a cascade patch bump for a dependent package.
+fn create_cascade_plan(
+    dir: &Path,
+    pkg: &PackageConfig,
+    tag_template: &str,
+    cascade_source: &str,
+) -> Option<PackageBumpPlan> {
+    let latest_tag = find_latest_package_tag(dir, tag_template, &pkg.name).ok()?;
+
+    let cur_ver = latest_tag
+        .as_ref()
+        .map(|(_, v)| v.clone())
+        .unwrap_or_else(|| semver::Version::new(0, 1, 0));
+
+    let new_version = if latest_tag.is_none() {
+        semver::Version::new(0, 1, 0)
+    } else {
+        standard_version::apply_bump(&cur_ver, standard_version::BumpLevel::Patch)
+    };
+
+    let prev_version = latest_tag.as_ref().map(|(_, v)| v.to_string());
+    let tag_name = build_tag_name(tag_template, &pkg.name, &new_version.to_string());
+
+    Some(PackageBumpPlan {
+        name: pkg.name.clone(),
+        path: pkg.path.clone(),
+        prev_version,
+        new_version: new_version.to_string(),
+        bump_level: standard_version::BumpLevel::Patch,
+        raw_commits: Vec::new(),
+        tag_name,
+        cascade_from: Some(cascade_source.to_string()),
+    })
 }
 
 /// Minimal root version info for the plan output.
@@ -320,11 +422,15 @@ fn print_plan_text(
         ui::heading("Packages:", "");
         for plan in package_plans {
             let prev = plan.prev_version.as_deref().unwrap_or("none");
+            let reason = match &plan.cascade_from {
+                Some(source) => format!("patch — dependency cascade from {source}"),
+                None => bump_reason(plan.bump_level).to_string(),
+            };
             ui::info(&format!(
                 "{}: {} ({})",
                 plan.name.bold(),
                 format!("{prev} \u{2192} {}", plan.new_version).bold(),
-                bump_reason(plan.bump_level),
+                reason,
             ));
             ui::detail(&format!(
                 "tag: {}  ({} commit{})",
@@ -354,6 +460,7 @@ fn print_plan_json(root_plan: &Option<RootPlan>, package_plans: &[PackageBumpPla
                 bump_level: format!("{:?}", p.bump_level).to_lowercase(),
                 tag: p.tag_name.clone(),
                 commit_count: p.raw_commits.len(),
+                cascade_from: p.cascade_from.clone(),
             })
             .collect(),
         dry_run: true,
