@@ -3,7 +3,7 @@
 //! This module replaces the previous `git2`-based implementation with direct
 //! calls to the `git` binary, removing the C dependency on libgit2.
 
-mod cmd;
+pub(crate) mod cmd;
 mod mutate;
 mod query;
 
@@ -14,5 +14,6 @@ pub use mutate::{
 };
 pub use query::{
     collect_tags, commit_date, current_branch, detect_host, find_latest_calver_tag,
-    find_latest_version_tag, head_oid, resolve_rev, walk_commits, walk_range,
+    find_latest_version_tag, head_oid, resolve_rev, walk_commits, walk_commits_for_path,
+    walk_range,
 };

@@ -61,9 +61,7 @@ pub fn walk_range(dir: &Path, range: &str) -> Result<Vec<(String, String)>, GitE
 ///
 /// Uses `--first-parent` to avoid counting merge-commit duplicates.
 /// Returns `(full_sha, commit_message)` pairs in topological order.
-// Dead code until Story 4 (#364) wires monorepo bump to this function.
-#[allow(dead_code)]
-pub(crate) fn walk_commits_for_path(
+pub fn walk_commits_for_path(
     dir: &Path,
     from: &str,
     until: Option<&str>,

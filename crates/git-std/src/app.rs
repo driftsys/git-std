@@ -118,6 +118,9 @@ pub enum Command {
         /// Output format.
         #[arg(long, default_value = "text")]
         format: OutputFormat,
+        /// Filter bump to specific package(s) (monorepo only).
+        #[arg(short = 'p', long = "package")]
+        packages: Vec<String>,
     },
     /// Generate a changelog (incremental by default, --full to regenerate).
     Changelog {
