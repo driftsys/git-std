@@ -1,6 +1,5 @@
 mod apply;
 mod detect;
-mod lock_sync;
 mod plan;
 mod stable;
 

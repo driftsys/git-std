@@ -5,6 +5,7 @@ use clap::{CommandFactory, Parser};
 pub mod app;
 mod cli;
 mod config;
+pub mod ecosystem;
 mod git;
 pub mod ui;
 
