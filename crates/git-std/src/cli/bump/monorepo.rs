@@ -515,20 +515,21 @@ fn finalize_monorepo_bump(
         for plan in package_plans {
             let pkg_changelog_path = workdir.join(&plan.path).join("CHANGELOG.md");
 
+            let pkg_cl_override = pkg_configs
+                .get(plan.name.as_str())
+                .and_then(|pc| pc.changelog.as_ref());
+            let pkg_cl_config = config.to_package_changelog_config(pkg_cl_override);
+
             let release = super::apply::build_version_release(
                 &plan.raw_commits,
                 &plan.new_version,
                 plan.prev_version.as_deref(),
-                &changelog_config,
+                &pkg_cl_config,
             );
             if let Some(release) = release {
                 let existing = std::fs::read_to_string(&pkg_changelog_path).unwrap_or_default();
-                let output = standard_changelog::prepend_release(
-                    &existing,
-                    &release,
-                    &changelog_config,
-                    &host,
-                );
+                let output =
+                    standard_changelog::prepend_release(&existing, &release, &pkg_cl_config, &host);
                 if let Err(e) = std::fs::write(&pkg_changelog_path, &output) {
                     ui::warning(&format!("{}: cannot write CHANGELOG.md: {e}", plan.name));
                 } else {

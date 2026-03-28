@@ -164,6 +164,26 @@ impl ProjectConfig {
         }
     }
 
+    /// Build a changelog config for a specific package, falling back to global.
+    ///
+    /// Per-package overrides (sections, hidden, title, bug_url) take precedence
+    /// over global settings when present.
+    pub fn to_package_changelog_config(
+        &self,
+        pkg_changelog: Option<&ChangelogConfig>,
+    ) -> standard_changelog::ChangelogConfig {
+        let global = self.to_changelog_config();
+        let Some(pkg) = pkg_changelog else {
+            return global;
+        };
+        standard_changelog::ChangelogConfig {
+            title: pkg.title.clone().unwrap_or(global.title),
+            sections: pkg.sections.clone().unwrap_or(global.sections),
+            hidden: pkg.hidden.clone().unwrap_or(global.hidden),
+            bug_url: pkg.bug_url.clone().or(global.bug_url),
+        }
+    }
+
     /// Resolve the effective scope list.
     ///
     /// Returns the explicit list, auto-discovered names, or an empty vec.
