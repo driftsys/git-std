@@ -1,7 +1,8 @@
 use std::path::Path;
 
 use super::{
-    ChangelogConfig, ProjectConfig, Scheme, ScopesConfig, VersionFileConfig, VersioningConfig,
+    ChangelogConfig, PackageConfig, ProjectConfig, Scheme, ScopesConfig, VersionFileConfig,
+    VersioningConfig,
 };
 
 /// Config filename.
@@ -29,6 +30,8 @@ pub fn load(dir: &Path) -> ProjectConfig {
             changelog: ChangelogConfig::default(),
             versioning: VersioningConfig::default(),
             version_files: Vec::new(),
+            monorepo: false,
+            packages: Vec::new(),
         },
     }
 }
@@ -74,6 +77,8 @@ fn default_config() -> ProjectConfig {
         changelog: ChangelogConfig::default(),
         versioning: VersioningConfig::default(),
         version_files: Vec::new(),
+        monorepo: false,
+        packages: Vec::new(),
     }
 }
 
@@ -123,6 +128,11 @@ fn build_config(table: &toml::Table) -> ProjectConfig {
     let changelog = parse_changelog_config(table);
     let versioning = parse_versioning_config(table);
     let version_files = parse_version_files(table);
+    let monorepo = table
+        .get("monorepo")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let packages = parse_packages(table);
 
     // Validate calver_format when scheme is calver.
     let versioning = if scheme == Scheme::Calver {
@@ -150,6 +160,8 @@ fn build_config(table: &toml::Table) -> ProjectConfig {
         changelog,
         versioning,
         version_files,
+        monorepo,
+        packages,
     }
 }
 
@@ -179,10 +191,17 @@ fn parse_versioning_config(table: &toml::Table) -> VersioningConfig {
         .map(String::from)
         .unwrap_or(defaults.calver_format);
 
+    let tag_template = versioning_table
+        .get("tag_template")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .unwrap_or(defaults.tag_template);
+
     VersioningConfig {
         tag_prefix,
         prerelease_tag,
         calver_format,
+        tag_template,
     }
 }
 
@@ -201,44 +220,84 @@ fn parse_version_files(table: &toml::Table) -> Vec<VersionFileConfig> {
         .collect()
 }
 
-fn parse_changelog_config(table: &toml::Table) -> ChangelogConfig {
-    let changelog_table = match table.get("changelog").and_then(|v| v.as_table()) {
-        Some(t) => t,
-        None => return ChangelogConfig::default(),
+fn parse_packages(table: &toml::Table) -> Vec<PackageConfig> {
+    let Some(arr) = table.get("packages").and_then(|v| v.as_array()) else {
+        return Vec::new();
     };
 
-    let title = changelog_table
+    arr.iter()
+        .filter_map(|entry| {
+            let t = entry.as_table()?;
+            let name = t.get("name")?.as_str()?.to_string();
+            let path = t.get("path")?.as_str()?.to_string();
+
+            let scheme = t.get("scheme").and_then(|v| v.as_str()).map(|s| match s {
+                "calver" => Scheme::Calver,
+                "patch" => Scheme::Patch,
+                _ => Scheme::Semver,
+            });
+
+            let version_files = t.get("version_files").and_then(|v| v.as_array()).map(|a| {
+                a.iter()
+                    .filter_map(|entry| {
+                        let t = entry.as_table()?;
+                        let path = t.get("path")?.as_str()?.to_string();
+                        let regex = t.get("regex")?.as_str()?.to_string();
+                        Some(VersionFileConfig { path, regex })
+                    })
+                    .collect()
+            });
+
+            let changelog = t
+                .get("changelog")
+                .and_then(|v| v.as_table())
+                .map(parse_changelog_from_table);
+
+            Some(PackageConfig {
+                name,
+                path,
+                scheme,
+                version_files,
+                changelog,
+            })
+        })
+        .collect()
+}
+
+fn parse_changelog_from_table(table: &toml::Table) -> ChangelogConfig {
+    let title = table
         .get("title")
         .and_then(|v| v.as_str())
         .map(String::from);
 
-    let hidden = changelog_table
-        .get("hidden")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        });
+    let hidden = table.get("hidden").and_then(|v| v.as_array()).map(|arr| {
+        arr.iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect()
+    });
 
-    let bug_url = changelog_table
+    let bug_url = table
         .get("bug_url")
         .and_then(|v| v.as_str())
         .map(String::from);
 
-    let sections = changelog_table
-        .get("sections")
-        .and_then(|v| v.as_table())
-        .map(|t| {
-            t.iter()
-                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
-                .collect()
-        });
+    let sections = table.get("sections").and_then(|v| v.as_table()).map(|t| {
+        t.iter()
+            .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+            .collect()
+    });
 
     ChangelogConfig {
         title,
         sections,
         hidden,
         bug_url,
+    }
+}
+
+fn parse_changelog_config(table: &toml::Table) -> ChangelogConfig {
+    match table.get("changelog").and_then(|v| v.as_table()) {
+        Some(t) => parse_changelog_from_table(t),
+        None => ChangelogConfig::default(),
     }
 }

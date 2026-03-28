@@ -71,6 +71,9 @@ impl Serialize for ScopesConfig {
     }
 }
 
+/// Default tag template for per-package tags.
+pub const DEFAULT_TAG_TEMPLATE: &str = "{name}@{version}";
+
 /// Versioning configuration.
 #[derive(Debug, Clone, Serialize)]
 pub struct VersioningConfig {
@@ -80,6 +83,10 @@ pub struct VersioningConfig {
     pub prerelease_tag: String,
     /// Calver format string (e.g. `"YYYY.MM.PATCH"`).
     pub calver_format: String,
+    /// Tag template for per-package tags (default `"{name}@{version}"`).
+    ///
+    /// Supports `{name}` and `{version}` placeholders.
+    pub tag_template: String,
 }
 
 impl Default for VersioningConfig {
@@ -88,6 +95,7 @@ impl Default for VersioningConfig {
             tag_prefix: "v".to_string(),
             prerelease_tag: "rc".to_string(),
             calver_format: standard_version::calver::DEFAULT_FORMAT.to_string(),
+            tag_template: DEFAULT_TAG_TEMPLATE.to_string(),
         }
     }
 }
@@ -110,6 +118,21 @@ pub struct VersionFileConfig {
     pub regex: String,
 }
 
+/// Per-package configuration for monorepo workspaces.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct PackageConfig {
+    /// Package name (used in tags and changelog headings).
+    pub name: String,
+    /// Path to the package root, relative to the repository root.
+    pub path: String,
+    /// Override the global versioning scheme for this package.
+    pub scheme: Option<Scheme>,
+    /// Override version files for this package.
+    pub version_files: Option<Vec<VersionFileConfig>>,
+    /// Override changelog configuration for this package.
+    pub changelog: Option<ChangelogConfig>,
+}
+
 /// Project configuration loaded from `.git-std.toml`.
 #[derive(Debug, Default, Serialize)]
 pub struct ProjectConfig {
@@ -120,6 +143,10 @@ pub struct ProjectConfig {
     pub changelog: ChangelogConfig,
     pub versioning: VersioningConfig,
     pub version_files: Vec<VersionFileConfig>,
+    /// Enable per-package monorepo versioning.
+    pub monorepo: bool,
+    /// Explicit package definitions (auto-discovered when empty and `monorepo = true`).
+    pub packages: Vec<PackageConfig>,
 }
 
 impl ProjectConfig {

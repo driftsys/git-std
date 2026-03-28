@@ -1,5 +1,5 @@
 use super::load::{DEFAULT_TYPES, default_types, load, parse_config};
-use super::{ProjectConfig, Scheme, ScopesConfig, discover_scopes};
+use super::{DEFAULT_TAG_TEMPLATE, ProjectConfig, Scheme, ScopesConfig, discover_scopes};
 
 #[test]
 fn default_types_when_no_config() {
@@ -494,4 +494,215 @@ fn default_types_function_returns_all_types() {
     for t in DEFAULT_TYPES {
         assert!(types.contains(&t.to_string()));
     }
+}
+
+// ── monorepo ────────────────────────────────────────────────
+
+#[test]
+fn monorepo_default_false() {
+    let config = parse_config(r#"types = ["feat"]"#);
+    assert!(!config.monorepo);
+}
+
+#[test]
+fn monorepo_true_parsed() {
+    let config = parse_config("monorepo = true\n");
+    assert!(config.monorepo);
+}
+
+#[test]
+fn monorepo_false_explicit() {
+    let config = parse_config("monorepo = false\n");
+    assert!(!config.monorepo);
+}
+
+#[test]
+fn monorepo_missing_defaults_false() {
+    let dir = tempfile::tempdir().unwrap();
+    let config = load(dir.path());
+    assert!(!config.monorepo);
+}
+
+// ── packages ────────────────────────────────────────────────
+
+#[test]
+fn packages_default_empty() {
+    let config = parse_config(r#"types = ["feat"]"#);
+    assert!(config.packages.is_empty());
+}
+
+#[test]
+fn packages_parsed_with_name_and_path() {
+    let config = parse_config(
+        r#"
+[[packages]]
+name = "core"
+path = "crates/core"
+
+[[packages]]
+name = "cli"
+path = "crates/cli"
+"#,
+    );
+    assert_eq!(config.packages.len(), 2);
+    assert_eq!(config.packages[0].name, "core");
+    assert_eq!(config.packages[0].path, "crates/core");
+    assert_eq!(config.packages[1].name, "cli");
+    assert_eq!(config.packages[1].path, "crates/cli");
+}
+
+#[test]
+fn packages_with_scheme_override() {
+    let config = parse_config(
+        r#"
+[[packages]]
+name = "core"
+path = "crates/core"
+scheme = "patch"
+"#,
+    );
+    assert_eq!(config.packages.len(), 1);
+    assert_eq!(config.packages[0].scheme, Some(Scheme::Patch));
+}
+
+#[test]
+fn packages_with_version_files_override() {
+    let config = parse_config(
+        r#"
+[[packages]]
+name = "core"
+path = "crates/core"
+
+[[packages.version_files]]
+path = "version.txt"
+regex = '(\d+\.\d+\.\d+)'
+"#,
+    );
+    assert_eq!(config.packages.len(), 1);
+    let vf = config.packages[0].version_files.as_ref().unwrap();
+    assert_eq!(vf.len(), 1);
+    assert_eq!(vf[0].path, "version.txt");
+}
+
+#[test]
+fn packages_with_changelog_override() {
+    let config = parse_config(
+        r#"
+[[packages]]
+name = "core"
+path = "crates/core"
+
+[packages.changelog]
+title = "Core Changelog"
+hidden = ["chore"]
+"#,
+    );
+    assert_eq!(config.packages.len(), 1);
+    let cl = config.packages[0].changelog.as_ref().unwrap();
+    assert_eq!(cl.title, Some("Core Changelog".to_string()));
+    assert_eq!(cl.hidden, Some(vec!["chore".to_string()]));
+}
+
+#[test]
+fn packages_missing_name_skipped() {
+    let config = parse_config(
+        r#"
+[[packages]]
+path = "crates/core"
+"#,
+    );
+    assert!(config.packages.is_empty());
+}
+
+#[test]
+fn packages_missing_path_skipped() {
+    let config = parse_config(
+        r#"
+[[packages]]
+name = "core"
+"#,
+    );
+    assert!(config.packages.is_empty());
+}
+
+#[test]
+fn packages_no_overrides_uses_none() {
+    let config = parse_config(
+        r#"
+[[packages]]
+name = "core"
+path = "crates/core"
+"#,
+    );
+    assert_eq!(config.packages[0].scheme, None);
+    assert!(config.packages[0].version_files.is_none());
+    assert!(config.packages[0].changelog.is_none());
+}
+
+// ── tag_template ────────────────────────────────────────────
+
+#[test]
+fn tag_template_default() {
+    let config = parse_config(r#"types = ["feat"]"#);
+    assert_eq!(config.versioning.tag_template, DEFAULT_TAG_TEMPLATE);
+}
+
+#[test]
+fn tag_template_custom() {
+    let config = parse_config(
+        r#"
+[versioning]
+tag_template = "{name}/v{version}"
+"#,
+    );
+    assert_eq!(config.versioning.tag_template, "{name}/v{version}");
+}
+
+#[test]
+fn tag_template_with_other_versioning_fields() {
+    let config = parse_config(
+        r#"
+[versioning]
+tag_prefix = "v"
+tag_template = "@{name}@{version}"
+"#,
+    );
+    assert_eq!(config.versioning.tag_prefix, "v");
+    assert_eq!(config.versioning.tag_template, "@{name}@{version}");
+}
+
+// ── full monorepo config ────────────────────────────────────
+
+#[test]
+fn full_monorepo_config() {
+    let config = parse_config(
+        r#"
+monorepo = true
+scheme = "semver"
+strict = true
+scopes = "auto"
+
+[versioning]
+tag_template = "{name}@{version}"
+
+[[packages]]
+name = "standard-commit"
+path = "crates/standard-commit"
+
+[[packages]]
+name = "standard-version"
+path = "crates/standard-version"
+scheme = "patch"
+"#,
+    );
+    assert!(config.monorepo);
+    assert_eq!(config.scheme, Scheme::Semver);
+    assert!(config.strict);
+    assert_eq!(config.scopes, ScopesConfig::Auto);
+    assert_eq!(config.versioning.tag_template, "{name}@{version}");
+    assert_eq!(config.packages.len(), 2);
+    assert_eq!(config.packages[0].name, "standard-commit");
+    assert_eq!(config.packages[0].scheme, None);
+    assert_eq!(config.packages[1].name, "standard-version");
+    assert_eq!(config.packages[1].scheme, Some(Scheme::Patch));
 }
