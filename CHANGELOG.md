@@ -1,5 +1,117 @@
 # Changelog
 
+## [0.9.0] (2026-03-28)
+
+### Features
+
+- support calver scheme in monorepo mode ([#385]) ([f32d014])
+- support calver scheme in monorepo mode ([55832f9]), fixes 377 item 3.
+- **cli:** add monorepo CLI polish and changelog command ([#375]) ([eb682aa])
+- **cli:** add monorepo CLI polish and changelog command ([d8578d8]), closes
+  [#367]
+- **bump:** implement per-package apply for monorepo versioning ([#374])
+  ([909d3ac])
+- **bump:** implement per-package apply for monorepo versioning ([1aaef7b]),
+  closes [#366]
+- **bump:** add dependency cascade for monorepo versioning ([#373]) ([82b0758])
+- **bump:** add dependency cascade for monorepo versioning ([f71b0f8]), closes
+  [#365]
+- **bump:** add per-package monorepo version plan ([#372]) ([5c783c8])
+- add per-package version planning for monorepo bump ([f7d895f]), closes [#364]
+- **config:** add workspace auto-discovery ([#371]) ([5a3ca6a])
+- **config:** add workspace auto-discovery ([bc11d47]), closes [#362]
+- **git:** add path-filtered commit walking ([#370]) ([f76f09e])
+- **git:** add path-filtered commit walking ([e50fa10]), closes [#363]
+- **config:** add monorepo flag, packages schema, and tag_template ([#369])
+  ([85756f2])
+- **config:** add monorepo flag, packages schema, and tag_template ([4fb09a1]),
+  closes [#361]
+
+### Refactoring
+
+- extract finalize_monorepo_bump into focused helpers ([#382]) ([c7857d9])
+- extract finalize_monorepo_bump into focused helpers ([9ac5592]), fixes 377
+  items 6 and 7.
+- replace unwrap and is_some anti-patterns in monorepo ([#378]) ([3bff7a2])
+- replace unwrap and is_some anti-patterns in monorepo ([7be739d]), fixes 377
+  items 5 and 6.
+- collect tags once in monorepo planning ([#381]) ([38fa62a])
+- collect tags once in monorepo planning ([2f480d5]), fixes 377 item 4.
+- avoid redundant package discovery in resolved_scopes ([#384]) ([ec68970])
+- avoid redundant package discovery in resolved_scopes ([eba1685]), fixes 377
+  item 8.
+- **doctor:** extract check_line helper, fix hint rendering, deepen tests
+  ([#359]) ([f621b1a])
+
+### Documentation
+
+- add monorepo versioning documentation ([#386]) ([d49227d])
+- add monorepo versioning documentation ([3e33299])
+
+### Bug Fixes
+
+- use per-package changelog config in monorepo bump ([#380]) ([e941f76])
+- use per-package changelog config in monorepo bump ([7b77014]), fixes 377 item
+  2.
+- use per-package version_files in monorepo bump ([#379]) ([cd64224])
+- use per-package version_files in monorepo bump ([82fed7d]), fixes 377 item 1.
+
+[0.9.0]: https://github.com/driftsys/git-std/compare/v0.8.0...v0.9.0
+[f32d014]: https://github.com/driftsys/git-std/commit/f32d014
+[#385]: https://github.com/driftsys/git-std/issues/385
+[55832f9]: https://github.com/driftsys/git-std/commit/55832f9
+[eb682aa]: https://github.com/driftsys/git-std/commit/eb682aa
+[#375]: https://github.com/driftsys/git-std/issues/375
+[d8578d8]: https://github.com/driftsys/git-std/commit/d8578d8
+[#367]: https://github.com/driftsys/git-std/issues/367
+[909d3ac]: https://github.com/driftsys/git-std/commit/909d3ac
+[#374]: https://github.com/driftsys/git-std/issues/374
+[1aaef7b]: https://github.com/driftsys/git-std/commit/1aaef7b
+[#366]: https://github.com/driftsys/git-std/issues/366
+[82b0758]: https://github.com/driftsys/git-std/commit/82b0758
+[#373]: https://github.com/driftsys/git-std/issues/373
+[f71b0f8]: https://github.com/driftsys/git-std/commit/f71b0f8
+[#365]: https://github.com/driftsys/git-std/issues/365
+[5c783c8]: https://github.com/driftsys/git-std/commit/5c783c8
+[#372]: https://github.com/driftsys/git-std/issues/372
+[f7d895f]: https://github.com/driftsys/git-std/commit/f7d895f
+[#364]: https://github.com/driftsys/git-std/issues/364
+[5a3ca6a]: https://github.com/driftsys/git-std/commit/5a3ca6a
+[#371]: https://github.com/driftsys/git-std/issues/371
+[bc11d47]: https://github.com/driftsys/git-std/commit/bc11d47
+[#362]: https://github.com/driftsys/git-std/issues/362
+[f76f09e]: https://github.com/driftsys/git-std/commit/f76f09e
+[#370]: https://github.com/driftsys/git-std/issues/370
+[e50fa10]: https://github.com/driftsys/git-std/commit/e50fa10
+[#363]: https://github.com/driftsys/git-std/issues/363
+[85756f2]: https://github.com/driftsys/git-std/commit/85756f2
+[#369]: https://github.com/driftsys/git-std/issues/369
+[4fb09a1]: https://github.com/driftsys/git-std/commit/4fb09a1
+[#361]: https://github.com/driftsys/git-std/issues/361
+[c7857d9]: https://github.com/driftsys/git-std/commit/c7857d9
+[#382]: https://github.com/driftsys/git-std/issues/382
+[9ac5592]: https://github.com/driftsys/git-std/commit/9ac5592
+[3bff7a2]: https://github.com/driftsys/git-std/commit/3bff7a2
+[#378]: https://github.com/driftsys/git-std/issues/378
+[7be739d]: https://github.com/driftsys/git-std/commit/7be739d
+[38fa62a]: https://github.com/driftsys/git-std/commit/38fa62a
+[#381]: https://github.com/driftsys/git-std/issues/381
+[2f480d5]: https://github.com/driftsys/git-std/commit/2f480d5
+[ec68970]: https://github.com/driftsys/git-std/commit/ec68970
+[#384]: https://github.com/driftsys/git-std/issues/384
+[eba1685]: https://github.com/driftsys/git-std/commit/eba1685
+[f621b1a]: https://github.com/driftsys/git-std/commit/f621b1a
+[#359]: https://github.com/driftsys/git-std/issues/359
+[d49227d]: https://github.com/driftsys/git-std/commit/d49227d
+[#386]: https://github.com/driftsys/git-std/issues/386
+[3e33299]: https://github.com/driftsys/git-std/commit/3e33299
+[e941f76]: https://github.com/driftsys/git-std/commit/e941f76
+[#380]: https://github.com/driftsys/git-std/issues/380
+[7b77014]: https://github.com/driftsys/git-std/commit/7b77014
+[cd64224]: https://github.com/driftsys/git-std/commit/cd64224
+[#379]: https://github.com/driftsys/git-std/issues/379
+[82fed7d]: https://github.com/driftsys/git-std/commit/82fed7d
+
 ## [0.8.0] (2026-03-28)
 
 ### Features
