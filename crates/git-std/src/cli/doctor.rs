@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+use standard_githooks::KNOWN_HOOKS;
+
 use crate::app::OutputFormat;
 use crate::git::workdir;
 use crate::ui;
@@ -10,7 +12,6 @@ use crate::ui;
 // Data model
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)] // Variants constructed by later stories (#323–#325); unused in skeleton.
 pub enum CheckStatus {
     Pass,
     Warn,
@@ -18,7 +19,7 @@ pub enum CheckStatus {
 }
 
 pub struct Check {
-    pub label: &'static str,
+    pub label: String,
     pub status: CheckStatus,
     pub hint: Option<String>,
 }
@@ -59,10 +60,93 @@ pub fn run(cwd: &Path, format: OutputFormat) -> i32 {
 // Sections (stubs — filled in by later stories)
 // ---------------------------------------------------------------------------
 
-fn hooks_section(_root: &Path) -> Section {
+fn hooks_section(root: &Path) -> Section {
+    let mut checks: Vec<Check> = Vec::new();
+    let githooks_dir = root.join(".githooks");
+
+    // 1. .githooks/ directory exists
+    let dir_exists = githooks_dir.is_dir();
+    checks.push(Check {
+        label: ".githooks/ directory exists".to_owned(),
+        status: if dir_exists {
+            CheckStatus::Pass
+        } else {
+            CheckStatus::Fail
+        },
+        hint: if dir_exists {
+            None
+        } else {
+            Some("run 'git std hooks install'".to_owned())
+        },
+    });
+
+    // 2. core.hooksPath is configured correctly
+    let hooks_path_value = std::process::Command::new("git")
+        .current_dir(root)
+        .args(["config", "--get", "core.hooksPath"])
+        .output()
+        .ok()
+        .and_then(|out| {
+            if out.status.success() {
+                Some(String::from_utf8_lossy(&out.stdout).trim().to_owned())
+            } else {
+                None
+            }
+        });
+    let hooks_path_ok = hooks_path_value.as_deref() == Some(".githooks");
+    checks.push(Check {
+        label: "core.hooksPath = .githooks".to_owned(),
+        status: if hooks_path_ok {
+            CheckStatus::Pass
+        } else {
+            CheckStatus::Fail
+        },
+        hint: if hooks_path_ok {
+            None
+        } else {
+            Some("run 'git std hooks install'".to_owned())
+        },
+    });
+
+    // 3. Bootstrap shim present (warn if missing, not fail)
+    let bootstrap_path = githooks_dir.join("bootstrap.hooks");
+    let bootstrap_exists = bootstrap_path.exists();
+    checks.push(Check {
+        label: "bootstrap shim present (.githooks/bootstrap.hooks)".to_owned(),
+        status: if bootstrap_exists {
+            CheckStatus::Pass
+        } else {
+            CheckStatus::Warn
+        },
+        hint: None,
+    });
+
+    // 4. Hook shims are executable (unix only)
+    #[cfg(unix)]
+    if dir_exists {
+        use std::os::unix::fs::PermissionsExt;
+
+        for hook_name in KNOWN_HOOKS {
+            let shim_path = githooks_dir.join(hook_name);
+            if !shim_path.exists() {
+                continue;
+            }
+            let is_executable = std::fs::metadata(&shim_path)
+                .map(|m| m.permissions().mode() & 0o111 != 0)
+                .unwrap_or(false);
+            if !is_executable {
+                checks.push(Check {
+                    label: format!("hook shim is executable: {hook_name}"),
+                    status: CheckStatus::Fail,
+                    hint: Some(format!("run 'chmod +x .githooks/{hook_name}'")),
+                });
+            }
+        }
+    }
+
     Section {
         name: "hooks",
-        checks: vec![],
+        checks,
     }
 }
 
