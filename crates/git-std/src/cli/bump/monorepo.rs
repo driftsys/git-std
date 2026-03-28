@@ -433,6 +433,10 @@ fn finalize_monorepo_bump(
     let changelog_config = config.to_changelog_config();
     let host = git::detect_host(dir);
 
+    let all_packages = config.resolved_packages(workdir);
+    let pkg_configs: std::collections::HashMap<&str, &PackageConfig> =
+        all_packages.iter().map(|p| (p.name.as_str(), p)).collect();
+
     let mut all_modified: Vec<PathBuf> = Vec::new();
     let mut all_synced_locks: Vec<String> = Vec::new();
 
@@ -440,7 +444,18 @@ fn finalize_monorepo_bump(
     for plan in package_plans {
         let pkg_dir = workdir.join(&plan.path);
 
-        let custom_files: Vec<standard_version::CustomVersionFile> = Vec::new();
+        let custom_files: Vec<standard_version::CustomVersionFile> = pkg_configs
+            .get(plan.name.as_str())
+            .and_then(|pc| pc.version_files.as_ref())
+            .map(|vfs| {
+                vfs.iter()
+                    .map(|vf| standard_version::CustomVersionFile {
+                        path: PathBuf::from(&vf.path),
+                        pattern: vf.regex.clone(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         let bump_result = crate::ecosystem::run_bump(&pkg_dir, &plan.new_version, &custom_files);
 
         for r in &bump_result.update_results {
