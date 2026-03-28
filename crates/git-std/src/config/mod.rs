@@ -169,7 +169,14 @@ impl ProjectConfig {
     /// Returns the explicit list, auto-discovered names, or an empty vec.
     /// When `monorepo = true`, package names and the project name are always
     /// appended to the scope list.
-    pub fn resolved_scopes(&self, repo_root: &Path) -> Vec<String> {
+    ///
+    /// When `packages` is `Some`, uses the provided list instead of
+    /// re-discovering from disk — avoids redundant filesystem scans.
+    pub fn resolved_scopes(
+        &self,
+        repo_root: &Path,
+        packages: Option<&[PackageConfig]>,
+    ) -> Vec<String> {
         let mut scopes = match &self.scopes {
             ScopesConfig::None if self.monorepo => discover_scopes(repo_root),
             ScopesConfig::None => return Vec::new(),
@@ -178,8 +185,15 @@ impl ProjectConfig {
         };
 
         if self.monorepo {
-            let packages = self.resolved_packages(repo_root);
-            for pkg in &packages {
+            let owned;
+            let pkgs = match packages {
+                Some(p) => p,
+                None => {
+                    owned = self.resolved_packages(repo_root);
+                    &owned
+                }
+            };
+            for pkg in pkgs {
                 if !scopes.contains(&pkg.name) {
                     scopes.push(pkg.name.clone());
                 }
@@ -217,7 +231,7 @@ impl ProjectConfig {
     pub fn to_lint_config(&self, strict: bool, repo_root: &Path) -> standard_commit::LintConfig {
         if self.strict || strict {
             let (scopes, require_scope) = if self.monorepo {
-                let resolved = self.resolved_scopes(repo_root);
+                let resolved = self.resolved_scopes(repo_root, None);
                 if resolved.is_empty() {
                     (None, false)
                 } else {

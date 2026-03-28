@@ -252,7 +252,7 @@ fn resolved_scopes_auto() {
         scopes: ScopesConfig::Auto,
         ..Default::default()
     };
-    assert_eq!(config.resolved_scopes(dir.path()), vec!["web"]);
+    assert_eq!(config.resolved_scopes(dir.path(), None), vec!["web"]);
 }
 
 #[test]
@@ -262,7 +262,7 @@ fn resolved_scopes_list() {
         scopes: ScopesConfig::List(vec!["auth".into()]),
         ..Default::default()
     };
-    assert_eq!(config.resolved_scopes(dir.path()), vec!["auth"]);
+    assert_eq!(config.resolved_scopes(dir.path(), None), vec!["auth"]);
 }
 
 #[test]
@@ -272,7 +272,7 @@ fn resolved_scopes_none() {
         scopes: ScopesConfig::None,
         ..Default::default()
     };
-    assert!(config.resolved_scopes(dir.path()).is_empty());
+    assert!(config.resolved_scopes(dir.path(), None).is_empty());
 }
 
 #[test]
