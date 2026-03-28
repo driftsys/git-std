@@ -222,7 +222,10 @@ fn bootstrap_section(root: &Path) -> Section {
                     None
                 }
             });
-        let absolute_form = root.join(".git-blame-ignore-revs").to_string_lossy().into_owned();
+        let absolute_form = root
+            .join(".git-blame-ignore-revs")
+            .to_string_lossy()
+            .into_owned();
         let blame_ok = configured_value.as_deref() == Some(".git-blame-ignore-revs")
             || configured_value.as_deref() == Some(absolute_form.as_str());
         checks.push(Check {
