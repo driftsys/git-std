@@ -70,6 +70,11 @@ publish: check
     @echo ""
     @echo "==> All crates published."
 
+# Build release binary and install to ~/.local/bin
+install:
+    cargo build --release
+    cp target/release/git-std ~/.local/bin/
+
 # Remove build artifacts
 clean:
     cargo clean
