@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::app::OutputFormat;
-use crate::git;
+use crate::git::workdir;
 use crate::ui;
 
 // ---------------------------------------------------------------------------
@@ -36,7 +36,7 @@ pub struct Section {
 
 /// Run `git std doctor`. Returns the process exit code.
 pub fn run(cwd: &Path, format: OutputFormat) -> i32 {
-    let root = match git::workdir(cwd) {
+    let root = match workdir(cwd) {
         Ok(p) => p,
         Err(_) => {
             ui::error("not a git repository");
