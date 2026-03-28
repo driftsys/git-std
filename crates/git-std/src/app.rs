@@ -136,6 +136,9 @@ pub enum Command {
         /// Git revision range (e.g. `v1.0.0..v2.0.0`).
         #[arg(long)]
         range: Option<String>,
+        /// Generate changelog for a specific package (monorepo only).
+        #[arg(short = 'p', long = "package")]
+        package: Option<String>,
     },
     /// Post-clone environment setup.
     Bootstrap {
