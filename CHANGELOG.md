@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.0] (2026-03-28)
+
+### Features
+
+- **standard-version:** auto-detect project.toml, project.json, project.yaml
+  ([841a626])
+
+[0.8.0]: https://github.com/driftsys/git-std/compare/v0.7.0...v0.8.0
+[841a626]: https://github.com/driftsys/git-std/commit/841a626
+
 ## [0.7.0] (2026-03-28)
 
 ### Bug Fixes
