@@ -3,9 +3,13 @@ use std::path::Path;
 use serde::Serialize;
 
 mod load;
+// Wired into bump dispatch in Story 4 (#364); only tests exercise this for now.
+#[allow(dead_code)]
+mod workspace;
 
 pub use load::load;
 pub(crate) use load::load_with_raw;
+pub use workspace::discover_packages;
 
 #[cfg(test)]
 mod tests;
@@ -169,6 +173,22 @@ impl ProjectConfig {
             ScopesConfig::None => Vec::new(),
             ScopesConfig::Auto => discover_scopes(repo_root),
             ScopesConfig::List(list) => list.clone(),
+        }
+    }
+
+    /// Resolve the effective package list.
+    ///
+    /// Returns explicit `[[packages]]` if non-empty, otherwise auto-discovers
+    /// from workspace manifests when `monorepo = true`.
+    #[allow(dead_code)] // Wired in Story 4 (#364).
+    pub fn resolved_packages(&self, repo_root: &Path) -> Vec<PackageConfig> {
+        if !self.packages.is_empty() {
+            return self.packages.clone();
+        }
+        if self.monorepo {
+            discover_packages(repo_root)
+        } else {
+            Vec::new()
         }
     }
 
