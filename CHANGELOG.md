@@ -1,9 +1,18 @@
 # Changelog
 
-## [0.6.0] (2026-03-27)
+## [0.6.0] (2026-03-28)
+
+### Features
+
+- **git-std:** add --format json to bump, hooks list, and hooks run ([#62])
+  ([afed2b0]), closes [#62]
+- **git-std:** generate man pages and auto-publish to crates.io ([5c897a5]),
+  closes [#192], closes #265
+- **standard-commit:** add process commit detection and revert type ([c10accb])
 
 ### Bug Fixes
 
+- **git-std:** remove duplicate 0.6.0 changelog section ([9ce1cc2])
 - **git-std:** align hooks list output with spec ([ad29f1c]), closes [#113]
 - **git-std:** harden pre-commit stash dance ([c8a6fcb])
 - **git-std:** always allow release scope in lint config ([cb572b5])
@@ -14,20 +23,18 @@
 - **git-std:** use neutral label for stable advance output ([7d2d7a8]), closes
   [#303]
 
-### Features
-
-- **git-std:** add --format json to bump, hooks list, and hooks run ([#62])
-  ([afed2b0]), closes [#62]
-- **git-std:** generate man pages and auto-publish to crates.io ([5c897a5]),
-  closes [#192], closes #265
-- **standard-commit:** add process commit detection and revert type ([c10accb])
-
 ### Documentation
 
 - **git-std:** publish JSON Schema for .git-std.toml ([#61]) ([c9c0307]), closes
   [#61]
 
 [0.6.0]: https://github.com/driftsys/git-std/compare/v0.5.1...v0.6.0
+[afed2b0]: https://github.com/driftsys/git-std/commit/afed2b0
+[#62]: https://github.com/driftsys/git-std/issues/62
+[5c897a5]: https://github.com/driftsys/git-std/commit/5c897a5
+[#192]: https://github.com/driftsys/git-std/issues/192
+[c10accb]: https://github.com/driftsys/git-std/commit/c10accb
+[9ce1cc2]: https://github.com/driftsys/git-std/commit/9ce1cc2
 [ad29f1c]: https://github.com/driftsys/git-std/commit/ad29f1c
 [#113]: https://github.com/driftsys/git-std/issues/113
 [c8a6fcb]: https://github.com/driftsys/git-std/commit/c8a6fcb
@@ -36,32 +43,32 @@
 [#243]: https://github.com/driftsys/git-std/issues/243
 [7d2d7a8]: https://github.com/driftsys/git-std/commit/7d2d7a8
 [#303]: https://github.com/driftsys/git-std/issues/303
-[afed2b0]: https://github.com/driftsys/git-std/commit/afed2b0
-[#62]: https://github.com/driftsys/git-std/issues/62
-[5c897a5]: https://github.com/driftsys/git-std/commit/5c897a5
-[#192]: https://github.com/driftsys/git-std/issues/192
-[c10accb]: https://github.com/driftsys/git-std/commit/c10accb
 [c9c0307]: https://github.com/driftsys/git-std/commit/c9c0307
 [#61]: https://github.com/driftsys/git-std/issues/61
 
 ## [0.5.1] (2026-03-26)
-
-### Refactoring
-
-- **git-std:** use human-first messages across CLI output ([7f23198]), closes
-  [#300]
 
 ### Bug Fixes
 
 - **git-std:** use human-first messages in bootstrap output ([67386d6]), refs
   [#300]
 
+### Refactoring
+
+- **git-std:** use human-first messages across CLI output ([7f23198]), closes
+  [#300]
+
 [0.5.1]: https://github.com/driftsys/git-std/compare/v0.5.0...v0.5.1
-[7f23198]: https://github.com/driftsys/git-std/commit/7f23198
-[#300]: https://github.com/driftsys/git-std/issues/300
 [67386d6]: https://github.com/driftsys/git-std/commit/67386d6
+[#300]: https://github.com/driftsys/git-std/issues/300
+[7f23198]: https://github.com/driftsys/git-std/commit/7f23198
 
 ## [0.5.0] (2026-03-26)
+
+### Features
+
+- **git-std:** add bootstrap subcommand for post-clone setup ([8f4af3d]), closes
+  [#294], closes #295, closes #296
 
 ### Bug Fixes
 
@@ -71,20 +78,15 @@
   ([7aac99e]), closes [#289]
 - **release:** include Cargo.lock in v0.4.2 release ([a64f245])
 
-### Features
-
-- **git-std:** add bootstrap subcommand for post-clone setup ([8f4af3d]), closes
-  [#294], closes #295, closes #296
-
 [0.5.0]: https://github.com/driftsys/git-std/compare/v0.4.2...v0.5.0
+[8f4af3d]: https://github.com/driftsys/git-std/commit/8f4af3d
+[#294]: https://github.com/driftsys/git-std/issues/294
 [0b78fa5]: https://github.com/driftsys/git-std/commit/0b78fa5
 [#291]: https://github.com/driftsys/git-std/issues/291
 [#290]: https://github.com/driftsys/git-std/issues/290
 [7aac99e]: https://github.com/driftsys/git-std/commit/7aac99e
 [#289]: https://github.com/driftsys/git-std/issues/289
 [a64f245]: https://github.com/driftsys/git-std/commit/a64f245
-[8f4af3d]: https://github.com/driftsys/git-std/commit/8f4af3d
-[#294]: https://github.com/driftsys/git-std/issues/294
 
 ## [0.4.2] (2026-03-23)
 
@@ -162,13 +164,13 @@
 
 ### Bug Fixes
 
-- **git-std:** replace `Box<dyn Error>` with anyhow::Result ([#224]) ([fe8d246]),
+- **git-std:** replace Box<dyn Error> with anyhow::Result ([#224]) ([fe8d246]),
   closes [#203]
 - **spec:** remove dead_code warnings in spec/support/mod.rs ([#223])
   ([1f89b39]), closes [#219]
 - **commit:** fail fast with clear error when stdin is not a TTY ([#222])
   ([dc7062b]), closes [#201]
-- **standard-version:** replace `Box<dyn Error>` with typed VersionError ([#221])
+- **standard-version:** replace Box<dyn Error> with typed VersionError ([#221])
   ([5c768ba]), closes [#202]
 - **git-std:** update help snapshot to remove self-update entry ([2adfa52])
 - **git-std:** remove self-update test references after command removal
@@ -239,7 +241,10 @@
 
 ### Bug Fixes
 
+- **ci:** replace deprecated macos-13 with macos-latest in release workflow
+  ([3402c6c])
 - **docs:** remove stray character in SPEC.md table ([1bde589])
+- **ci:** pin cross to v0.2.5 for aarch64-musl builds ([792c7e8])
 - **spec:** add missing snapshot files for patch and stable bump tests
   ([df36f45])
 - improve error messages and diagnostics across CLI ([1337200]), closes [#67]
@@ -248,15 +253,6 @@
 - **spec:** use flexible matching for changelog range snapshot ([239d000])
 - **spec:** correct changelog range snapshot section order ([d8c8ad7])
 - **ci:** use cargo install for mdbook instead of broken URL ([3f79092])
-
-### Documentation
-
-- sync SPEC, USAGE, and README with current CLI ([3d0f36a])
-- defer org-wide policies to driftsys/.github ([f498fca])
-- add AI policy section to CONTRIBUTING.md ([eec0a62])
-- replace docs.rs badge with user guide badge for binary crate ([a666bbc])
-- add badges, book links, and documentation metadata ([6696f5d])
-- move issue model to CONTRIBUTING.md, trim AGENTS.md ([cae0d4b])
 
 ### Refactoring
 
@@ -283,8 +279,19 @@
 - **hooks:** skip hook execution when GIT_STD_SKIP_HOOKS is set ([78bb445]),
   closes [#73]
 
+### Documentation
+
+- sync SPEC, USAGE, and README with current CLI ([3d0f36a])
+- defer org-wide policies to driftsys/.github ([f498fca])
+- add AI policy section to CONTRIBUTING.md ([eec0a62])
+- replace docs.rs badge with user guide badge for binary crate ([a666bbc])
+- add badges, book links, and documentation metadata ([6696f5d])
+- move issue model to CONTRIBUTING.md, trim AGENTS.md ([cae0d4b])
+
 [0.3.0]: https://github.com/driftsys/git-std/compare/v0.2.0...v0.3.0
+[3402c6c]: https://github.com/driftsys/git-std/commit/3402c6c
 [1bde589]: https://github.com/driftsys/git-std/commit/1bde589
+[792c7e8]: https://github.com/driftsys/git-std/commit/792c7e8
 [df36f45]: https://github.com/driftsys/git-std/commit/df36f45
 [1337200]: https://github.com/driftsys/git-std/commit/1337200
 [#67]: https://github.com/driftsys/git-std/issues/67
@@ -292,12 +299,6 @@
 [239d000]: https://github.com/driftsys/git-std/commit/239d000
 [d8c8ad7]: https://github.com/driftsys/git-std/commit/d8c8ad7
 [3f79092]: https://github.com/driftsys/git-std/commit/3f79092
-[3d0f36a]: https://github.com/driftsys/git-std/commit/3d0f36a
-[f498fca]: https://github.com/driftsys/git-std/commit/f498fca
-[eec0a62]: https://github.com/driftsys/git-std/commit/eec0a62
-[a666bbc]: https://github.com/driftsys/git-std/commit/a666bbc
-[6696f5d]: https://github.com/driftsys/git-std/commit/6696f5d
-[cae0d4b]: https://github.com/driftsys/git-std/commit/cae0d4b
 [58570e9]: https://github.com/driftsys/git-std/commit/58570e9
 [#128]: https://github.com/driftsys/git-std/issues/128
 [8f837b1]: https://github.com/driftsys/git-std/commit/8f837b1
@@ -321,8 +322,28 @@
 [32111a7]: https://github.com/driftsys/git-std/commit/32111a7
 [78bb445]: https://github.com/driftsys/git-std/commit/78bb445
 [#73]: https://github.com/driftsys/git-std/issues/73
+[3d0f36a]: https://github.com/driftsys/git-std/commit/3d0f36a
+[f498fca]: https://github.com/driftsys/git-std/commit/f498fca
+[eec0a62]: https://github.com/driftsys/git-std/commit/eec0a62
+[a666bbc]: https://github.com/driftsys/git-std/commit/a666bbc
+[6696f5d]: https://github.com/driftsys/git-std/commit/6696f5d
+[cae0d4b]: https://github.com/driftsys/git-std/commit/cae0d4b
 
 ## [0.2.0] (2026-03-16)
+
+### Bug Fixes
+
+- **bump:** warn on system clock failure in calver date ([eb5fcee]), closes
+  [#131]
+- **bump:** address calver review findings ([b5c87bc])
+- **bump:** address review findings from multi-ecosystem version files ([#122])
+  ([e670128])
+- **bump:** sync Cargo.lock after version update ([ee60541])
+
+### Refactoring
+
+- **hooks:** improve API consistency and extract helpers ([#116]) ([a14a669]),
+  closes [#98]
 
 ### Documentation
 
@@ -361,21 +382,16 @@
 - **bump:** add VersionFile trait and refactor Cargo.toml engine ([#108])
   ([f4195a5]), closes [#97]
 
-### Refactoring
-
-- **hooks:** improve API consistency and extract helpers ([#116]) ([a14a669]),
-  closes [#98]
-
-### Bug Fixes
-
-- **bump:** warn on system clock failure in calver date ([eb5fcee]), closes
-  [#131]
-- **bump:** address calver review findings ([b5c87bc])
-- **bump:** address review findings from multi-ecosystem version files ([#122])
-  ([e670128])
-- **bump:** sync Cargo.lock after version update ([ee60541])
-
 [0.2.0]: https://github.com/driftsys/git-std/compare/v0.1.0...v0.2.0
+[eb5fcee]: https://github.com/driftsys/git-std/commit/eb5fcee
+[#131]: https://github.com/driftsys/git-std/issues/131
+[b5c87bc]: https://github.com/driftsys/git-std/commit/b5c87bc
+[e670128]: https://github.com/driftsys/git-std/commit/e670128
+[#122]: https://github.com/driftsys/git-std/issues/122
+[ee60541]: https://github.com/driftsys/git-std/commit/ee60541
+[a14a669]: https://github.com/driftsys/git-std/commit/a14a669
+[#116]: https://github.com/driftsys/git-std/issues/116
+[#98]: https://github.com/driftsys/git-std/issues/98
 [9239f32]: https://github.com/driftsys/git-std/commit/9239f32
 [586082b]: https://github.com/driftsys/git-std/commit/586082b
 [#129]: https://github.com/driftsys/git-std/issues/129
@@ -408,7 +424,6 @@
 [#100]: https://github.com/driftsys/git-std/issues/100
 [adca4cd]: https://github.com/driftsys/git-std/commit/adca4cd
 [#110]: https://github.com/driftsys/git-std/issues/110
-[#98]: https://github.com/driftsys/git-std/issues/98
 [3be8c42]: https://github.com/driftsys/git-std/commit/3be8c42
 [#109]: https://github.com/driftsys/git-std/issues/109
 [#99]: https://github.com/driftsys/git-std/issues/99
@@ -421,14 +436,6 @@
 [f4195a5]: https://github.com/driftsys/git-std/commit/f4195a5
 [#108]: https://github.com/driftsys/git-std/issues/108
 [#97]: https://github.com/driftsys/git-std/issues/97
-[a14a669]: https://github.com/driftsys/git-std/commit/a14a669
-[#116]: https://github.com/driftsys/git-std/issues/116
-[eb5fcee]: https://github.com/driftsys/git-std/commit/eb5fcee
-[#131]: https://github.com/driftsys/git-std/issues/131
-[b5c87bc]: https://github.com/driftsys/git-std/commit/b5c87bc
-[e670128]: https://github.com/driftsys/git-std/commit/e670128
-[#122]: https://github.com/driftsys/git-std/issues/122
-[ee60541]: https://github.com/driftsys/git-std/commit/ee60541
 
 ## 0.1.0 (2026-03-14)
 
