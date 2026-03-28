@@ -1,7 +1,7 @@
 //! Per-package version planning for monorepo workspaces.
 
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use yansi::Paint;
@@ -175,8 +175,8 @@ fn plan_package(
 
 /// Plan version bumps for all packages in a monorepo.
 ///
-/// Prints the plan for dry-run mode, or prints it for now (actual apply
-/// deferred to Story 6).
+/// In dry-run mode, prints the plan. Otherwise, applies the bump:
+/// updates version files, generates changelogs, creates a commit, and tags.
 pub(super) fn plan_monorepo_bump(
     config: &ProjectConfig,
     opts: &BumpOptions,
@@ -256,14 +256,16 @@ pub(super) fn plan_monorepo_bump(
         return 0;
     }
 
-    // Output the plan.
-    if opts.format == OutputFormat::Json {
-        print_plan_json(&root_plan, &package_plans);
-    } else {
-        print_plan_text(&root_plan, &package_plans, &config.versioning.tag_prefix);
+    if opts.dry_run {
+        if opts.format == OutputFormat::Json {
+            print_plan_json(&root_plan, &package_plans);
+        } else {
+            print_plan_text(&root_plan, &package_plans, &config.versioning.tag_prefix);
+        }
+        return 0;
     }
 
-    0
+    finalize_monorepo_bump(dir, &workdir, config, opts, &root_plan, &package_plans)
 }
 
 /// Apply dependency cascade: when a package bumps, its dependents get at
@@ -351,6 +353,7 @@ struct RootPlan {
     prev_version: Option<String>,
     new_version: String,
     tag: String,
+    raw_commits: Vec<(String, String)>,
 }
 
 /// Compute the root version bump using existing logic.
@@ -394,7 +397,303 @@ fn plan_root(config: &ProjectConfig, dir: &Path) -> Option<RootPlan> {
         prev_version,
         new_version: new_version.to_string(),
         tag,
+        raw_commits,
     })
+}
+
+// ── Finalize (actual apply) ─────────────────────────────────────────
+
+/// JSON output schema for the monorepo bump result.
+#[derive(Serialize)]
+struct MonorepoBumpResultJson {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    root_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    root_previous_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    root_tag: Option<String>,
+    packages: Vec<PackagePlanJson>,
+    synced_locks: Vec<String>,
+    changelog: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    commit: Option<String>,
+    dry_run: bool,
+}
+
+/// Execute the monorepo bump: write version files, generate changelogs,
+/// create a single commit, and apply multiple tags.
+fn finalize_monorepo_bump(
+    dir: &Path,
+    workdir: &Path,
+    config: &ProjectConfig,
+    opts: &BumpOptions,
+    root_plan: &Option<RootPlan>,
+    package_plans: &[PackageBumpPlan],
+) -> i32 {
+    let changelog_config = config.to_changelog_config();
+    let host = git::detect_host(dir);
+
+    let mut all_modified: Vec<PathBuf> = Vec::new();
+    let mut all_synced_locks: Vec<String> = Vec::new();
+
+    // 1. Update version files per-package via ecosystem tooling.
+    for plan in package_plans {
+        let pkg_dir = workdir.join(&plan.path);
+
+        let custom_files: Vec<standard_version::CustomVersionFile> = Vec::new();
+        let bump_result = crate::ecosystem::run_bump(&pkg_dir, &plan.new_version, &custom_files);
+
+        for r in &bump_result.update_results {
+            if opts.format != OutputFormat::Json {
+                let rel = r.path.strip_prefix(workdir).unwrap_or(&r.path).display();
+                ui::item(
+                    &rel.to_string(),
+                    &format!("{} \u{2192} {}", r.old_version, r.new_version),
+                );
+            }
+        }
+
+        all_modified.extend(bump_result.update_results.iter().map(|r| r.path.clone()));
+        all_modified.extend(bump_result.modified_paths);
+        for lock in bump_result.synced_locks {
+            if !all_synced_locks.contains(&lock) {
+                all_synced_locks.push(lock);
+            }
+        }
+    }
+
+    // Also update root version files if there is a root plan.
+    if let Some(root) = root_plan {
+        let custom_files: Vec<standard_version::CustomVersionFile> = config
+            .version_files
+            .iter()
+            .map(|vf| standard_version::CustomVersionFile {
+                path: PathBuf::from(&vf.path),
+                pattern: vf.regex.clone(),
+            })
+            .collect();
+        let bump_result = crate::ecosystem::run_bump(workdir, &root.new_version, &custom_files);
+        for r in &bump_result.update_results {
+            if opts.format != OutputFormat::Json {
+                let rel = r.path.strip_prefix(workdir).unwrap_or(&r.path).display();
+                ui::item(
+                    &rel.to_string(),
+                    &format!("{} \u{2192} {}", r.old_version, r.new_version),
+                );
+            }
+        }
+        all_modified.extend(bump_result.update_results.iter().map(|r| r.path.clone()));
+        all_modified.extend(bump_result.modified_paths);
+        for lock in bump_result.synced_locks {
+            if !all_synced_locks.contains(&lock) {
+                all_synced_locks.push(lock);
+            }
+        }
+    }
+
+    // 2. Generate per-package changelogs.
+    if !opts.skip_changelog {
+        for plan in package_plans {
+            let pkg_changelog_path = workdir.join(&plan.path).join("CHANGELOG.md");
+
+            let release = super::apply::build_version_release(
+                &plan.raw_commits,
+                &plan.new_version,
+                plan.prev_version.as_deref(),
+                &changelog_config,
+            );
+            if let Some(release) = release {
+                let existing = std::fs::read_to_string(&pkg_changelog_path).unwrap_or_default();
+                let output = standard_changelog::prepend_release(
+                    &existing,
+                    &release,
+                    &changelog_config,
+                    &host,
+                );
+                if let Err(e) = std::fs::write(&pkg_changelog_path, &output) {
+                    ui::warning(&format!("{}: cannot write CHANGELOG.md: {e}", plan.name));
+                } else {
+                    all_modified.push(pkg_changelog_path);
+                }
+            }
+        }
+
+        // 3. Generate root changelog (all commits from root plan).
+        if let Some(root) = root_plan {
+            let root_changelog_path = workdir.join("CHANGELOG.md");
+            let release = super::apply::build_version_release(
+                &root.raw_commits,
+                &root.new_version,
+                root.prev_version.as_deref(),
+                &changelog_config,
+            );
+            if let Some(release) = release {
+                let existing = std::fs::read_to_string(&root_changelog_path).unwrap_or_default();
+                let output = standard_changelog::prepend_release(
+                    &existing,
+                    &release,
+                    &changelog_config,
+                    &host,
+                );
+                if let Err(e) = std::fs::write(&root_changelog_path, &output) {
+                    ui::error(&format!("cannot write root CHANGELOG.md: {e}"));
+                    return 1;
+                }
+                all_modified.push(root_changelog_path);
+            }
+        }
+    }
+
+    // Print changelog info for text output.
+    if !opts.skip_changelog && opts.format != OutputFormat::Json {
+        ui::blank();
+        ui::info("Changelog:");
+        for plan in package_plans {
+            if !plan.raw_commits.is_empty() {
+                ui::item(
+                    &format!("{}/CHANGELOG.md", plan.path),
+                    &format!("prepended {} section", plan.tag_name),
+                );
+            }
+        }
+        if root_plan.is_some() {
+            ui::item(
+                "CHANGELOG.md",
+                &format!("prepended {} section", root_plan.as_ref().unwrap().tag),
+            );
+        }
+    }
+
+    // 4. Stage all modified files and create commit.
+    if !opts.no_commit {
+        let mut paths_to_stage: Vec<String> = all_modified
+            .iter()
+            .filter_map(|p| {
+                p.strip_prefix(workdir)
+                    .ok()
+                    .map(|r| r.to_string_lossy().into_owned())
+            })
+            .collect();
+        for lock in &all_synced_locks {
+            paths_to_stage.push(lock.clone());
+        }
+        let stage_refs: Vec<&str> = paths_to_stage.iter().map(|s| s.as_str()).collect();
+        if let Err(e) = git::stage_files(dir, &stage_refs) {
+            ui::error(&format!("cannot stage files: {e}"));
+            return 1;
+        }
+
+        // 5. Single commit with aggregated message.
+        let commit_msg = build_commit_message(root_plan, package_plans);
+
+        if opts.sign {
+            if let Err(e) = git::create_signed_commit(dir, &commit_msg) {
+                ui::error(&e.to_string());
+                return 1;
+            }
+        } else if let Err(e) = git::create_commit(dir, &commit_msg) {
+            ui::error(&format!("cannot create commit: {e}"));
+            return 1;
+        }
+
+        if opts.format != OutputFormat::Json {
+            ui::blank();
+            ui::info(&format!("Committed: {}", commit_msg.green()));
+        }
+    }
+
+    // 6. Multiple tags on the commit.
+    if !opts.no_commit && !opts.no_tag {
+        // Root tag first.
+        if let Some(root) = root_plan {
+            let tag_msg = root.new_version.clone();
+            if opts.sign {
+                if let Err(e) = git::create_signed_tag(dir, &root.tag, &tag_msg) {
+                    ui::error(&e.to_string());
+                    return 1;
+                }
+            } else if let Err(e) = git::create_annotated_tag(dir, &root.tag, &tag_msg) {
+                ui::error(&format!("cannot create tag: {e}"));
+                return 1;
+            }
+            if opts.format != OutputFormat::Json {
+                ui::info(&format!("Tagged:    {}", root.tag.green()));
+            }
+        }
+
+        // Per-package tags.
+        for plan in package_plans {
+            let tag_msg = format!("{} {}", plan.name, plan.new_version);
+            if opts.sign {
+                if let Err(e) = git::create_signed_tag(dir, &plan.tag_name, &tag_msg) {
+                    ui::error(&e.to_string());
+                    return 1;
+                }
+            } else if let Err(e) = git::create_annotated_tag(dir, &plan.tag_name, &tag_msg) {
+                ui::error(&format!("cannot create tag: {e}"));
+                return 1;
+            }
+            if opts.format != OutputFormat::Json {
+                ui::info(&format!("Tagged:    {}", plan.tag_name.green()));
+            }
+        }
+    }
+
+    // JSON output.
+    if opts.format == OutputFormat::Json {
+        let commit_msg = if !opts.no_commit {
+            Some(build_commit_message(root_plan, package_plans))
+        } else {
+            None
+        };
+        let result = MonorepoBumpResultJson {
+            root_version: root_plan.as_ref().map(|r| r.new_version.clone()),
+            root_previous_version: root_plan.as_ref().and_then(|r| r.prev_version.clone()),
+            root_tag: if !opts.no_commit && !opts.no_tag {
+                root_plan.as_ref().map(|r| r.tag.clone())
+            } else {
+                None
+            },
+            packages: package_plans
+                .iter()
+                .map(|p| PackagePlanJson {
+                    name: p.name.clone(),
+                    path: p.path.clone(),
+                    previous_version: p.prev_version.clone(),
+                    new_version: p.new_version.clone(),
+                    bump_level: format!("{:?}", p.bump_level).to_lowercase(),
+                    tag: p.tag_name.clone(),
+                    commit_count: p.raw_commits.len(),
+                    cascade_from: p.cascade_from.clone(),
+                })
+                .collect(),
+            synced_locks: all_synced_locks,
+            changelog: !opts.skip_changelog,
+            commit: commit_msg,
+            dry_run: false,
+        };
+        println!("{}", serde_json::to_string(&result).unwrap());
+    } else {
+        ui::blank();
+        ui::info("Push with: git push --follow-tags");
+        ui::blank();
+    }
+
+    0
+}
+
+/// Build the aggregated commit message for a monorepo release.
+///
+/// Format: `chore(release): v1.0.0, core@1.2.0, cli@0.5.0`
+fn build_commit_message(root_plan: &Option<RootPlan>, package_plans: &[PackageBumpPlan]) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(root) = root_plan {
+        parts.push(format!("v{}", root.new_version));
+    }
+    for plan in package_plans {
+        parts.push(format!("{}@{}", plan.name, plan.new_version));
+    }
+    format!("chore(release): {}", parts.join(", "))
 }
 
 /// Print the monorepo bump plan as human-readable text.
