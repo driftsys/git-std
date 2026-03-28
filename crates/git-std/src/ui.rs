@@ -77,6 +77,11 @@ pub fn hint(msg: &str) {
     eprintln!("{INDENT}hint: {msg}");
 }
 
+/// Print a check-line (four-space indent, symbol, two-space gap, label).
+pub fn check_line(symbol: &str, label: &str) {
+    eprintln!("{DETAIL_INDENT}{symbol}  {label}");
+}
+
 /// Print a summary count line (`valid_count/total valid`).
 pub fn summary_counts(valid: usize, total: usize) {
     eprintln!("{valid}/{total} valid");
