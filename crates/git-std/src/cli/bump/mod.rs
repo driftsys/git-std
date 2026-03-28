@@ -1,5 +1,6 @@
 mod apply;
 mod detect;
+pub(crate) mod monorepo;
 mod plan;
 mod stable;
 
@@ -34,6 +35,8 @@ pub struct BumpOptions {
     pub minor: bool,
     /// Output format (text or json).
     pub format: OutputFormat,
+    /// Filter bump to specific package(s) (monorepo only).
+    pub packages: Vec<String>,
 }
 
 /// Context passed from the version-computation phase to the shared finalize logic.
@@ -50,6 +53,9 @@ pub(super) struct FinalizeContext<'a> {
 pub fn run(config: &crate::config::ProjectConfig, opts: &BumpOptions) -> i32 {
     if opts.stable.is_some() {
         return stable::run_stable(config, opts);
+    }
+    if config.monorepo {
+        return monorepo::plan_monorepo_bump(config, opts, &opts.packages);
     }
     plan::dispatch(config, opts)
 }
