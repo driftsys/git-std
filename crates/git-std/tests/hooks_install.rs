@@ -339,7 +339,9 @@ fn hooks_install_non_tty_without_env_fails() {
         .current_dir(dir.path())
         .assert()
         .failure()
-        .stderr(predicate::str::contains("interactive prompt requires a TTY"))
+        .stderr(predicate::str::contains(
+            "interactive prompt requires a TTY",
+        ))
         .stderr(predicate::str::contains("GIT_STD_HOOKS_ENABLE"));
 }
 
