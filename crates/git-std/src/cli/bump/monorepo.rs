@@ -66,19 +66,19 @@ struct MonorepoPlanJson {
 /// Find the latest tag matching a per-package tag template.
 ///
 /// Given a tag template like `{name}@{version}`, computes the prefix for
-/// the package name (e.g. `core@`) and finds the best semver tag.
+/// the package name (e.g. `core@`) and finds the best semver tag from the
+/// pre-collected tag list.
 fn find_latest_package_tag(
-    dir: &Path,
+    tags: &[(String, String)],
     template: &str,
     pkg_name: &str,
-) -> Result<Option<(String, semver::Version)>, git::cmd::GitError> {
+) -> Option<(String, semver::Version)> {
     let prefix = template
         .replace("{name}", pkg_name)
         .replace("{version}", "");
 
-    let tags = git::collect_tags(dir)?;
     let mut best: Option<(String, semver::Version)> = None;
-    for (oid, name) in &tags {
+    for (oid, name) in tags {
         let ver_str = match name.strip_prefix(&prefix) {
             Some(s) => s,
             None => continue,
@@ -92,7 +92,7 @@ fn find_latest_package_tag(
             _ => best = Some((oid.clone(), ver)),
         }
     }
-    Ok(best)
+    best
 }
 
 /// Build a tag name from the template, package name, and version string.
@@ -117,14 +117,9 @@ fn plan_package(
     pkg: &PackageConfig,
     head_oid: &str,
     tag_template: &str,
+    tags: &[(String, String)],
 ) -> Option<PackageBumpPlan> {
-    let latest_tag = match find_latest_package_tag(dir, tag_template, &pkg.name) {
-        Ok(t) => t,
-        Err(e) => {
-            ui::warning(&format!("{}: cannot read tags: {e}", pkg.name));
-            return None;
-        }
-    };
+    let latest_tag = find_latest_package_tag(tags, tag_template, &pkg.name);
 
     let tag_oid = latest_tag.as_ref().map(|(oid, _)| oid.as_str());
     let raw_commits = match git::walk_commits_for_path(dir, head_oid, tag_oid, &[&pkg.path]) {
@@ -224,10 +219,19 @@ pub(super) fn plan_monorepo_bump(
 
     let tag_template = &config.versioning.tag_template;
 
+    // Collect all tags once to avoid O(n) git subprocess calls.
+    let all_tags = match git::collect_tags(&workdir) {
+        Ok(t) => t,
+        Err(e) => {
+            ui::error(&format!("cannot read tags: {e}"));
+            return 1;
+        }
+    };
+
     // Plan per-package bumps.
     let mut package_plans: Vec<PackageBumpPlan> = Vec::new();
     for pkg in &packages {
-        if let Some(plan) = plan_package(&workdir, pkg, &head_oid, tag_template) {
+        if let Some(plan) = plan_package(&workdir, pkg, &head_oid, tag_template, &all_tags) {
             package_plans.push(plan);
         }
     }
@@ -240,8 +244,8 @@ pub(super) fn plan_monorepo_bump(
                 &mut package_plans,
                 &all_packages,
                 &dep_graph,
-                &workdir,
                 tag_template,
+                &all_tags,
             );
         }
     }
@@ -274,8 +278,8 @@ fn apply_cascade(
     plans: &mut Vec<PackageBumpPlan>,
     all_packages: &[PackageConfig],
     dep_graph: &DependencyGraph,
-    workdir: &Path,
     tag_template: &str,
+    tags: &[(String, String)],
 ) {
     let pkg_by_name: std::collections::HashMap<&str, &PackageConfig> =
         all_packages.iter().map(|p| (p.name.as_str(), p)).collect();
@@ -294,7 +298,7 @@ fn apply_cascade(
                     continue;
                 };
 
-                let cascade_plan = create_cascade_plan(workdir, pkg, tag_template, &plan.name);
+                let cascade_plan = create_cascade_plan(pkg, tag_template, &plan.name, tags);
                 if let Some(cp) = cascade_plan {
                     new_cascades.push(cp);
                 }
@@ -315,12 +319,12 @@ fn apply_cascade(
 
 /// Create a cascade patch bump for a dependent package.
 fn create_cascade_plan(
-    dir: &Path,
     pkg: &PackageConfig,
     tag_template: &str,
     cascade_source: &str,
+    tags: &[(String, String)],
 ) -> Option<PackageBumpPlan> {
-    let latest_tag = find_latest_package_tag(dir, tag_template, &pkg.name).ok()?;
+    let latest_tag = find_latest_package_tag(tags, tag_template, &pkg.name);
 
     let cur_ver = latest_tag
         .as_ref()
