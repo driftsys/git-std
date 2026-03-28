@@ -259,10 +259,42 @@ fn bootstrap_section(root: &Path) -> Section {
     }
 }
 
-fn config_section(_root: &Path) -> Section {
+fn config_section(root: &Path) -> Section {
+    let mut checks: Vec<Check> = Vec::new();
+
+    // 1. .git-std.toml present (optional — absence is a warning, not a failure)
+    let config_path = root.join(".git-std.toml");
+    let config_exists = config_path.exists();
+    checks.push(Check {
+        label: ".git-std.toml present".to_owned(),
+        status: if config_exists {
+            CheckStatus::Pass
+        } else {
+            CheckStatus::Warn
+        },
+        hint: None,
+    });
+
+    // 2. Config is valid TOML — only when the file is present
+    if config_exists {
+        let content = std::fs::read_to_string(&config_path).unwrap_or_default();
+        match toml::from_str::<toml::Value>(&content) {
+            Ok(_) => checks.push(Check {
+                label: ".git-std.toml is valid".to_owned(),
+                status: CheckStatus::Pass,
+                hint: None,
+            }),
+            Err(e) => checks.push(Check {
+                label: ".git-std.toml parse error".to_owned(),
+                status: CheckStatus::Fail,
+                hint: Some(e.to_string()),
+            }),
+        }
+    }
+
     Section {
         name: "config",
-        checks: vec![],
+        checks,
     }
 }
 

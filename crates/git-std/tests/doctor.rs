@@ -157,3 +157,58 @@ fn doctor_bootstrap_fail_when_blame_ignore_revs_not_configured() {
         .code(1)
         .stderr(contains("blame.ignoreRevsFile"));
 }
+
+// ===========================================================================
+// #325 — config health checks
+// ===========================================================================
+
+#[test]
+fn doctor_config_warn_when_no_config_file() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+    // No .git-std.toml — should be Warn, not Fail
+
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .success(); // Warn does not fail
+}
+
+#[test]
+fn doctor_config_pass_when_valid_config() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+    std::fs::write(
+        dir.path().join(".git-std.toml"),
+        "[versioning]\ntag_prefix = \"v\"\n",
+    )
+    .unwrap();
+
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("config"));
+}
+
+#[test]
+fn doctor_config_fail_when_invalid_toml() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+    std::fs::write(dir.path().join(".git-std.toml"), "[[invalid toml = bad\n").unwrap();
+
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("config"));
+}
