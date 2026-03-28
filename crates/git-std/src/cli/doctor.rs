@@ -300,9 +300,11 @@ fn print_sections(sections: &[Section]) -> i32 {
 
 fn run_json(sections: &[Section]) -> i32 {
     // Stub output — replaced by story #326.
-    let any_fail = sections
-        .iter()
-        .any(|s| s.checks.iter().any(|c| matches!(c.status, CheckStatus::Fail)));
+    let any_fail = sections.iter().any(|s| {
+        s.checks
+            .iter()
+            .any(|c| matches!(c.status, CheckStatus::Fail))
+    });
     println!("{{\"sections\":[]}}");
     if any_fail { 1 } else { 0 }
 }
