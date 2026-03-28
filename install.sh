@@ -7,6 +7,48 @@ tmp_dir=""
 
 die() { printf 'error: %s\n' "$1" >&2; exit 1; }
 
+detect_shell() {
+  case "$(basename "${SHELL:-}")" in
+    bash) echo "bash" ;;
+    zsh)  echo "zsh"  ;;
+    fish) echo "fish" ;;
+    *)    echo ""     ;;
+  esac
+}
+
+install_completions() {
+  local shell rc_file snippet
+  shell="$(detect_shell)"
+  case "$shell" in
+    bash) rc_file="$HOME/.bashrc"; snippet="eval \"\$(git-std completions bash)\"" ;;
+    zsh)  rc_file="$HOME/.zshrc";  snippet="eval \"\$(git-std completions zsh)\""  ;;
+    fish)
+      mkdir -p "$HOME/.config/fish/conf.d"
+      rc_file="$HOME/.config/fish/conf.d/git-std.fish"
+      snippet='git-std completions fish | source'
+      ;;
+    *)
+      printf 'note: unknown shell %s — add completions manually\n' "${SHELL:-}" >&2
+      return
+      ;;
+  esac
+
+  # Don't create a missing RC file (fish conf.d/ dir already created above).
+  if [ "$shell" != "fish" ] && [ ! -f "$rc_file" ]; then
+    printf 'note: %s not found — add completions manually\n' "$rc_file" >&2
+    return
+  fi
+
+  if grep -q 'git-std completions' "$rc_file" 2>/dev/null; then
+    printf 'completions already configured in %s\n' "$rc_file"
+    return
+  fi
+
+  printf '\n# git-std completions\n%s\n' "$snippet" >> "$rc_file"
+  printf 'completions installed to %s\n' "$rc_file"
+  printf 'note: restart your shell or run: source %s\n' "$rc_file"
+}
+
 sha256_check() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum -c "$1"
@@ -83,7 +125,12 @@ main() {
     mkdir -p "$man_dir"
     cp "$tmp_dir"/git-std*.1 "$man_dir/"
     printf 'installed man pages to %s\n' "$man_dir"
+    printf "hint: if 'man git-std' doesn't work, add to your shell profile:\n"
+    printf "      export MANPATH=\"\$HOME/.local/share/man:\${MANPATH:-}\"\n"
   fi
+
+  # Install shell completions.
+  install_completions
 
   # Verify
   if command -v git-std >/dev/null 2>&1; then
