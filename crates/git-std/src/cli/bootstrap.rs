@@ -430,6 +430,16 @@ ensure_git_std() {{
   chmod +x "$INSTALL_DIR/git-std"
 
   printf 'installed git-std %s to %s/git-std\n' "$version" "$INSTALL_DIR"
+
+  # Install man pages if present in the tarball.
+  local man_dir="${{GIT_STD_MAN_DIR:-$INSTALL_DIR/../share/man/man1}}"
+  if ls "$tmp_dir"/git-std*.1 >/dev/null 2>&1; then
+    mkdir -p "$man_dir"
+    cp "$tmp_dir"/git-std*.1 "$man_dir/"
+    printf 'installed man pages to %s\n' "$man_dir"
+    printf "hint: if 'man git-std' doesn't work, add to your shell profile:\n"
+    printf "      export MANPATH=\"\$HOME/.local/share/man:\${{MANPATH:-}}\"\n"
+  fi
 }}
 
 ensure_git_std

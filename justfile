@@ -70,10 +70,43 @@ publish: check
     @echo ""
     @echo "==> All crates published."
 
-# Build release binary and install to ~/.local/bin
+# Build release binary, man pages, and shell completions, then install to ~/.local/bin
 install:
+    #!/usr/bin/env bash
+    set -euo pipefail
     cargo build --release
     cp target/release/git-std ~/.local/bin/
+
+    just man
+    mkdir -p ~/.local/share/man/man1
+    cp target/man/*.1 ~/.local/share/man/man1/
+    printf "hint: if 'man git-std' doesn't work, add to your shell profile:\n"
+    printf "      export MANPATH=\"\$HOME/.local/share/man:\${MANPATH:-}\"\n"
+
+    shell="$(basename "${SHELL:-}")"
+    case "$shell" in
+      bash) rc="$HOME/.bashrc"; s="eval \"\$(git-std completions bash)\"" ;;
+      zsh)  rc="$HOME/.zshrc";  s="eval \"\$(git-std completions zsh)\""  ;;
+      fish)
+        mkdir -p "$HOME/.config/fish/conf.d"
+        rc="$HOME/.config/fish/conf.d/git-std.fish"
+        s='git-std completions fish | source'
+        ;;
+      *)
+        printf 'note: add completions manually for %s\n' "${SHELL:-}" >&2
+        exit 0
+        ;;
+    esac
+    if [ "$shell" != "fish" ] && [ ! -f "$rc" ]; then
+      printf 'note: %s not found — add completions manually\n' "$rc" >&2
+      exit 0
+    fi
+    if grep -q 'git-std completions' "$rc" 2>/dev/null; then
+      printf 'completions already configured in %s\n' "$rc"
+    else
+      printf '\n# git-std completions\n%s\n' "$s" >> "$rc"
+      printf 'completions installed to %s\n' "$rc"
+    fi
 
 # Remove build artifacts
 clean:
