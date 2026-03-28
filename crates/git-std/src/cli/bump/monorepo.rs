@@ -8,7 +8,7 @@ use yansi::Paint;
 
 use crate::app::OutputFormat;
 use crate::config::deps::{self, DependencyGraph};
-use crate::config::{PackageConfig, ProjectConfig};
+use crate::config::{PackageConfig, ProjectConfig, Scheme};
 use crate::git;
 use crate::ui;
 
@@ -95,6 +95,36 @@ fn find_latest_package_tag(
     best
 }
 
+/// Find the latest calver tag matching a per-package tag template.
+///
+/// Calver tags are matched by date-sorted order (newest creator date first).
+/// Returns `(commit_oid, version_string)`.
+fn find_latest_calver_package_tag(
+    tags: &[(String, String)],
+    template: &str,
+    pkg_name: &str,
+) -> Option<(String, String)> {
+    let prefix = template
+        .replace("{name}", pkg_name)
+        .replace("{version}", "");
+
+    for (oid, name) in tags {
+        let ver_str = match name.strip_prefix(&prefix) {
+            Some(s) => s,
+            None => continue,
+        };
+        if ver_str.starts_with(|c: char| c.is_ascii_digit()) {
+            return Some((oid.clone(), ver_str.to_string()));
+        }
+    }
+    None
+}
+
+/// Resolve the effective versioning scheme for a package.
+fn resolve_scheme(pkg: &PackageConfig, global: &Scheme) -> Scheme {
+    pkg.scheme.clone().unwrap_or_else(|| global.clone())
+}
+
 /// Build a tag name from the template, package name, and version string.
 fn build_tag_name(template: &str, pkg_name: &str, version: &str) -> String {
     template
@@ -118,7 +148,13 @@ fn plan_package(
     head_oid: &str,
     tag_template: &str,
     tags: &[(String, String)],
+    config: &ProjectConfig,
 ) -> Option<PackageBumpPlan> {
+    let scheme = resolve_scheme(pkg, &config.scheme);
+    if scheme == Scheme::Calver {
+        return plan_package_calver(dir, pkg, head_oid, tag_template, tags, config);
+    }
+
     let latest_tag = find_latest_package_tag(tags, tag_template, &pkg.name);
 
     let tag_oid = latest_tag.as_ref().map(|(oid, _)| oid.as_str());
@@ -162,6 +198,61 @@ fn plan_package(
         prev_version,
         new_version: new_version.to_string(),
         bump_level,
+        raw_commits,
+        tag_name,
+        cascade_from: None,
+    })
+}
+
+/// Plan a single package bump using calver versioning.
+///
+/// Any conventional commit touching the package triggers a bump. The date
+/// determines the version; if the date period is the same as the previous
+/// version, the patch (build) counter increments.
+fn plan_package_calver(
+    dir: &Path,
+    pkg: &PackageConfig,
+    head_oid: &str,
+    tag_template: &str,
+    tags: &[(String, String)],
+    config: &ProjectConfig,
+) -> Option<PackageBumpPlan> {
+    let latest_tag = find_latest_calver_package_tag(tags, tag_template, &pkg.name);
+
+    let tag_oid = latest_tag.as_ref().map(|(oid, _)| oid.as_str());
+    let raw_commits = match git::walk_commits_for_path(dir, head_oid, tag_oid, &[&pkg.path]) {
+        Ok(c) => c,
+        Err(e) => {
+            ui::warning(&format!("{}: cannot walk commits: {e}", pkg.name));
+            return None;
+        }
+    };
+
+    if raw_commits.is_empty() {
+        return None;
+    }
+
+    let calver_format = &config.versioning.calver_format;
+    let date = super::detect::today_calver_date();
+    let prev_ver = latest_tag.as_ref().map(|(_, v)| v.as_str());
+
+    let new_version = match standard_version::calver::next_version(calver_format, date, prev_ver) {
+        Ok(v) => v,
+        Err(e) => {
+            ui::warning(&format!("{}: calver error: {e}", pkg.name));
+            return None;
+        }
+    };
+
+    let prev_version = latest_tag.map(|(_, v)| v);
+    let tag_name = build_tag_name(tag_template, &pkg.name, &new_version);
+
+    Some(PackageBumpPlan {
+        name: pkg.name.clone(),
+        path: pkg.path.clone(),
+        prev_version,
+        new_version,
+        bump_level: standard_version::BumpLevel::Patch,
         raw_commits,
         tag_name,
         cascade_from: None,
@@ -231,7 +322,8 @@ pub(super) fn plan_monorepo_bump(
     // Plan per-package bumps.
     let mut package_plans: Vec<PackageBumpPlan> = Vec::new();
     for pkg in &packages {
-        if let Some(plan) = plan_package(&workdir, pkg, &head_oid, tag_template, &all_tags) {
+        if let Some(plan) = plan_package(&workdir, pkg, &head_oid, tag_template, &all_tags, config)
+        {
             package_plans.push(plan);
         }
     }
@@ -246,6 +338,7 @@ pub(super) fn plan_monorepo_bump(
                 &dep_graph,
                 tag_template,
                 &all_tags,
+                config,
             );
         }
     }
@@ -280,6 +373,7 @@ fn apply_cascade(
     dep_graph: &DependencyGraph,
     tag_template: &str,
     tags: &[(String, String)],
+    config: &ProjectConfig,
 ) {
     let pkg_by_name: std::collections::HashMap<&str, &PackageConfig> =
         all_packages.iter().map(|p| (p.name.as_str(), p)).collect();
@@ -298,7 +392,7 @@ fn apply_cascade(
                     continue;
                 };
 
-                let cascade_plan = create_cascade_plan(pkg, tag_template, &plan.name, tags);
+                let cascade_plan = create_cascade_plan(pkg, tag_template, &plan.name, tags, config);
                 if let Some(cp) = cascade_plan {
                     new_cascades.push(cp);
                 }
@@ -323,7 +417,14 @@ fn create_cascade_plan(
     tag_template: &str,
     cascade_source: &str,
     tags: &[(String, String)],
+    config: &ProjectConfig,
 ) -> Option<PackageBumpPlan> {
+    let scheme = resolve_scheme(pkg, &config.scheme);
+
+    if scheme == Scheme::Calver {
+        return create_cascade_plan_calver(pkg, tag_template, cascade_source, tags, config);
+    }
+
     let latest_tag = find_latest_package_tag(tags, tag_template, &pkg.name);
 
     let cur_ver = latest_tag
@@ -345,6 +446,37 @@ fn create_cascade_plan(
         path: pkg.path.clone(),
         prev_version,
         new_version: new_version.to_string(),
+        bump_level: standard_version::BumpLevel::Patch,
+        raw_commits: Vec::new(),
+        tag_name,
+        cascade_from: Some(cascade_source.to_string()),
+    })
+}
+
+/// Create a cascade calver bump for a dependent package.
+fn create_cascade_plan_calver(
+    pkg: &PackageConfig,
+    tag_template: &str,
+    cascade_source: &str,
+    tags: &[(String, String)],
+    config: &ProjectConfig,
+) -> Option<PackageBumpPlan> {
+    let latest_tag = find_latest_calver_package_tag(tags, tag_template, &pkg.name);
+
+    let calver_format = &config.versioning.calver_format;
+    let date = super::detect::today_calver_date();
+    let prev_ver = latest_tag.as_ref().map(|(_, v)| v.as_str());
+
+    let new_version = standard_version::calver::next_version(calver_format, date, prev_ver).ok()?;
+
+    let prev_version = latest_tag.map(|(_, v)| v);
+    let tag_name = build_tag_name(tag_template, &pkg.name, &new_version);
+
+    Some(PackageBumpPlan {
+        name: pkg.name.clone(),
+        path: pkg.path.clone(),
+        prev_version,
+        new_version,
         bump_level: standard_version::BumpLevel::Patch,
         raw_commits: Vec::new(),
         tag_name,

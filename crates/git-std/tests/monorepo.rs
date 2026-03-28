@@ -461,3 +461,146 @@ fn changelog_package_requires_monorepo() {
         .failure()
         .stderr(predicate::str::contains("monorepo"));
 }
+
+// ── Calver monorepo tests ──────────────────────────────────────────
+
+/// Set up a calver monorepo with two packages.
+fn init_calver_monorepo(dir: &Path) {
+    git(dir, &["init"]);
+    git(dir, &["config", "user.name", "Test"]);
+    git(dir, &["config", "user.email", "test@test.com"]);
+
+    write_file(
+        dir,
+        "Cargo.toml",
+        r#"[workspace]
+members = ["crates/core", "crates/cli"]
+"#,
+    );
+
+    write_file(
+        dir,
+        "crates/core/Cargo.toml",
+        r#"[package]
+name = "core"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    write_file(dir, "crates/core/src/lib.rs", "");
+
+    write_file(
+        dir,
+        "crates/cli/Cargo.toml",
+        r#"[package]
+name = "cli"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    write_file(dir, "crates/cli/src/main.rs", "fn main() {}");
+
+    write_file(
+        dir,
+        ".git-std.toml",
+        r#"monorepo = true
+scheme = "calver"
+"#,
+    );
+
+    git(dir, &["add", "."]);
+    git(dir, &["commit", "-m", "chore: init calver monorepo"]);
+}
+
+#[test]
+fn calver_monorepo_dry_run_shows_date_version() {
+    let dir = tempfile::tempdir().unwrap();
+    init_calver_monorepo(dir.path());
+
+    add_commit(
+        dir.path(),
+        "crates/core/src/lib.rs",
+        "feat: add core feature",
+    );
+
+    // Should produce a date-based version (YYYY.M.0 format).
+    let output = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Version should contain current year.
+    let year = chrono_free_current_year();
+    assert!(
+        stderr.contains(&year),
+        "expected calver year {year} in output: {stderr}"
+    );
+}
+
+#[test]
+fn calver_monorepo_patch_increments_same_period() {
+    let dir = tempfile::tempdir().unwrap();
+    init_calver_monorepo(dir.path());
+
+    let year = chrono_free_current_year();
+    let month = chrono_free_current_month();
+    let first_tag = format!("core@{year}.{month}.0");
+    let root_tag = format!("v{year}.{month}.0");
+
+    add_commit(dir.path(), "crates/core/src/lib.rs", "feat: first feature");
+    create_tag(dir.path(), &first_tag);
+    create_tag(dir.path(), &root_tag);
+
+    add_commit(dir.path(), "crates/core/src/lib.rs", "feat: second feature");
+
+    let output = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let expected_version = format!("{year}.{month}.1");
+    assert!(
+        stderr.contains(&expected_version),
+        "expected {expected_version} in output: {stderr}"
+    );
+}
+
+/// Get current year as string without chrono dependency.
+fn chrono_free_current_year() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let days = secs / 86400;
+    // Howard Hinnant algorithm (simplified).
+    let z = days + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z.rem_euclid(146097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    y.to_string()
+}
+
+/// Get current month (1–12) as string without chrono dependency.
+fn chrono_free_current_month() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let days = secs / 86400;
+    let z = days + 719468;
+    let doe = z.rem_euclid(146097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    m.to_string()
+}
