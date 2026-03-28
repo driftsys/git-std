@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use crate::cargo::CargoVersionFile;
 use crate::gradle::GradleVersionFile;
 use crate::json::{DenoVersionFile, JsonVersionFile};
+use crate::project::{ProjectJsonVersionFile, ProjectTomlVersionFile, ProjectYamlVersionFile};
 use crate::pubspec::PubspecVersionFile;
 use crate::pyproject::PyprojectVersionFile;
 use crate::regex_engine::RegexVersionFile;
@@ -158,6 +159,9 @@ pub fn update_version_files(
         Box::new(DenoVersionFile),
         Box::new(PubspecVersionFile),
         Box::new(GradleVersionFile),
+        Box::new(ProjectTomlVersionFile),
+        Box::new(ProjectJsonVersionFile),
+        Box::new(ProjectYamlVersionFile),
         Box::new(PlainVersionFile),
     ];
 
@@ -261,6 +265,9 @@ pub fn detect_version_files(
         Box::new(DenoVersionFile),
         Box::new(PubspecVersionFile),
         Box::new(GradleVersionFile),
+        Box::new(ProjectTomlVersionFile),
+        Box::new(ProjectJsonVersionFile),
+        Box::new(ProjectYamlVersionFile),
         Box::new(PlainVersionFile),
     ];
 
