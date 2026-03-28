@@ -159,6 +159,10 @@ fn main() {
             };
             std::process::exit(code);
         }
+        Command::Doctor { format } => {
+            let cwd = std::env::current_dir().unwrap_or_default();
+            std::process::exit(cli::doctor::run(&cwd, format));
+        }
         Command::Completions { shell } => {
             let mut cmd = Cli::command();
             clap_complete::generate(shell, &mut cmd, "git-std", &mut std::io::stdout());
