@@ -100,3 +100,60 @@ fn doctor_exits_2_outside_git_repo() {
         .assert()
         .code(2);
 }
+
+// ===========================================================================
+// #324 — bootstrap health checks
+// ===========================================================================
+
+#[test]
+fn doctor_bootstrap_warns_when_no_convention_files() {
+    // Fresh repo with no convention files — Warn but not Fail
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    // Set up hooks so hooks section passes
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .success(); // Warn does not cause failure
+}
+
+#[test]
+fn doctor_bootstrap_pass_when_blame_ignore_revs_configured() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+    std::fs::write(dir.path().join(".git-blame-ignore-revs"), "").unwrap();
+    git(
+        dir.path(),
+        &["config", "blame.ignoreRevsFile", ".git-blame-ignore-revs"],
+    );
+
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("bootstrap"));
+}
+
+#[test]
+fn doctor_bootstrap_fail_when_blame_ignore_revs_not_configured() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+    // .git-blame-ignore-revs exists but blame.ignoreRevsFile not configured
+    std::fs::write(dir.path().join(".git-blame-ignore-revs"), "").unwrap();
+
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("blame.ignoreRevsFile"));
+}

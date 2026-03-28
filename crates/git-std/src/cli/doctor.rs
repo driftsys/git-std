@@ -161,10 +161,97 @@ fn hooks_section(root: &Path) -> Section {
     }
 }
 
-fn bootstrap_section(_root: &Path) -> Section {
+fn bootstrap_section(root: &Path) -> Section {
+    let mut checks: Vec<Check> = Vec::new();
+
+    // 1. .gitattributes present (optional — warn if absent)
+    let gitattributes_path = root.join(".gitattributes");
+    let gitattributes_exists = gitattributes_path.exists();
+    checks.push(Check {
+        label: ".gitattributes present".to_owned(),
+        status: if gitattributes_exists {
+            CheckStatus::Pass
+        } else {
+            CheckStatus::Warn
+        },
+        hint: None,
+    });
+
+    // 2. LFS check — only if .gitattributes exists AND contains filter=lfs
+    if gitattributes_exists {
+        let has_lfs = std::fs::read_to_string(&gitattributes_path)
+            .map(|c| c.lines().any(|l| l.contains("filter=lfs")))
+            .unwrap_or(false);
+
+        if has_lfs {
+            let lfs_available = std::process::Command::new("git")
+                .current_dir(root)
+                .args(["lfs", "version"])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+            checks.push(Check {
+                label: "git-lfs installed".to_owned(),
+                status: if lfs_available {
+                    CheckStatus::Pass
+                } else {
+                    CheckStatus::Fail
+                },
+                hint: if lfs_available {
+                    None
+                } else {
+                    Some("install from https://git-lfs.github.com".to_owned())
+                },
+            });
+        }
+    }
+
+    // 3. .git-blame-ignore-revs present (optional — warn if absent)
+    let blame_ignore_path = root.join(".git-blame-ignore-revs");
+    let blame_ignore_exists = blame_ignore_path.exists();
+    checks.push(Check {
+        label: ".git-blame-ignore-revs present".to_owned(),
+        status: if blame_ignore_exists {
+            CheckStatus::Pass
+        } else {
+            CheckStatus::Warn
+        },
+        hint: None,
+    });
+
+    // 4. blame.ignoreRevsFile configured — only when .git-blame-ignore-revs exists
+    if blame_ignore_exists {
+        let configured_value = std::process::Command::new("git")
+            .current_dir(root)
+            .args(["config", "--get", "blame.ignoreRevsFile"])
+            .output()
+            .ok()
+            .and_then(|out| {
+                if out.status.success() {
+                    Some(String::from_utf8_lossy(&out.stdout).trim().to_owned())
+                } else {
+                    None
+                }
+            });
+        let blame_ok = configured_value.as_deref() == Some(".git-blame-ignore-revs");
+        checks.push(Check {
+            label: "blame.ignoreRevsFile = .git-blame-ignore-revs".to_owned(),
+            status: if blame_ok {
+                CheckStatus::Pass
+            } else {
+                CheckStatus::Fail
+            },
+            hint: if blame_ok {
+                None
+            } else {
+                Some("run 'git std bootstrap'".to_owned())
+            },
+        });
+    }
+
     Section {
         name: "bootstrap",
-        checks: vec![],
+        checks,
     }
 }
 
