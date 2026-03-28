@@ -331,6 +331,39 @@ fn hooks_install_enable_all() {
     assert!(!hooks_dir.join("pre-commit.off").exists());
 }
 
+// ── non-TTY guard (#316) ─────────────────────────────────────────
+
+#[test]
+fn hooks_install_non_tty_without_env_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "install"])
+        .current_dir(dir.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "interactive prompt requires a TTY",
+        ))
+        .stderr(predicate::str::contains("GIT_STD_HOOKS_ENABLE"));
+}
+
+#[test]
+fn hooks_install_non_tty_with_env_succeeds() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "install"])
+        .env("GIT_STD_HOOKS_ENABLE", "all")
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
 #[test]
 fn hooks_install_enable_none() {
     let dir = tempfile::tempdir().unwrap();
