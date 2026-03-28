@@ -279,10 +279,7 @@ pub fn get(dir: &Path, key: &str, format: OutputFormat) -> i32 {
             0
         }
         "changelog.bug_url" => {
-            match &cfg.changelog.bug_url {
-                Some(u) => print_value(u, format),
-                None => eprintln!("null"),
-            }
+            print_optional_value(cfg.changelog.bug_url.as_deref(), format);
             0
         }
         unknown => {
@@ -352,6 +349,20 @@ fn print_value(value: &str, format: OutputFormat) {
         println!("{}", serde_json::to_string(value).unwrap());
     } else {
         eprintln!("{value}");
+    }
+}
+
+/// Print an optional value: JSON `null` to stdout, text `"null"` to stderr.
+fn print_optional_value(value: Option<&str>, format: OutputFormat) {
+    match value {
+        Some(v) => print_value(v, format),
+        None => {
+            if format == OutputFormat::Json {
+                println!("null");
+            } else {
+                eprintln!("null");
+            }
+        }
     }
 }
 
