@@ -99,6 +99,13 @@ pub fn list(dir: &Path, format: OutputFormat) -> i32 {
         }
     }
 
+    let monorepo_src = if has_key("monorepo") {
+        Source::File
+    } else {
+        Source::Default
+    };
+    print_kv("monorepo", &cfg.monorepo.to_string(), monorepo_src);
+
     // ── [versioning] ────────────────────────────────────────────
     ui::blank();
     ui::info("[versioning]");
@@ -134,6 +141,17 @@ pub fn list(dir: &Path, format: OutputFormat) -> i32 {
         "calver_format",
         &format!("{:?}", cfg.versioning.calver_format),
         calver_src,
+    );
+
+    let tag_template_src = if has_versioning_key("tag_template") {
+        Source::File
+    } else {
+        Source::Default
+    };
+    print_kv(
+        "tag_template",
+        &format!("{:?}", cfg.versioning.tag_template),
+        tag_template_src,
     );
 
     // ── [changelog] ─────────────────────────────────────────────
@@ -191,6 +209,27 @@ pub fn list(dir: &Path, format: OutputFormat) -> i32 {
         }
     }
 
+    // ── [[packages]] ────────────────────────────────────────────
+    if !cfg.packages.is_empty() {
+        ui::blank();
+        ui::info("[[packages]]");
+        for pkg in &cfg.packages {
+            let mut parts = vec![
+                format!("name = {:?}", pkg.name),
+                format!("path = {:?}", pkg.path),
+            ];
+            if let Some(ref scheme) = pkg.scheme {
+                let label = match scheme {
+                    config::Scheme::Semver => "semver",
+                    config::Scheme::Calver => "calver",
+                    config::Scheme::Patch => "patch",
+                };
+                parts.push(format!("scheme = {label:?}"));
+            }
+            ui::detail(&parts.join(", "));
+        }
+    }
+
     0
 }
 
@@ -211,6 +250,10 @@ pub fn get(dir: &Path, key: &str, format: OutputFormat) -> i32 {
         }
         "strict" => {
             print_value(&cfg.strict.to_string(), format);
+            0
+        }
+        "monorepo" => {
+            print_value(&cfg.monorepo.to_string(), format);
             0
         }
         "types" => {
@@ -244,6 +287,10 @@ pub fn get(dir: &Path, key: &str, format: OutputFormat) -> i32 {
         }
         "versioning.calver_format" => {
             print_value(&cfg.versioning.calver_format, format);
+            0
+        }
+        "versioning.tag_template" => {
+            print_value(&cfg.versioning.tag_template, format);
             0
         }
         "changelog.title" => {
@@ -284,9 +331,11 @@ pub fn get(dir: &Path, key: &str, format: OutputFormat) -> i32 {
         }
         unknown => {
             ui::error(&format!("unknown config key: {unknown:?}"));
-            ui::info("supported keys: scheme, strict, types, scopes, versioning.tag_prefix,");
-            ui::info("  versioning.prerelease_tag, versioning.calver_format, changelog.title,");
-            ui::info("  changelog.hidden, changelog.sections, changelog.bug_url");
+            ui::info("supported keys: scheme, strict, monorepo, types, scopes,");
+            ui::info("  versioning.tag_prefix, versioning.prerelease_tag,");
+            ui::info("  versioning.calver_format, versioning.tag_template,");
+            ui::info("  changelog.title, changelog.hidden, changelog.sections,");
+            ui::info("  changelog.bug_url");
             1
         }
     }
@@ -324,12 +373,14 @@ fn list_json(cfg: &config::ProjectConfig) -> i32 {
     let obj = serde_json::json!({
         "scheme": scheme,
         "strict": cfg.strict,
+        "monorepo": cfg.monorepo,
         "types": cfg.types,
         "scopes": scopes_json,
         "versioning": {
             "tag_prefix": cfg.versioning.tag_prefix,
             "prerelease_tag": cfg.versioning.prerelease_tag,
             "calver_format": cfg.versioning.calver_format,
+            "tag_template": cfg.versioning.tag_template,
         },
         "changelog": {
             "title": title,
@@ -337,6 +388,21 @@ fn list_json(cfg: &config::ProjectConfig) -> i32 {
             "sections": sections_map,
             "bug_url": cfg.changelog.bug_url,
         },
+        "packages": cfg.packages.iter().map(|p| {
+            let mut obj = serde_json::json!({
+                "name": p.name,
+                "path": p.path,
+            });
+            if let Some(ref scheme) = p.scheme {
+                let label = match scheme {
+                    config::Scheme::Semver => "semver",
+                    config::Scheme::Calver => "calver",
+                    config::Scheme::Patch => "patch",
+                };
+                obj["scheme"] = serde_json::Value::String(label.to_string());
+            }
+            obj
+        }).collect::<Vec<_>>(),
     });
 
     println!("{}", serde_json::to_string_pretty(&obj).unwrap());

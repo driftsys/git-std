@@ -33,12 +33,14 @@ types = ["feat", "fix", "docs", "style",
          "chore", "ci", "build", "revert"]
 scopes = ["auth", "api", "ci", "deps"]         # "auto" | string[] | omit
 strict = true                         # enforce types/scopes
+monorepo = false                      # per-package versioning
 
 # ── Versioning ────────────────────────────────────────────────────
 [versioning]
 tag_prefix = "v"                               # git tag prefix
 prerelease_tag = "rc"                          # default pre-release id
 calver_format = "YYYY.MM.PATCH"                # only when scheme = "calver"
+tag_template = "{name}@{version}"              # per-package tag format
 
 # ── Changelog ─────────────────────────────────────────────────────
 [changelog]
@@ -57,18 +59,25 @@ docs = "Documentation"
 [[version_files]]
 path = "pom.xml"
 regex = '<version>([^<]+)</version>'
+
+# ── Packages (monorepo) ─────────────────────────────────────
+[[packages]]
+name = "core"
+path = "crates/core"
+# scheme = "patch"                             # optional override
 ```
 
 ## Fields
 
 ### Top-level
 
-| Field    | Type                 | Default           | Description                                             |
-| -------- | -------------------- | ----------------- | ------------------------------------------------------- |
-| `scheme` | string               | `"semver"`        | Versioning scheme (see below)                           |
-| `types`  | string[]             | 11 standard types | Allowed conventional commit types                       |
-| `scopes` | `"auto"` or string[] | None              | Scope discovery or explicit allowlist                   |
-| `strict` | bool                 | `false`           | Enforce types/scopes validation without `--strict` flag |
+| Field      | Type                 | Default           | Description                                             |
+| ---------- | -------------------- | ----------------- | ------------------------------------------------------- |
+| `scheme`   | string               | `"semver"`        | Versioning scheme (see below)                           |
+| `types`    | string[]             | 11 standard types | Allowed conventional commit types                       |
+| `scopes`   | `"auto"` or string[] | None              | Scope discovery or explicit allowlist                   |
+| `strict`   | bool                 | `false`           | Enforce types/scopes validation without `--strict` flag |
+| `monorepo` | bool                 | `false`           | Enable per-package versioning                           |
 
 Default types: `feat`, `fix`, `docs`, `style`, `refactor`,
 `perf`, `test`, `chore`, `ci`, `build`, `revert`.
@@ -100,11 +109,12 @@ populate the interactive scope prompt.
 
 ### `[versioning]`
 
-| Field            | Type   | Default           | Description                                             |
-| ---------------- | ------ | ----------------- | ------------------------------------------------------- |
-| `tag_prefix`     | string | `"v"`             | Git tag prefix (e.g., `v1.0.0`)                         |
-| `prerelease_tag` | string | `"rc"`            | Default pre-release identifier                          |
-| `calver_format`  | string | `"YYYY.MM.PATCH"` | Calendar version format (only when `scheme = "calver"`) |
+| Field            | Type   | Default              | Description                                             |
+| ---------------- | ------ | -------------------- | ------------------------------------------------------- |
+| `tag_prefix`     | string | `"v"`                | Git tag prefix (e.g., `v1.0.0`)                         |
+| `prerelease_tag` | string | `"rc"`               | Default pre-release identifier                          |
+| `calver_format`  | string | `"YYYY.MM.PATCH"`    | Calendar version format (only when `scheme = "calver"`) |
+| `tag_template`   | string | `"{name}@{version}"` | Per-package tag format (only when `monorepo = true`)    |
 
 **Calendar version format tokens:**
 
@@ -174,6 +184,38 @@ Entries with missing `path` or `regex` are silently skipped.
 These are in addition to auto-detected version files
 (e.g. `Cargo.toml`).
 
+### `[[packages]]`
+
+Explicit package definitions for monorepo workspaces. When
+`monorepo = true` and no packages are listed, git-std
+auto-discovers packages from workspace manifests (Cargo,
+npm, Deno) or subdirectories with version files.
+
+```toml
+[[packages]]
+name = "core"
+path = "crates/core"
+scheme = "patch"                   # optional: override global scheme
+
+[[packages.version_files]]         # optional: override version files
+path = "version.txt"
+regex = '(\d+\.\d+\.\d+)'
+
+[packages.changelog]               # optional: override changelog config
+title = "Core Changelog"
+hidden = ["chore"]
+```
+
+| Field           | Type   | Description                                |
+| --------------- | ------ | ------------------------------------------ |
+| `name`          | string | Package name (used in tags and changelogs) |
+| `path`          | string | Package root relative to repo root         |
+| `scheme`        | string | Optional versioning scheme override        |
+| `version_files` | array  | Optional version files override            |
+| `changelog`     | table  | Optional changelog config override         |
+
+Entries with missing `name` or `path` are silently skipped.
+
 ## Inferred settings
 
 These are not configurable — git-std resolves them automatically:
@@ -217,4 +259,23 @@ hidden = ["chore", "ci"]
 feat = "New Features"
 fix = "Bug Fixes"
 perf = "Performance Improvements"
+```
+
+**Monorepo with per-package versioning:**
+
+```toml
+monorepo = true
+scheme = "semver"
+scopes = "auto"
+
+[versioning]
+tag_template = "{name}@{version}"
+
+[[packages]]
+name = "core"
+path = "crates/core"
+
+[[packages]]
+name = "cli"
+path = "crates/cli"
 ```

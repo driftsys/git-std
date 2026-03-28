@@ -50,6 +50,11 @@
       "default": false,
       "description": "Enforce types and scopes validation without requiring the --strict CLI flag."
     },
+    "monorepo": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable per-package versioning. When true, each package gets its own version, changelog, and tag based on which files changed."
+    },
     "versioning": {
       "type": "object",
       "description": "Version bump settings.",
@@ -69,6 +74,11 @@
           "type": "string",
           "default": "YYYY.MM.PATCH",
           "description": "Calendar version format. Tokens: YYYY (full year), YY (short year), 0M (zero-padded month), MM (month), WW (ISO week), DD (day), PATCH (auto-incrementing counter), DP (day-of-week + patch). Only used when scheme = \"calver\"."
+        },
+        "tag_template": {
+          "type": "string",
+          "default": "{name}@{version}",
+          "description": "Tag format for per-package tags. Supports {name} and {version} placeholders. Only used when monorepo = true."
         }
       }
     },
@@ -125,6 +135,77 @@
           "regex": {
             "type": "string",
             "description": "Regex whose first capture group contains the version string."
+          }
+        }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "description": "Explicit package definitions for monorepo workspaces. When monorepo = true and no packages are listed, packages are auto-discovered from workspace manifests.",
+      "items": {
+        "type": "object",
+        "required": ["name", "path"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Package name, used in tags and changelog headings."
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Package root directory relative to the repository root."
+          },
+          "scheme": {
+            "type": "string",
+            "enum": ["semver", "calver", "patch"],
+            "description": "Override the global versioning scheme for this package."
+          },
+          "version_files": {
+            "type": "array",
+            "description": "Override version files for this package.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "regex"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "File path relative to the repository root."
+                },
+                "regex": {
+                  "type": "string",
+                  "description": "Regex whose first capture group contains the version string."
+                }
+              }
+            }
+          },
+          "changelog": {
+            "type": "object",
+            "description": "Override changelog configuration for this package.",
+            "additionalProperties": false,
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "Custom changelog title heading."
+              },
+              "hidden": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Commit types excluded from the package changelog."
+              },
+              "bug_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Base URL for bug/issue links."
+              },
+              "sections": {
+                "type": "object",
+                "additionalProperties": { "type": "string" },
+                "description": "Map commit types to changelog section headings."
+              }
+            }
           }
         }
       }
