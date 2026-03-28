@@ -174,7 +174,9 @@ fn doctor_config_warn_when_no_config_file() {
         .args(["doctor"])
         .current_dir(dir.path())
         .assert()
-        .success(); // Warn does not fail
+        .success() // Warn does not fail
+        .stderr(contains("config"))
+        .stderr(contains("⚠"));
 }
 
 #[test]
@@ -210,7 +212,8 @@ fn doctor_config_fail_when_invalid_toml() {
         .current_dir(dir.path())
         .assert()
         .code(1)
-        .stderr(contains("config"));
+        .stderr(contains("config"))
+        .stderr(contains("hint:"));
 }
 
 // ===========================================================================
@@ -235,6 +238,10 @@ fn doctor_json_outputs_to_stdout() {
         serde_json::from_str(&stdout).expect("stdout should be valid JSON");
     assert!(parsed.get("status").is_some());
     assert!(parsed.get("sections").is_some());
+    assert!(
+        output.stderr.is_empty(),
+        "stderr should be empty in JSON mode"
+    );
 }
 
 #[test]
@@ -253,6 +260,10 @@ fn doctor_json_fail_status_when_checks_fail() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(parsed["status"], "fail");
+    assert!(
+        output.stderr.is_empty(),
+        "stderr should be empty in JSON mode"
+    );
 }
 
 // ===========================================================================
@@ -339,4 +350,80 @@ fn doctor_from_git_worktree() {
         .success()
         .stderr(contains("hooks"))
         .stderr(contains("config"));
+}
+
+// ===========================================================================
+// #341 — LFS-absent skip path (bootstrap section)
+// ===========================================================================
+
+#[test]
+fn doctor_bootstrap_skips_lfs_when_gitattributes_has_no_lfs() {
+    // .gitattributes exists but contains no filter=lfs token.
+    // The LFS check should be skipped entirely — doctor must exit 0.
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+    std::fs::write(dir.path().join(".gitattributes"), "*.png binary\n").unwrap();
+
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("bootstrap"));
+}
+
+// ===========================================================================
+// #347 — JSON structure: per-check status and hint omission
+// ===========================================================================
+
+#[test]
+fn doctor_json_check_status_and_hint_omitted_when_unset() {
+    // Repo with hooks fully configured so at least one check passes without a hint.
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+
+    let output = git_std()
+        .args(["doctor", "--format", "json"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stdout).expect("stdout should be valid JSON");
+
+    // Every check in every section must have a "status" field.
+    let sections = parsed["sections"]
+        .as_array()
+        .expect("sections must be array");
+    for section in sections {
+        let checks = section["checks"].as_array().expect("checks must be array");
+        for check in checks {
+            assert!(
+                check.get("status").is_some(),
+                "each check must have a status field: {check}"
+            );
+            // Checks without a hint must omit the key entirely (not serialize as null).
+            if check.get("hint").is_some() {
+                assert!(
+                    check["hint"].is_string(),
+                    "hint must be a string when present: {check}"
+                );
+            }
+        }
+    }
+
+    // The .githooks/ directory check passes with no hint; verify at least one
+    // "pass" status exists to confirm the shape contract.
+    let has_pass = sections.iter().any(|s| {
+        s["checks"]
+            .as_array()
+            .map(|cs| cs.iter().any(|c| c["status"] == "pass"))
+            .unwrap_or(false)
+    });
+    assert!(has_pass, "expected at least one check with status=pass");
 }

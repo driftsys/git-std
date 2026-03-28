@@ -309,9 +309,9 @@ fn print_sections(sections: &[Section]) -> i32 {
                     ui::fail().to_string()
                 }
             };
-            ui::detail(&format!("{symbol}  {}", check.label));
+            ui::check_line(&symbol, &check.label);
             if let Some(hint) = &check.hint {
-                ui::detail(&format!("   hint: {hint}"));
+                ui::hint(hint);
             }
         }
         ui::blank();
