@@ -81,6 +81,10 @@ fn hooks_section(root: &Path) -> Section {
     });
 
     // 2. core.hooksPath is configured correctly
+    //
+    // Uses `std::process::Command` directly — the same pattern as `bootstrap.rs`
+    // for ad-hoc git config reads. `crate::git::cmd::git` is not re-exported via
+    // `crate::git` and is intentionally kept as a low-level internal helper.
     let hooks_path_value = std::process::Command::new("git")
         .current_dir(root)
         .args(["config", "--get", "core.hooksPath"])
@@ -93,7 +97,14 @@ fn hooks_section(root: &Path) -> Section {
                 None
             }
         });
-    let hooks_path_ok = hooks_path_value.as_deref() == Some(".githooks");
+    // Accept both the relative form (".githooks") and the absolute form that git
+    // may record when hooks are installed from a subdirectory / worktree.
+    let expected_relative = ".githooks";
+    let expected_absolute = root.join(".githooks").to_string_lossy().into_owned();
+    let hooks_path_ok = hooks_path_value
+        .as_deref()
+        .map(|v| v == expected_relative || v == expected_absolute)
+        .unwrap_or(false);
     checks.push(Check {
         label: "core.hooksPath = .githooks".to_owned(),
         status: if hooks_path_ok {
