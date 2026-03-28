@@ -57,7 +57,7 @@ pub fn run(cwd: &Path, format: OutputFormat) -> i32 {
 }
 
 // ---------------------------------------------------------------------------
-// Sections (stubs — filled in by later stories)
+// Health check sections
 // ---------------------------------------------------------------------------
 
 fn hooks_section(root: &Path) -> Section {
@@ -180,7 +180,11 @@ fn bootstrap_section(root: &Path) -> Section {
     // 2. LFS check — only if .gitattributes exists AND contains filter=lfs
     if gitattributes_exists {
         let has_lfs = std::fs::read_to_string(&gitattributes_path)
-            .map(|c| c.lines().any(|l| l.contains("filter=lfs")))
+            .map(|c| {
+                c.lines()
+                    .filter(|l| !l.trim_start().starts_with('#'))
+                    .any(|l| l.split_whitespace().any(|tok| tok == "filter=lfs"))
+            })
             .unwrap_or(false);
 
         if has_lfs {
