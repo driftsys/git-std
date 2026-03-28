@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.7.0] (2026-03-28)
+
+### Bug Fixes
+
+- **docs:** add missing revert to default types in schema and CONFIG ([34bd5ab])
+- **doctor:** accept absolute path for blame.ignoreRevsFile ([#340]) ([68e7b33])
+- **git-std:** address K1 review issues in ecosystem trait ([ee98800])
+- **doctor:** fix run_json exit code, lfs filter match, and stale comment
+  ([0a939cf])
+- **doctor:** fix hooksPath absolute-path comparison and run_json exit code
+  ([7877bdf])
+- **doctor:** inline dead_code justification and fix run_json exit code
+  ([0ba7163])
+- **doctor:** use crate::git::workdir import path ([c677616])
+- **git-std:** fail fast in hooks install without TTY ([#316]) ([d3f3d2e]),
+  closes [#316]
+- **git-std:** resolve hooks and bootstrap paths from repo root ([#329])
+  ([add2ffe]), closes [#318], [#317]
+- **git-std:** write config get JSON null to stdout ([#315]) ([3496a5f]), closes
+  [#315]
+- **release:** surface crates.io publish failures and improve version check
+  ([6b9d2b7])
+
+### Features
+
+- **git-std:** introduce Ecosystem trait for version bump orchestration
+  ([526cf92])
+- **git-std:** --format json for git std doctor ([e37ccd8])
+- **git-std:** config health checks ([2327d66]), closes [#325]
+- **doctor:** bootstrap health checks ([3cc9bf0]), closes [#324]
+- **git-std:** hooks health checks ([9b8b2cb])
+- **doctor:** git std doctor skeleton ([52a5785])
+- **git-std:** install man pages and shell completions on install ([63d02f6])
+- **release:** add aarch64-linux-musl and Windows release targets ([0fa6925])
+
+[0.7.0]: https://github.com/driftsys/git-std/compare/v0.6.0...v0.7.0
+[34bd5ab]: https://github.com/driftsys/git-std/commit/34bd5ab
+[68e7b33]: https://github.com/driftsys/git-std/commit/68e7b33
+[#340]: https://github.com/driftsys/git-std/issues/340
+[ee98800]: https://github.com/driftsys/git-std/commit/ee98800
+[0a939cf]: https://github.com/driftsys/git-std/commit/0a939cf
+[7877bdf]: https://github.com/driftsys/git-std/commit/7877bdf
+[0ba7163]: https://github.com/driftsys/git-std/commit/0ba7163
+[c677616]: https://github.com/driftsys/git-std/commit/c677616
+[d3f3d2e]: https://github.com/driftsys/git-std/commit/d3f3d2e
+[#316]: https://github.com/driftsys/git-std/issues/316
+[add2ffe]: https://github.com/driftsys/git-std/commit/add2ffe
+[#329]: https://github.com/driftsys/git-std/issues/329
+[#318]: https://github.com/driftsys/git-std/issues/318
+[#317]: https://github.com/driftsys/git-std/issues/317
+[3496a5f]: https://github.com/driftsys/git-std/commit/3496a5f
+[#315]: https://github.com/driftsys/git-std/issues/315
+[6b9d2b7]: https://github.com/driftsys/git-std/commit/6b9d2b7
+[526cf92]: https://github.com/driftsys/git-std/commit/526cf92
+[e37ccd8]: https://github.com/driftsys/git-std/commit/e37ccd8
+[2327d66]: https://github.com/driftsys/git-std/commit/2327d66
+[#325]: https://github.com/driftsys/git-std/issues/325
+[3cc9bf0]: https://github.com/driftsys/git-std/commit/3cc9bf0
+[#324]: https://github.com/driftsys/git-std/issues/324
+[9b8b2cb]: https://github.com/driftsys/git-std/commit/9b8b2cb
+[52a5785]: https://github.com/driftsys/git-std/commit/52a5785
+[63d02f6]: https://github.com/driftsys/git-std/commit/63d02f6
+[0fa6925]: https://github.com/driftsys/git-std/commit/0fa6925
+
 ## [0.6.0] (2026-03-28)
 
 ### Features
