@@ -408,3 +408,56 @@ fn hooks_install_commit_msg_shim_is_active() {
         "commit-msg.off should not exist when enabled"
     );
 }
+
+// ── repo-root resolution (#317) ─────────────────────────────────
+
+#[test]
+fn bootstrap_run_from_subdirectory() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    std::fs::write(dir.path().join(".git-blame-ignore-revs"), "# revs\n").unwrap();
+
+    let subdir = dir.path().join("src").join("nested");
+    std::fs::create_dir_all(&subdir).unwrap();
+
+    let a = run_bootstrap(&subdir, &[]).success();
+    let err = stderr_text(&a);
+    assert!(
+        err.contains("git hooks configured"),
+        "should configure hooks from subdir, got: {err}"
+    );
+    assert!(
+        err.contains("blame ignore revs configured"),
+        "should configure blame from subdir, got: {err}"
+    );
+}
+
+#[test]
+fn bootstrap_install_from_subdirectory() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+
+    let subdir = dir.path().join("src");
+    std::fs::create_dir_all(&subdir).unwrap();
+
+    run_bootstrap_install(&subdir, &[]).success();
+
+    // Files should be at repo root, not in subdirectory
+    assert!(
+        dir.path().join("bootstrap").exists(),
+        "bootstrap script should be at repo root"
+    );
+    assert!(
+        dir.path().join(".githooks/bootstrap.hooks").exists(),
+        "bootstrap.hooks should be at repo root"
+    );
+    assert!(
+        !subdir.join("bootstrap").exists(),
+        "bootstrap should not be in subdirectory"
+    );
+    assert!(
+        !subdir.join(".githooks").exists(),
+        ".githooks should not be in subdirectory"
+    );
+}
