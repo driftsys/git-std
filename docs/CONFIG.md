@@ -30,7 +30,7 @@ Or use a [taplo](https://taplo.tamasfe.dev) inline directive
 scheme = "semver"                              # semver | calver | patch
 types = ["feat", "fix", "docs", "style",
          "refactor", "perf", "test",
-         "chore", "ci", "build"]
+         "chore", "ci", "build", "revert"]
 scopes = ["auth", "api", "ci", "deps"]         # "auto" | string[] | omit
 strict = true                         # enforce types/scopes
 
@@ -66,12 +66,12 @@ regex = '<version>([^<]+)</version>'
 | Field    | Type                 | Default           | Description                                             |
 | -------- | -------------------- | ----------------- | ------------------------------------------------------- |
 | `scheme` | string               | `"semver"`        | Versioning scheme (see below)                           |
-| `types`  | string[]             | 10 standard types | Allowed conventional commit types                       |
+| `types`  | string[]             | 11 standard types | Allowed conventional commit types                       |
 | `scopes` | `"auto"` or string[] | None              | Scope discovery or explicit allowlist                   |
 | `strict` | bool                 | `false`           | Enforce types/scopes validation without `--strict` flag |
 
 Default types: `feat`, `fix`, `docs`, `style`, `refactor`,
-`perf`, `test`, `chore`, `ci`, `build`.
+`perf`, `test`, `chore`, `ci`, `build`, `revert`.
 
 **Versioning schemes:**
 

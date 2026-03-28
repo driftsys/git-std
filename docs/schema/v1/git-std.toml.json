@@ -24,7 +24,7 @@
       },
       "default": [
         "feat", "fix", "docs", "style", "refactor",
-        "perf", "test", "chore", "ci", "build"
+        "perf", "test", "chore", "ci", "build", "revert"
       ],
       "description": "Allowed conventional commit types. Used for validation in strict mode and for the interactive commit prompt."
     },
