@@ -227,6 +227,42 @@ fn config_get_reflects_toml_value() {
         .stderr(contains("true"));
 }
 
+// ── config get nullable keys (#315) ──────────────────────────────
+
+#[test]
+fn config_get_json_bug_url_null_goes_to_stdout() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = git_std()
+        .args(["config", "get", "changelog.bug_url", "--format", "json"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "null");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stderr.contains("null"), "null should not appear on stderr");
+}
+
+#[test]
+fn config_get_text_bug_url_null_goes_to_stderr() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = git_std()
+        .args(["config", "get", "changelog.bug_url"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("null"));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.is_empty(), "text mode should not write to stdout");
+}
+
 // ── config subcommand requires subcommand ────────────────────────
 
 #[test]
