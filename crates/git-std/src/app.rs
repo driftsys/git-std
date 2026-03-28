@@ -152,6 +152,12 @@ pub enum Command {
         #[command(subcommand)]
         subcommand: ConfigCommand,
     },
+    /// Run health checks on the local git-std setup.
+    Doctor {
+        /// Output format.
+        #[arg(long, default_value = "text")]
+        format: OutputFormat,
+    },
     /// Generate shell completion scripts.
     Completions {
         /// Target shell.

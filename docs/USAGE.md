@@ -178,6 +178,26 @@ After built-in checks, runs `.githooks/bootstrap.hooks` if present.
 | ----------- | --------------------------------------- |
 | `--dry-run` | Print what would be done without acting |
 
+## `git std doctor`
+
+Run health checks on the local git-std setup.
+
+```bash
+git std doctor              # check all sections, exit 0 (pass) or 1 (fail)
+git std doctor --format json  # machine-readable JSON on stdout
+```
+
+**Sections:** `hooks`, `bootstrap`, `config`.
+
+**Flags:**
+
+| Flag             | Description                             |
+| ---------------- | --------------------------------------- |
+| `--format <fmt>` | Output format: `text` (default), `json` |
+
+**Exit codes:** `0` = all checks pass, `1` = one or more checks failed,
+`2` = not a git repository.
+
 ## `git std completions`
 
 Generate shell completion scripts.
