@@ -39,7 +39,10 @@ fn prefix_label(prefix: Prefix) -> &'static str {
 ///
 /// Shows all known hooks with enabled/disabled status and their commands.
 pub fn list(format: OutputFormat) -> i32 {
-    let hooks_dir = std::path::Path::new(".githooks");
+    let hooks_dir = match super::hooks_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
 
     if !hooks_dir.exists() {
         if format == OutputFormat::Json {
@@ -51,7 +54,7 @@ pub fn list(format: OutputFormat) -> i32 {
     }
 
     if format == OutputFormat::Json {
-        return list_json(hooks_dir);
+        return list_json(&hooks_dir);
     }
 
     for (i, hook_name) in KNOWN_HOOKS.iter().enumerate() {
@@ -59,7 +62,7 @@ pub fn list(format: OutputFormat) -> i32 {
             ui::blank();
         }
 
-        let enabled = is_enabled(hooks_dir, hook_name);
+        let enabled = is_enabled(&hooks_dir, hook_name);
         let status_label = if enabled {
             "enabled".green().to_string()
         } else {
@@ -68,7 +71,7 @@ pub fn list(format: OutputFormat) -> i32 {
 
         let template_path = hooks_dir.join(format!("{hook_name}.hooks"));
         let commands: Vec<HookCommand> = if template_path.exists() {
-            read_and_parse_hooks(hook_name).unwrap_or_default()
+            read_and_parse_hooks(&hooks_dir, hook_name).unwrap_or_default()
         } else {
             vec![]
         };
@@ -134,7 +137,7 @@ fn list_json(hooks_dir: &std::path::Path) -> i32 {
             let enabled = is_enabled(hooks_dir, hook_name);
             let template_path = hooks_dir.join(format!("{hook_name}.hooks"));
             let commands: Vec<HookCommand> = if template_path.exists() {
-                read_and_parse_hooks(hook_name).unwrap_or_default()
+                read_and_parse_hooks(hooks_dir, hook_name).unwrap_or_default()
             } else {
                 vec![]
             };

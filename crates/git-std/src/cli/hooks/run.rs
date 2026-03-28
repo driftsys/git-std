@@ -178,7 +178,12 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
         return 0;
     }
 
-    let commands = match read_and_parse_hooks(hook) {
+    let hooks_dir = match super::hooks_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
+
+    let commands = match read_and_parse_hooks(&hooks_dir, hook) {
         Ok(c) => c,
         Err(code) => return code,
     };

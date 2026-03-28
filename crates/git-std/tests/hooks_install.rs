@@ -141,6 +141,7 @@ fn hooks_install_preserves_non_hooks_files() {
 #[test]
 fn hooks_list_shows_configured_hooks() {
     let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
 
     let hooks_dir = dir.path().join(".githooks");
     std::fs::create_dir_all(&hooks_dir).unwrap();
@@ -170,6 +171,7 @@ fn hooks_list_shows_configured_hooks() {
 #[test]
 fn hooks_list_fail_fast_mode() {
     let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
 
     let hooks_dir = dir.path().join(".githooks");
     std::fs::create_dir_all(&hooks_dir).unwrap();
@@ -200,6 +202,7 @@ fn hooks_list_fail_fast_mode() {
 #[test]
 fn hooks_list_commit_msg() {
     let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
 
     let hooks_dir = dir.path().join(".githooks");
     std::fs::create_dir_all(&hooks_dir).unwrap();
@@ -230,6 +233,7 @@ fn hooks_list_commit_msg() {
 #[test]
 fn hooks_list_no_hooks() {
     let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
 
     // No .githooks/ directory at all.
     Command::cargo_bin("git-std")
@@ -244,6 +248,7 @@ fn hooks_list_no_hooks() {
 #[test]
 fn hooks_list_multiple_hooks() {
     let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
 
     let hooks_dir = dir.path().join(".githooks");
     std::fs::create_dir_all(&hooks_dir).unwrap();
@@ -343,4 +348,44 @@ fn hooks_install_enable_none() {
     // All hooks should be .off.
     assert!(!hooks_dir.join("pre-commit").exists());
     assert!(hooks_dir.join("pre-commit.off").exists());
+}
+
+// ── repo-root resolution (#318) ─────────────────────────────────
+
+#[test]
+fn hooks_list_from_subdirectory() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "dprint check\n").unwrap();
+    let subdir = dir.path().join("src").join("nested");
+    std::fs::create_dir_all(&subdir).unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "list"])
+        .current_dir(&subdir)
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("pre-commit"));
+}
+
+#[test]
+fn hooks_install_from_subdirectory() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+    let subdir = dir.path().join("src");
+    std::fs::create_dir_all(&subdir).unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "install"])
+        .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
+        .current_dir(&subdir)
+        .assert()
+        .success();
+
+    assert!(dir.path().join(".githooks").exists());
+    assert!(!subdir.join(".githooks").exists());
 }
