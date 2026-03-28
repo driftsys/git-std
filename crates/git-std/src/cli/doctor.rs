@@ -10,9 +10,7 @@ use crate::ui;
 // Data model
 // ---------------------------------------------------------------------------
 
-// Variants are unused now because all section stubs return empty checks.
-// They will be constructed by later stories that add real checks.
-#[allow(dead_code)]
+#[allow(dead_code)] // Variants constructed by later stories (#323–#325); unused in skeleton.
 pub enum CheckStatus {
     Pass,
     Warn,
@@ -114,8 +112,11 @@ fn print_sections(sections: &[Section]) -> i32 {
     if any_fail { 1 } else { 0 }
 }
 
-fn run_json(_sections: &[Section]) -> i32 {
-    // Stub — filled in by story #326
-    println!("{{}}");
-    0
+fn run_json(sections: &[Section]) -> i32 {
+    // Stub output — replaced by story #326.
+    let any_fail = sections
+        .iter()
+        .any(|s| s.checks.iter().any(|c| matches!(c.status, CheckStatus::Fail)));
+    println!("{{\"sections\":[]}}");
+    if any_fail { 1 } else { 0 }
 }
