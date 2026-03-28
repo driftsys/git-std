@@ -60,6 +60,10 @@ impl Ecosystem for Python {
             Pm::Unknown => vec![SyncOutcome::NoLockFile],
         }
     }
+
+    fn lock_files(&self) -> &[&str] {
+        &["uv.lock", "poetry.lock"]
+    }
 }
 
 fn try_poetry_version(root: &Path, new_version: &str) -> WriteOutcome {

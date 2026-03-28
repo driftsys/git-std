@@ -74,6 +74,10 @@ impl Ecosystem for Node {
             )],
         }
     }
+
+    fn lock_files(&self) -> &[&str] {
+        &["package-lock.json", "yarn.lock", "pnpm-lock.yaml"]
+    }
 }
 
 fn try_npm_version(root: &Path, new_version: &str) -> WriteOutcome {

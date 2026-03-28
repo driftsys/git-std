@@ -43,6 +43,11 @@ pub trait Ecosystem {
 
     /// Regenerate lock file(s) after a version change.
     fn sync_lock(&self, root: &Path) -> Vec<SyncOutcome>;
+
+    /// Lock file name(s) this ecosystem manages (for dry-run display).
+    fn lock_files(&self) -> &[&str] {
+        &[]
+    }
 }
 
 /// Outcome of a version-write operation.
@@ -216,20 +221,27 @@ pub fn run_bump(
         }
 
         // Write version.
-        match eco.write_version(root, new_version) {
+        let version_updated = match eco.write_version(root, new_version) {
             WriteOutcome::CliModified { files } => {
                 modified_paths.extend(files);
+                true
             }
             WriteOutcome::Fallback { results } => {
                 for r in &results {
                     modified_paths.push(r.path.clone());
                 }
+                let did_update = !results.is_empty();
                 update_results.extend(results);
+                did_update
             }
-            WriteOutcome::NotDetected => {}
+            WriteOutcome::NotDetected => false,
+        };
+
+        // Only sync lock files if version was actually updated.
+        if !version_updated {
+            continue;
         }
 
-        // Sync lock files.
         for outcome in eco.sync_lock(root) {
             match outcome {
                 SyncOutcome::Synced { lock_file } => {
@@ -266,52 +278,16 @@ pub fn run_bump(
     }
 }
 
-/// Dry-run: display what would happen without writing anything.
-pub fn dry_run_bump(root: &Path, custom_files: &[CustomVersionFile]) -> Vec<String> {
-    let ecosystems = all_ecosystems();
-    let mut updated_names: Vec<String> = Vec::new();
-
-    for eco in &ecosystems {
-        if !eco.detect(root) {
-            continue;
-        }
-        for name in eco.version_files() {
-            if root.join(name).exists() {
-                updated_names.push(name.to_string());
-            }
-        }
-
-        // Show which lock files would be synced.
-        for name in eco.version_files() {
-            let _ = name; // lock sync display handled below
-        }
-    }
-
-    // Custom version files.
-    for cf in custom_files {
-        let path = root.join(&cf.path);
-        if path.exists() {
-            updated_names.push(cf.path.display().to_string());
-        }
-    }
-
-    updated_names
-}
-
-/// Emit dry-run lock sync messages for ecosystems whose version file is in
-/// `updated_names`.
+/// Emit dry-run lock sync messages. Only checks file existence — never
+/// runs ecosystem tools.
 pub fn dry_run_lock_sync(root: &Path) {
     let ecosystems = all_ecosystems();
     for eco in &ecosystems {
         if !eco.detect(root) {
             continue;
         }
-        for outcome in eco.sync_lock(root) {
-            if let SyncOutcome::Synced { lock_file }
-            | SyncOutcome::ToolMissing { lock_file, .. }
-            | SyncOutcome::Failed { lock_file, .. } = &outcome
-                && root.join(lock_file).exists()
-            {
+        for lock_file in eco.lock_files() {
+            if root.join(lock_file).exists() {
                 ui::item("Would sync:", lock_file);
             }
         }

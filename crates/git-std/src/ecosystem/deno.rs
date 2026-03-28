@@ -35,4 +35,8 @@ impl Ecosystem for Deno {
             &["install", "--frozen=false"],
         )]
     }
+
+    fn lock_files(&self) -> &[&str] {
+        &["deno.lock"]
+    }
 }
