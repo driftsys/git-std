@@ -26,21 +26,30 @@ const LFS_INSTALL_URL: &str = "https://git-lfs.github.com";
 ///
 /// Returns the process exit code (`0` success, `1` failure).
 pub fn run(dry_run: bool) -> i32 {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let root = match crate::git::workdir(&cwd) {
+        Ok(r) => r,
+        Err(_) => {
+            crate::ui::error("not inside a git repository");
+            return 1;
+        }
+    };
+
     let mut failed = false;
 
     // Tier 1 — built-in checks
-    if !check_hooks_path(dry_run) {
+    if !check_hooks_path(&root, dry_run) {
         failed = true;
     }
-    if !check_lfs(dry_run) {
+    if !check_lfs(&root, dry_run) {
         return 1; // hard failure — git-lfs missing
     }
-    if !check_blame_ignore_revs(dry_run) {
+    if !check_blame_ignore_revs(&root, dry_run) {
         failed = true;
     }
 
     // Tier 2 — custom bootstrap.hooks
-    if Path::new(BOOTSTRAP_HOOKS_FILE).exists() {
+    if root.join(BOOTSTRAP_HOOKS_FILE).exists() {
         if dry_run {
             ui::info(&format!("{}  custom bootstrap hooks executed", ui::pass()));
         } else {
@@ -55,8 +64,8 @@ pub fn run(dry_run: bool) -> i32 {
 }
 
 /// Detect `.githooks/` and set `core.hooksPath`.
-fn check_hooks_path(dry_run: bool) -> bool {
-    let hooks_dir = Path::new(".githooks");
+fn check_hooks_path(root: &Path, dry_run: bool) -> bool {
+    let hooks_dir = root.join(".githooks");
     if !hooks_dir.exists() {
         return true;
     }
@@ -86,13 +95,13 @@ fn check_hooks_path(dry_run: bool) -> bool {
 ///
 /// Returns `false` only when LFS rules are detected but `git-lfs` is not
 /// installed — this is a hard failure (exit 1).
-fn check_lfs(dry_run: bool) -> bool {
-    let attrs = Path::new(".gitattributes");
+fn check_lfs(root: &Path, dry_run: bool) -> bool {
+    let attrs = root.join(".gitattributes");
     if !attrs.exists() {
         return true;
     }
 
-    let content = match std::fs::read_to_string(attrs) {
+    let content = match std::fs::read_to_string(&attrs) {
         Ok(c) => c,
         Err(e) => {
             ui::error(&format!("cannot read .gitattributes: {e}"));
@@ -151,8 +160,8 @@ fn check_lfs(dry_run: bool) -> bool {
 }
 
 /// Detect `.git-blame-ignore-revs` and set `blame.ignoreRevsFile`.
-fn check_blame_ignore_revs(dry_run: bool) -> bool {
-    let path = Path::new(".git-blame-ignore-revs");
+fn check_blame_ignore_revs(root: &Path, dry_run: bool) -> bool {
+    let path = root.join(".git-blame-ignore-revs");
     if !path.exists() {
         return true;
     }
@@ -186,22 +195,31 @@ fn check_blame_ignore_revs(dry_run: bool) -> bool {
 ///
 /// Returns the process exit code (`0` success, `1` failure).
 pub fn install(force: bool) -> i32 {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let root = match crate::git::workdir(&cwd) {
+        Ok(r) => r,
+        Err(_) => {
+            crate::ui::error("not inside a git repository");
+            return 1;
+        }
+    };
+
     let mut created = Vec::new();
     let mut skipped = Vec::new();
 
     // 1. Generate ./bootstrap
-    match write_bootstrap_script(force) {
+    match write_bootstrap_script(&root, force) {
         FileResult::Created => created.push(BOOTSTRAP_SCRIPT),
         FileResult::Skipped => skipped.push(BOOTSTRAP_SCRIPT),
         FileResult::Error => return 1,
     }
 
     // 2. Generate .githooks/bootstrap.hooks
-    if let Err(e) = std::fs::create_dir_all(".githooks") {
+    if let Err(e) = std::fs::create_dir_all(root.join(".githooks")) {
         ui::error(&format!("cannot create .githooks/: {e}"));
         return 1;
     }
-    match write_bootstrap_hooks(force) {
+    match write_bootstrap_hooks(&root, force) {
         FileResult::Created => created.push(BOOTSTRAP_HOOKS_FILE),
         FileResult::Skipped => skipped.push(BOOTSTRAP_HOOKS_FILE),
         FileResult::Error => return 1,
@@ -210,13 +228,14 @@ pub fn install(force: bool) -> i32 {
     // 3. Append post-clone reminder to AGENTS.md and README.md
     let mut modified_docs: Vec<&str> = Vec::new();
     for doc in &["AGENTS.md", "README.md"] {
-        if Path::new(doc).exists()
-            && let Err(e) = append_bootstrap_marker(doc)
+        let doc_path = root.join(doc);
+        if doc_path.exists()
+            && let Err(e) = append_bootstrap_marker(&doc_path)
         {
             ui::error(&format!("cannot update {doc}: {e}"));
             return 1;
         }
-        if Path::new(doc).exists() {
+        if doc_path.exists() {
             modified_docs.push(doc);
         }
     }
@@ -226,7 +245,7 @@ pub fn install(force: bool) -> i32 {
     stage_files.extend(modified_docs);
     if !stage_files.is_empty() {
         let mut cmd = Command::new("git");
-        cmd.arg("add").arg("--");
+        cmd.current_dir(&root).arg("add").arg("--");
         for f in &stage_files {
             cmd.arg(f);
         }
@@ -257,14 +276,14 @@ enum FileResult {
 }
 
 /// Write the `./bootstrap` shell wrapper.
-fn write_bootstrap_script(force: bool) -> FileResult {
-    let path = Path::new(BOOTSTRAP_SCRIPT);
+fn write_bootstrap_script(root: &Path, force: bool) -> FileResult {
+    let path = root.join(BOOTSTRAP_SCRIPT);
     if path.exists() && !force {
         return FileResult::Skipped;
     }
 
     let script = generate_bootstrap_script();
-    if let Err(e) = std::fs::write(path, &script) {
+    if let Err(e) = std::fs::write(&path, &script) {
         ui::error(&format!("cannot write {BOOTSTRAP_SCRIPT}: {e}"));
         return FileResult::Error;
     }
@@ -274,7 +293,7 @@ fn write_bootstrap_script(force: bool) -> FileResult {
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o755);
-        if let Err(e) = std::fs::set_permissions(path, perms) {
+        if let Err(e) = std::fs::set_permissions(&path, perms) {
             ui::error(&format!(
                 "cannot set permissions on {BOOTSTRAP_SCRIPT}: {e}"
             ));
@@ -286,20 +305,21 @@ fn write_bootstrap_script(force: bool) -> FileResult {
 }
 
 /// Write `.githooks/bootstrap.hooks` template.
-fn write_bootstrap_hooks(force: bool) -> FileResult {
-    let path = Path::new(BOOTSTRAP_HOOKS_FILE);
+fn write_bootstrap_hooks(root: &Path, force: bool) -> FileResult {
+    let path = root.join(BOOTSTRAP_HOOKS_FILE);
     if path.exists() && !force {
         return FileResult::Skipped;
     }
 
-    let has_lfs = Path::new(".gitattributes")
+    let attrs_path = root.join(".gitattributes");
+    let has_lfs = attrs_path
         .exists()
-        .then(|| std::fs::read_to_string(".gitattributes").unwrap_or_default())
+        .then(|| std::fs::read_to_string(&attrs_path).unwrap_or_default())
         .map(|c| c.lines().any(|l| l.contains("filter=lfs")))
         .unwrap_or(false);
 
     let template = generate_bootstrap_hooks_template(has_lfs);
-    if let Err(e) = std::fs::write(path, &template) {
+    if let Err(e) = std::fs::write(&path, &template) {
         ui::error(&format!("cannot write {BOOTSTRAP_HOOKS_FILE}: {e}"));
         return FileResult::Error;
     }
@@ -308,7 +328,7 @@ fn write_bootstrap_hooks(force: bool) -> FileResult {
 }
 
 /// Append a post-clone reminder to a documentation file, idempotently.
-fn append_bootstrap_marker(path: &str) -> std::io::Result<()> {
+fn append_bootstrap_marker(path: &Path) -> std::io::Result<()> {
     let content = std::fs::read_to_string(path).unwrap_or_default();
     if content.contains(MARKER) {
         return Ok(());

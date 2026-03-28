@@ -15,7 +15,13 @@ use crate::ui;
 /// - Prompts which hooks to enable (interactive multi-select)
 /// - Writes active shims for selected hooks, .off shims for the rest
 pub fn install() -> i32 {
-    // 1. Set core.hooksPath
+    // Resolve hooks dir from repo root so it works from subdirectories.
+    let hooks_dir = match super::hooks_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
+
+    // 1. Set core.hooksPath (git resolves relative to repo root)
     let status = Command::new("git")
         .args(["config", "core.hooksPath", ".githooks"])
         .status();
@@ -32,9 +38,8 @@ pub fn install() -> i32 {
     }
 
     // 2. Ensure .githooks/ exists
-    let hooks_dir = std::path::Path::new(".githooks");
     if !hooks_dir.exists()
-        && let Err(e) = std::fs::create_dir_all(hooks_dir)
+        && let Err(e) = std::fs::create_dir_all(&hooks_dir)
     {
         ui::error(&format!("cannot create .githooks/: {e}"));
         return 1;

@@ -12,7 +12,10 @@ pub fn enable(hook_name: &str) -> i32 {
         return 1;
     }
 
-    let hooks_dir = std::path::Path::new(".githooks");
+    let hooks_dir = match super::hooks_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
     let active_path = hooks_dir.join(hook_name);
     let off_path = hooks_dir.join(format!("{hook_name}.off"));
 
@@ -54,7 +57,10 @@ pub fn disable(hook_name: &str) -> i32 {
         return 1;
     }
 
-    let hooks_dir = std::path::Path::new(".githooks");
+    let hooks_dir = match super::hooks_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
     let active_path = hooks_dir.join(hook_name);
     let off_path = hooks_dir.join(format!("{hook_name}.off"));
 
