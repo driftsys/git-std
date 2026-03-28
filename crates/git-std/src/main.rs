@@ -153,9 +153,17 @@ fn main() {
         }
         Command::Config { subcommand } => {
             let cwd = std::env::current_dir().unwrap_or_default();
+            // Try CWD first; fall back to repo root so config is found
+            // from subdirectories. If neither has the file, CWD is used
+            // (defaults apply).
+            let dir = if cwd.join(".git-std.toml").exists() {
+                cwd.clone()
+            } else {
+                git::workdir(&cwd).unwrap_or(cwd)
+            };
             let code = match subcommand {
-                ConfigCommand::List { format } => cli::config::list(&cwd, format),
-                ConfigCommand::Get { key, format } => cli::config::get(&cwd, &key, format),
+                ConfigCommand::List { format } => cli::config::list(&dir, format),
+                ConfigCommand::Get { key, format } => cli::config::get(&dir, &key, format),
             };
             std::process::exit(code);
         }

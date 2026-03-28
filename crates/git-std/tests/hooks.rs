@@ -1082,3 +1082,42 @@ fn hooks_run_fix_mode_rejects_staged_submodules() {
         "should mention submodules in error, got:\n{stderr}"
     );
 }
+
+// ── repo-root resolution (#320) ─────────────────────────────────
+
+#[test]
+fn hooks_run_from_subdirectory() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "echo ok\n").unwrap();
+
+    // Create an active shim for pre-commit so `hooks run` finds it.
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["hooks", "install"])
+        .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let subdir = dir.path().join("src").join("nested");
+    std::fs::create_dir_all(&subdir).unwrap();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .current_dir(&subdir)
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    let combined = format!("{stdout}{stderr}");
+    assert!(
+        combined.contains('\u{2713}'),
+        "hooks run from subdirectory should succeed and show check mark, got:\n{combined}"
+    );
+}
