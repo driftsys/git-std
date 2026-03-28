@@ -56,6 +56,38 @@ pub fn walk_range(dir: &Path, range: &str) -> Result<Vec<(String, String)>, GitE
     Ok(parse_nul_delimited_log(&output))
 }
 
+/// Walk commits from `from` (inclusive) back to `until` (exclusive),
+/// filtered to only those touching the given paths.
+///
+/// Uses `--first-parent` to avoid counting merge-commit duplicates.
+/// Returns `(full_sha, commit_message)` pairs in topological order.
+// Dead code until Story 4 (#364) wires monorepo bump to this function.
+#[allow(dead_code)]
+pub(crate) fn walk_commits_for_path(
+    dir: &Path,
+    from: &str,
+    until: Option<&str>,
+    paths: &[&str],
+) -> Result<Vec<(String, String)>, GitError> {
+    let range = match until {
+        Some(u) => format!("{u}..{from}"),
+        None => from.to_string(),
+    };
+
+    let mut args = vec![
+        "log",
+        "--format=%H%x00%B%x00",
+        "--topo-order",
+        "--first-parent",
+        &range,
+        "--",
+    ];
+    args.extend(paths);
+
+    let output = git(dir, &args)?;
+    Ok(parse_nul_delimited_log(&output))
+}
+
 /// Parse NUL-delimited `git log` output into `(sha, message)` pairs.
 fn parse_nul_delimited_log(output: &str) -> Vec<(String, String)> {
     let mut commits = Vec::new();
@@ -301,5 +333,121 @@ mod tests {
         assert_eq!(tags.len(), 2);
         assert_eq!(tags[0].1, "v0.2.0");
         assert_eq!(tags[1].1, "v0.1.0");
+    }
+
+    /// Create a file in a specific subdirectory and commit it.
+    fn commit_in_path(dir: &Path, subdir: &str, message: &str) -> String {
+        let ts = next_timestamp();
+        let full_dir = dir.join(subdir);
+        std::fs::create_dir_all(&full_dir).unwrap();
+        let filename = format!("{subdir}/file-{}.txt", &ts[..10]);
+        std::fs::write(dir.join(&filename), message).unwrap();
+        std::process::Command::new("git")
+            .current_dir(dir)
+            .args(["add", &filename])
+            .output()
+            .unwrap();
+        let output = std::process::Command::new("git")
+            .current_dir(dir)
+            .args(["commit", "-m", message])
+            .env("GIT_COMMITTER_DATE", &ts)
+            .env("GIT_AUTHOR_DATE", &ts)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git commit failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        git(dir, &["rev-parse", "HEAD"]).unwrap()
+    }
+
+    #[test]
+    fn walk_commits_for_path_filters_by_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        let base = commit(dir.path(), "chore: init");
+        commit_in_path(dir.path(), "crates/core", "feat: core feature");
+        commit_in_path(dir.path(), "crates/cli", "feat: cli feature");
+        commit_in_path(dir.path(), "crates/core", "fix: core fix");
+        let head = head_oid(dir.path()).unwrap();
+
+        // Only core commits
+        let core_commits =
+            walk_commits_for_path(dir.path(), &head, Some(&base), &["crates/core"]).unwrap();
+        assert_eq!(core_commits.len(), 2);
+        assert_eq!(core_commits[0].1, "fix: core fix");
+        assert_eq!(core_commits[1].1, "feat: core feature");
+
+        // Only cli commits
+        let cli_commits =
+            walk_commits_for_path(dir.path(), &head, Some(&base), &["crates/cli"]).unwrap();
+        assert_eq!(cli_commits.len(), 1);
+        assert_eq!(cli_commits[0].1, "feat: cli feature");
+    }
+
+    #[test]
+    fn walk_commits_for_path_multi_package_commit_appears_in_both() {
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        let base = commit(dir.path(), "chore: init");
+
+        // Create a commit that touches both core and cli
+        let ts = next_timestamp();
+        std::fs::create_dir_all(dir.path().join("crates/core")).unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/cli")).unwrap();
+        std::fs::write(dir.path().join("crates/core/shared.txt"), "shared").unwrap();
+        std::fs::write(dir.path().join("crates/cli/shared.txt"), "shared").unwrap();
+        std::process::Command::new("git")
+            .current_dir(dir.path())
+            .args(["add", "."])
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .current_dir(dir.path())
+            .args(["commit", "-m", "feat: shared change"])
+            .env("GIT_COMMITTER_DATE", &ts)
+            .env("GIT_AUTHOR_DATE", &ts)
+            .output()
+            .unwrap();
+        let head = head_oid(dir.path()).unwrap();
+
+        let core_commits =
+            walk_commits_for_path(dir.path(), &head, Some(&base), &["crates/core"]).unwrap();
+        let cli_commits =
+            walk_commits_for_path(dir.path(), &head, Some(&base), &["crates/cli"]).unwrap();
+
+        assert_eq!(core_commits.len(), 1);
+        assert_eq!(cli_commits.len(), 1);
+        assert_eq!(core_commits[0].1, "feat: shared change");
+        assert_eq!(cli_commits[0].1, "feat: shared change");
+    }
+
+    #[test]
+    fn walk_commits_for_path_empty_when_no_matching_commits() {
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        let base = commit(dir.path(), "chore: init");
+        commit_in_path(dir.path(), "crates/core", "feat: core only");
+        let head = head_oid(dir.path()).unwrap();
+
+        let commits =
+            walk_commits_for_path(dir.path(), &head, Some(&base), &["crates/cli"]).unwrap();
+        assert!(commits.is_empty());
+    }
+
+    #[test]
+    fn walk_commits_for_path_without_until() {
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        commit_in_path(dir.path(), "crates/core", "feat: core feature");
+        commit_in_path(dir.path(), "crates/cli", "feat: cli feature");
+        let head = head_oid(dir.path()).unwrap();
+
+        // Without until, returns all matching commits from HEAD back
+        let core_commits =
+            walk_commits_for_path(dir.path(), &head, None, &["crates/core"]).unwrap();
+        assert_eq!(core_commits.len(), 1);
+        assert_eq!(core_commits[0].1, "feat: core feature");
     }
 }
