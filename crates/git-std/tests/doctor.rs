@@ -254,3 +254,89 @@ fn doctor_json_fail_status_when_checks_fail() {
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(parsed["status"], "fail");
 }
+
+// ===========================================================================
+// #320 — subdirectory and worktree invocation
+// ===========================================================================
+
+#[test]
+fn doctor_from_subdirectory() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+    std::fs::write(
+        dir.path().join(".git-std.toml"),
+        "[versioning]\ntag_prefix = \"v\"\n",
+    )
+    .unwrap();
+
+    let subdir = dir.path().join("src");
+    std::fs::create_dir_all(&subdir).unwrap();
+
+    git_std()
+        .args(["doctor"])
+        .current_dir(&subdir)
+        .assert()
+        .success()
+        .stderr(contains("hooks"))
+        .stderr(contains("config"));
+}
+
+#[test]
+fn doctor_from_git_worktree() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+
+    // Set up a valid repo with hooks, config, and commit them so the
+    // worktree's working tree will contain these tracked files.
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    std::fs::write(dir.path().join(".githooks/.gitkeep"), "").unwrap();
+    std::fs::write(
+        dir.path().join(".git-std.toml"),
+        "[versioning]\ntag_prefix = \"v\"\n",
+    )
+    .unwrap();
+    git(dir.path(), &["add", "."]);
+    git(dir.path(), &["commit", "-m", "initial commit"]);
+
+    // Set core.hooksPath (this is a local git config, shared across worktrees).
+    git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+
+    // Create a real git worktree inside a separate tempdir so paths never collide.
+    let wt_parent = tempfile::tempdir().unwrap();
+    let wt_path = wt_parent.path().join("worktree-test");
+    git(
+        dir.path(),
+        &[
+            "worktree",
+            "add",
+            wt_path.to_str().unwrap(),
+            "-b",
+            "test-branch",
+        ],
+    );
+
+    // The worktree should have a .git file (not a directory).
+    let git_entry = wt_path.join(".git");
+    assert!(git_entry.exists(), ".git should exist in worktree");
+    assert!(
+        git_entry.is_file(),
+        ".git in worktree should be a file, not a directory"
+    );
+
+    // Tracked files should be visible in the worktree.
+    assert!(
+        wt_path.join(".githooks").exists(),
+        ".githooks/ should be present in worktree via tracked files"
+    );
+
+    // Run doctor from the worktree — should find repo-level config.
+    git_std()
+        .args(["doctor"])
+        .current_dir(&wt_path)
+        .assert()
+        .success()
+        .stderr(contains("hooks"))
+        .stderr(contains("config"));
+}

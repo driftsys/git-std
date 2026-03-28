@@ -269,3 +269,60 @@ fn config_get_text_bug_url_null_goes_to_stderr() {
 fn config_without_subcommand_exits_2() {
     git_std().arg("config").assert().code(2);
 }
+
+// ── repo-root resolution (#320) ─────────────────────────────────
+
+fn init_git_repo(dir: &std::path::Path) {
+    let status = std::process::Command::new("git")
+        .current_dir(dir)
+        .args(["init"])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let status = std::process::Command::new("git")
+        .current_dir(dir)
+        .args(["config", "user.name", "Test"])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let status = std::process::Command::new("git")
+        .current_dir(dir)
+        .args(["config", "user.email", "test@test.com"])
+        .status()
+        .unwrap();
+    assert!(status.success());
+}
+
+#[test]
+fn config_list_from_subdirectory() {
+    let dir = tempfile::tempdir().unwrap();
+    init_git_repo(dir.path());
+    std::fs::write(dir.path().join(".git-std.toml"), "strict = true\n").unwrap();
+
+    let subdir = dir.path().join("src");
+    std::fs::create_dir_all(&subdir).unwrap();
+
+    git_std()
+        .args(["config", "list"])
+        .current_dir(&subdir)
+        .assert()
+        .success()
+        .stderr(contains("strict = true"));
+}
+
+#[test]
+fn config_get_from_subdirectory() {
+    let dir = tempfile::tempdir().unwrap();
+    init_git_repo(dir.path());
+    std::fs::write(dir.path().join(".git-std.toml"), "strict = true\n").unwrap();
+
+    let subdir = dir.path().join("src");
+    std::fs::create_dir_all(&subdir).unwrap();
+
+    git_std()
+        .args(["config", "get", "strict"])
+        .current_dir(&subdir)
+        .assert()
+        .success()
+        .stderr(contains("true"));
+}
