@@ -1,3 +1,4 @@
+use std::io::IsTerminal;
 use std::process::Command;
 
 use inquire::MultiSelect;
@@ -69,6 +70,13 @@ pub fn install() -> i32 {
                 .filter(|s| KNOWN_HOOKS.contains(s))
                 .collect(),
         }
+    } else if !std::io::stdin().is_terminal() {
+        ui::error("interactive prompt requires a TTY");
+        ui::hint("set GIT_STD_HOOKS_ENABLE to select hooks non-interactively");
+        ui::hint("  GIT_STD_HOOKS_ENABLE=all            enable all hooks");
+        ui::hint("  GIT_STD_HOOKS_ENABLE=pre-commit     comma-separated list");
+        ui::hint("  GIT_STD_HOOKS_ENABLE=none            skip all hooks");
+        return 1;
     } else {
         let options: Vec<&str> = KNOWN_HOOKS.to_vec();
         match MultiSelect::new("Which hooks do you want to enable?", options)
