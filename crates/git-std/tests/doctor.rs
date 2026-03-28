@@ -212,3 +212,45 @@ fn doctor_config_fail_when_invalid_toml() {
         .code(1)
         .stderr(contains("config"));
 }
+
+// ===========================================================================
+// #326 — --format json
+// ===========================================================================
+
+#[test]
+fn doctor_json_outputs_to_stdout() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+
+    let output = git_std()
+        .args(["doctor", "--format", "json"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stdout).expect("stdout should be valid JSON");
+    assert!(parsed.get("status").is_some());
+    assert!(parsed.get("sections").is_some());
+}
+
+#[test]
+fn doctor_json_fail_status_when_checks_fail() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    // No .githooks/ — hooks checks will fail
+
+    let output = git_std()
+        .args(["doctor", "--format", "json"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(parsed["status"], "fail");
+}

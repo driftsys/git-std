@@ -57,7 +57,7 @@ pub fn run(cwd: &Path, format: OutputFormat) -> i32 {
 }
 
 // ---------------------------------------------------------------------------
-// Health check sections
+// Sections (stubs — filled in by later stories)
 // ---------------------------------------------------------------------------
 
 fn hooks_section(root: &Path) -> Section {
@@ -81,10 +81,6 @@ fn hooks_section(root: &Path) -> Section {
     });
 
     // 2. core.hooksPath is configured correctly
-    //
-    // Uses `std::process::Command` directly — the same pattern as `bootstrap.rs`
-    // for ad-hoc git config reads. `crate::git::cmd::git` is not re-exported via
-    // `crate::git` and is intentionally kept as a low-level internal helper.
     let hooks_path_value = std::process::Command::new("git")
         .current_dir(root)
         .args(["config", "--get", "core.hooksPath"])
@@ -97,14 +93,7 @@ fn hooks_section(root: &Path) -> Section {
                 None
             }
         });
-    // Accept both the relative form (".githooks") and the absolute form that git
-    // may record when hooks are installed from a subdirectory / worktree.
-    let expected_relative = ".githooks";
-    let expected_absolute = root.join(".githooks").to_string_lossy().into_owned();
-    let hooks_path_ok = hooks_path_value
-        .as_deref()
-        .map(|v| v == expected_relative || v == expected_absolute)
-        .unwrap_or(false);
+    let hooks_path_ok = hooks_path_value.as_deref() == Some(".githooks");
     checks.push(Check {
         label: "core.hooksPath = .githooks".to_owned(),
         status: if hooks_path_ok {
@@ -180,11 +169,7 @@ fn bootstrap_section(root: &Path) -> Section {
     // 2. LFS check — only if .gitattributes exists AND contains filter=lfs
     if gitattributes_exists {
         let has_lfs = std::fs::read_to_string(&gitattributes_path)
-            .map(|c| {
-                c.lines()
-                    .filter(|l| !l.trim_start().starts_with('#'))
-                    .any(|l| l.split_whitespace().any(|tok| tok == "filter=lfs"))
-            })
+            .map(|c| c.lines().any(|l| l.contains("filter=lfs")))
             .unwrap_or(false);
 
         if has_lfs {
@@ -331,12 +316,52 @@ fn print_sections(sections: &[Section]) -> i32 {
 }
 
 fn run_json(sections: &[Section]) -> i32 {
-    // Stub output — replaced by story #326.
     let any_fail = sections.iter().any(|s| {
         s.checks
             .iter()
             .any(|c| matches!(c.status, CheckStatus::Fail))
     });
-    println!("{{\"sections\":[]}}");
+
+    let sections_json: Vec<serde_json::Value> = sections
+        .iter()
+        .map(|s| {
+            let section_fail = s
+                .checks
+                .iter()
+                .any(|c| matches!(c.status, CheckStatus::Fail));
+            let checks_json: Vec<serde_json::Value> = s
+                .checks
+                .iter()
+                .map(|c| {
+                    let status = match c.status {
+                        CheckStatus::Pass => "pass",
+                        CheckStatus::Warn => "warn",
+                        CheckStatus::Fail => "fail",
+                    };
+                    let mut obj = serde_json::json!({
+                        "name": c.label,
+                        "status": status,
+                    });
+                    if let Some(hint) = &c.hint {
+                        obj["hint"] = serde_json::Value::String(hint.clone());
+                    }
+                    obj
+                })
+                .collect();
+
+            serde_json::json!({
+                "name": s.name,
+                "status": if section_fail { "fail" } else { "pass" },
+                "checks": checks_json,
+            })
+        })
+        .collect();
+
+    let output = serde_json::json!({
+        "status": if any_fail { "fail" } else { "pass" },
+        "sections": sections_json,
+    });
+
+    println!("{output}");
     if any_fail { 1 } else { 0 }
 }
