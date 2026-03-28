@@ -89,7 +89,7 @@ pub fn list(dir: &Path, format: OutputFormat) -> i32 {
         ScopesConfig::None => print_kv("scopes", "none", scopes_src),
         ScopesConfig::Auto => {
             print_kv("scopes", "auto", scopes_src);
-            let resolved = cfg.resolved_scopes(dir);
+            let resolved = cfg.resolved_scopes(dir, None);
             if !resolved.is_empty() {
                 ui::detail(&format!("resolved: {}", resolved.join(", ")));
             }

@@ -46,7 +46,7 @@ pub(super) fn prompt_scope(config: &ProjectConfig) -> Result<Option<String>> {
         }
         ScopesConfig::Auto => {
             let cwd = std::env::current_dir().unwrap_or_default();
-            let discovered = config.resolved_scopes(&cwd);
+            let discovered = config.resolved_scopes(&cwd, None);
             if discovered.is_empty() {
                 let mut prompt = Text::new("scope:");
                 if config.strict {
