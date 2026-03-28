@@ -575,11 +575,8 @@ fn finalize_monorepo_bump(
                 );
             }
         }
-        if root_plan.is_some() {
-            ui::item(
-                "CHANGELOG.md",
-                &format!("prepended {} section", root_plan.as_ref().unwrap().tag),
-            );
+        if let Some(root) = root_plan {
+            ui::item("CHANGELOG.md", &format!("prepended {} section", root.tag));
         }
     }
 
@@ -691,7 +688,10 @@ fn finalize_monorepo_bump(
             commit: commit_msg,
             dry_run: false,
         };
-        println!("{}", serde_json::to_string(&result).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string(&result).expect("serializable result struct")
+        );
     } else {
         ui::blank();
         ui::info("Push with: git push --follow-tags");
@@ -783,5 +783,8 @@ fn print_plan_json(root_plan: &Option<RootPlan>, package_plans: &[PackageBumpPla
             .collect(),
         dry_run: true,
     };
-    println!("{}", serde_json::to_string(&result).unwrap());
+    println!(
+        "{}",
+        serde_json::to_string(&result).expect("serializable plan struct")
+    );
 }
