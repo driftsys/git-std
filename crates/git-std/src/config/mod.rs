@@ -167,12 +167,28 @@ impl ProjectConfig {
     /// Resolve the effective scope list.
     ///
     /// Returns the explicit list, auto-discovered names, or an empty vec.
+    /// When `monorepo = true`, package names and the project name are always
+    /// appended to the scope list.
     pub fn resolved_scopes(&self, repo_root: &Path) -> Vec<String> {
-        match &self.scopes {
-            ScopesConfig::None => Vec::new(),
+        let mut scopes = match &self.scopes {
+            ScopesConfig::None if self.monorepo => discover_scopes(repo_root),
+            ScopesConfig::None => return Vec::new(),
             ScopesConfig::Auto => discover_scopes(repo_root),
             ScopesConfig::List(list) => list.clone(),
+        };
+
+        if self.monorepo {
+            let packages = self.resolved_packages(repo_root);
+            for pkg in &packages {
+                if !scopes.contains(&pkg.name) {
+                    scopes.push(pkg.name.clone());
+                }
+            }
+            scopes.sort();
+            scopes.dedup();
         }
+
+        scopes
     }
 
     /// Resolve the effective package list.
@@ -196,20 +212,30 @@ impl ProjectConfig {
     /// or `strict = true` is set in `.git-std.toml`.
     ///
     /// When `scopes = "auto"`, scopes are discovered from the workspace
-    /// directory layout under `repo_root`.
+    /// directory layout under `repo_root`. When `monorepo = true`, package
+    /// names are always included regardless of scope mode.
     pub fn to_lint_config(&self, strict: bool, repo_root: &Path) -> standard_commit::LintConfig {
         if self.strict || strict {
-            let (scopes, require_scope) = match &self.scopes {
-                ScopesConfig::None => (None, false),
-                ScopesConfig::Auto => {
-                    let discovered = discover_scopes(repo_root);
-                    if discovered.is_empty() {
-                        (None, false)
-                    } else {
-                        (Some(discovered), true)
-                    }
+            let (scopes, require_scope) = if self.monorepo {
+                let resolved = self.resolved_scopes(repo_root);
+                if resolved.is_empty() {
+                    (None, false)
+                } else {
+                    (Some(resolved), true)
                 }
-                ScopesConfig::List(list) => (Some(list.clone()), true),
+            } else {
+                match &self.scopes {
+                    ScopesConfig::None => (None, false),
+                    ScopesConfig::Auto => {
+                        let discovered = discover_scopes(repo_root);
+                        if discovered.is_empty() {
+                            (None, false)
+                        } else {
+                            (Some(discovered), true)
+                        }
+                    }
+                    ScopesConfig::List(list) => (Some(list.clone()), true),
+                }
             };
             // `chore(release)` is the standard commit message produced by
             // `git std bump`. Always allow it so the tool's own commits

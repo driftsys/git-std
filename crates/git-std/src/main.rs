@@ -87,6 +87,7 @@ fn main() {
             stdout,
             output,
             range,
+            package,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
             let changelog_config = project_config.to_changelog_config();
@@ -95,8 +96,12 @@ fn main() {
                 stdout,
                 output,
                 range,
+                package,
+                monorepo: project_config.monorepo,
+                tag_template: project_config.versioning.tag_template.clone(),
+                tag_prefix: project_config.versioning.tag_prefix.clone(),
             };
-            let code = cli::changelog::run(&changelog_config, &opts);
+            let code = cli::changelog::run(&project_config, &changelog_config, &opts);
             std::process::exit(code);
         }
         Command::Bump {
