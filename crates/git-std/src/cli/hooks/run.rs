@@ -17,6 +17,11 @@ struct CommandResult {
     exit_code: Option<i32>,
     /// Whether this command was advisory.
     advisory: bool,
+    /// Combined stdout+stderr captured from the child process.
+    /// Empty when the command succeeded (pass) or when quiet=true.
+    /// Used only in human-readable output path, not in JSON path.
+    #[allow(dead_code)]
+    captured_output: String,
 }
 
 /// JSON output schema for a single executed command.
@@ -73,7 +78,7 @@ fn format_display(command_text: &str, glob: Option<&str>) -> String {
 /// Execute a single hook command, optionally printing its result line.
 ///
 /// When `quiet` is true, the command runs silently (for JSON output mode).
-/// Otherwise prints a pending indicator before spawning the command.
+/// Otherwise animates a spinner while the command runs and prints the result.
 ///
 /// `staged_files` is passed as `$@` to the shell command (positional
 /// parameters). For `pre-commit` this is the list of staged files; for
@@ -84,42 +89,64 @@ fn execute_and_print(
     cmd: &HookCommand,
     msg_path: &str,
     staged_files: &[String],
-    index: usize,
-    total: usize,
     quiet: bool,
 ) -> (CommandResult, bool) {
     let command_text = substitute_msg(&cmd.command, msg_path);
     let is_advisory = cmd.prefix == Prefix::Advisory;
     let display = format_display(&command_text, cmd.glob.as_deref());
 
-    // Show the pending indicator before spawning.
-    if !quiet {
-        ui::pending(index, total, &display);
-    }
-
-    // Execute via sh -c <script> _ <arg1> <arg2>...
-    // The `_` becomes $0 (conventional placeholder), staged_files become $@.
-    let status = Command::new("sh")
-        .arg("-c")
-        .arg(&command_text)
-        .arg("_") // $0
-        .args(staged_files) // $@
-        .status();
-
-    let exit_code = match status {
-        Ok(s) => s.code(),
-        Err(_) => Some(127),
+    // Run the command, capturing output only on TTY (to show on failure).
+    // On non-TTY (tests, CI), let output inherit so it's visible.
+    let (exit_code, captured) = if !quiet && ui::is_tty() {
+        // TTY: use spinner and capture output to show only on failure
+        ui::spin_while(&display, || {
+            let output = Command::new("sh")
+                .arg("-c")
+                .arg(&command_text)
+                .arg("_")
+                .args(staged_files)
+                .output();
+            match output {
+                Ok(o) => {
+                    let mut combined = String::from_utf8_lossy(&o.stdout).into_owned();
+                    combined.push_str(&String::from_utf8_lossy(&o.stderr));
+                    (o.status.code(), combined.trim_end().to_string())
+                }
+                Err(_) => (Some(127), String::new()),
+            }
+        })
+    } else if !quiet {
+        // Non-TTY: show pending, let output inherit, print result
+        ui::pending_non_tty(&display);
+        let status = Command::new("sh")
+            .arg("-c")
+            .arg(&command_text)
+            .arg("_")
+            .args(staged_files)
+            .status();
+        let code = match status {
+            Ok(s) => s.code(),
+            Err(_) => Some(127),
+        };
+        (code, String::new())
+    } else {
+        // JSON / quiet mode: no spinner, no output capture or display.
+        let status = Command::new("sh")
+            .arg("-c")
+            .arg(&command_text)
+            .arg("_")
+            .args(staged_files)
+            .status();
+        let code = match status {
+            Ok(s) => s.code(),
+            Err(_) => Some(127),
+        };
+        (code, String::new())
     };
 
     let success = exit_code == Some(0);
 
-    // On a TTY, move the cursor back to the start of the pending line and
-    // clear it so the result line overwrites it cleanly.
-    if !quiet && ui::is_tty() && yansi::is_enabled() {
-        eprint!("\r\x1b[K");
-    }
-
-    // Print the result line
+    // Print the result line and dump captured output on failure/advisory.
     if !quiet {
         if success {
             ui::info(&format!("{} {}", ui::pass(), display));
@@ -136,6 +163,15 @@ fn execute_and_print(
             };
             ui::info(&format!("{} {} {}", ui::fail(), display, info.red()));
         }
+
+        // Dump captured output below the result line on failure or advisory.
+        if !success && !captured.is_empty() {
+            ui::blank();
+            for line in captured.lines() {
+                ui::detail(line);
+            }
+            ui::blank();
+        }
     }
 
     let failed = !success && !is_advisory;
@@ -144,6 +180,7 @@ fn execute_and_print(
         CommandResult {
             exit_code,
             advisory: is_advisory,
+            captured_output: if quiet { String::new() } else { captured },
         },
         failed,
     )
@@ -282,8 +319,6 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
     let mut results: Vec<CommandResult> = Vec::new();
     let mut json_results: Vec<CommandExecutionJson> = Vec::new();
     let mut has_failure = false;
-    let total = commands.len();
-    let mut index: usize = 0;
 
     let is_json = format == OutputFormat::Json;
 
@@ -332,15 +367,7 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
             glob: cmd.glob.clone(),
         };
 
-        let (result, failed) = execute_and_print(
-            &resolved_cmd,
-            msg_path,
-            &staged_files,
-            index,
-            total,
-            is_json,
-        );
-        index += 1;
+        let (result, failed) = execute_and_print(&resolved_cmd, msg_path, &staged_files, is_json);
         if failed {
             has_failure = true;
         }
