@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.10.0] (2026-03-30)
+
+### Bug Fixes
+
+- **changelog:** warn when --range arguments are reversed ([69f576e]), fixes
+  [#127]
+- **hooks:** prevent stash corruption of renames by unstaging first ([b65ff30]),
+  fixes [#387]
+
+### Features
+
+- add spinner animation and output capture for hooks run command ([2298e1a])
+
+[0.10.0]: https://github.com/driftsys/git-std/compare/v0.9.0...v0.10.0
+[69f576e]: https://github.com/driftsys/git-std/commit/69f576e
+[#127]: https://github.com/driftsys/git-std/issues/127
+[b65ff30]: https://github.com/driftsys/git-std/commit/b65ff30
+[#387]: https://github.com/driftsys/git-std/issues/387
+[2298e1a]: https://github.com/driftsys/git-std/commit/2298e1a
+
 ## [0.9.0] (2026-03-28)
 
 ### Features
