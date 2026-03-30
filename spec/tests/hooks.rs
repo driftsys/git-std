@@ -137,3 +137,75 @@ fn hooks_run_glob_filtering() {
             "../snapshots/hooks/run_glob_filtering.stderr.expected"
         ]);
 }
+
+/// `hooks run` correctly handles staged renames with fix mode (#387).
+/// The stash dance corrupts renames by splitting them, but we repair
+/// them by re-staging the old name as a deletion after formatting.
+#[test]
+fn hooks_run_fix_mode_handles_staged_renames() {
+    let mut repo = TestRepo::new().with_hooks_file("pre-commit", "~ echo 'format check'\n");
+    repo.add_commit("chore: init");
+
+    // Create and commit a file, then rename it to stage the rename.
+    let original_file = "original.txt";
+    std::fs::write(repo.path().join(original_file), "content").expect("failed to write file");
+    std::process::Command::new("git")
+        .args(["add", original_file])
+        .current_dir(repo.path())
+        .status()
+        .expect("failed to add file");
+    std::process::Command::new("git")
+        .args(["commit", "-m", "chore: add file to rename"])
+        .current_dir(repo.path())
+        .status()
+        .expect("failed to commit file");
+
+    // Now stage a rename
+    let renamed_file = "renamed.txt";
+    std::process::Command::new("git")
+        .args(["mv", original_file, renamed_file])
+        .current_dir(repo.path())
+        .status()
+        .expect("failed to rename file");
+
+    // Run pre-commit hook with a fix command (~).
+    // Should succeed and repair the rename corruption from stash apply.
+    let output = std::process::Command::new(TestRepo::bin_path())
+        .args(["hooks", "run", "pre-commit"])
+        .current_dir(repo.path())
+        .output()
+        .expect("failed to run hooks run");
+
+    assert!(
+        output.status.success(),
+        "hooks run should succeed, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify the fix command ran successfully
+    assert!(
+        stderr.contains("echo 'format check'"),
+        "expected fix command to run, stderr: {stderr}"
+    );
+    // Verify no warning about the old name being formatted
+    assert!(
+        !stderr.contains(&format!(
+            "{original_file}: unstaged changes were also formatted"
+        )),
+        "should not warn about old filename: {stderr}"
+    );
+
+    // Verify the rename is properly staged for commit
+    let git_status = std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(repo.path())
+        .output()
+        .expect("failed to get git status");
+    let status = String::from_utf8_lossy(&git_status.stdout);
+    // Should show the rename, not separate delete and add
+    assert!(
+        status.contains("R ") && status.contains(original_file) && status.contains(renamed_file),
+        "should show rename in git status, got: {status}"
+    );
+}

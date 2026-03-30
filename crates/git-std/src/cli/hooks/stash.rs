@@ -119,6 +119,39 @@ pub(super) fn stash_push() -> bool {
         .unwrap_or(false)
 }
 
+/// Get the new names of any files staged as renames.
+///
+/// Returns the new file paths from renames. Used to temporarily unstage
+/// renames before the stash dance to prevent corruption (#387).
+pub(super) fn fetch_staged_rename_targets() -> Vec<String> {
+    match Command::new("git")
+        .args(["diff", "--cached", "--diff-filter=R", "--name-only"])
+        .output()
+    {
+        Ok(o) => String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .map(String::from)
+            .collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Temporarily unstage renamed files by restoring only the new names from
+/// the HEAD. This prevents git stash from corrupting the rename.
+///
+/// Returns `true` on success, `false` on failure.
+pub(super) fn unstage_renames(rename_targets: &[String]) -> bool {
+    if rename_targets.is_empty() {
+        return true;
+    }
+    let mut cmd = Command::new("git");
+    cmd.args(["restore", "--staged", "--"]);
+    for f in rename_targets {
+        cmd.arg(f);
+    }
+    matches!(cmd.status(), Ok(s) if s.success())
+}
+
 /// Run `git stash apply --quiet`. Returns `true` on success, `false` on
 /// failure (e.g. merge conflicts).
 pub(super) fn stash_apply() -> bool {
