@@ -161,14 +161,16 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
 
     add_commit(dir.path(), "a.txt", "feat: add feature");
 
-    // Should still succeed — missing custom files are skipped silently.
+    // Should still succeed — missing custom files are skipped, but a warning is emitted.
     Command::cargo_bin("git-std")
         .unwrap()
         .args(["bump", "--skip-changelog"])
         .current_dir(dir.path())
         .assert()
         .success()
-        .stderr(predicate::str::contains("1.0.0 → 1.1.0"));
+        .stderr(predicate::str::contains("1.0.0 → 1.1.0"))
+        .stderr(predicate::str::contains("warning:"))
+        .stderr(predicate::str::contains("file not found"));
 
     // Cargo.toml should still be updated.
     let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();

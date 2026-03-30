@@ -104,7 +104,10 @@ pub fn native_write(root: &Path, engine: &dyn VersionFile, new_version: &str) ->
 
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
-            Err(_) => continue,
+            Err(e) => {
+                ui::warning(&format!("{}: {e}", path.display()));
+                continue;
+            }
         };
 
         if !engine.detect(&content) {
@@ -118,7 +121,10 @@ pub fn native_write(root: &Path, engine: &dyn VersionFile, new_version: &str) ->
 
         let updated = match engine.write_version(&content, new_version) {
             Ok(u) => u,
-            Err(_) => continue,
+            Err(e) => {
+                ui::warning(&format!("{}: {e}", path.display()));
+                continue;
+            }
         };
 
         let extra = engine.extra_info(&content, &updated);
@@ -127,6 +133,7 @@ pub fn native_write(root: &Path, engine: &dyn VersionFile, new_version: &str) ->
             .unwrap_or_else(|| new_version.to_string());
 
         if fs::write(&path, &updated).is_err() {
+            ui::warning(&format!("{}: failed to write file", path.display()));
             continue;
         }
 
@@ -310,26 +317,43 @@ fn process_custom_files(
 
         let path = root.join(engine.path());
         if !path.exists() {
+            ui::warning(&format!("{}: file not found", path.display()));
             continue;
         }
 
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
-            Err(_) => continue,
+            Err(e) => {
+                ui::warning(&format!("{}: {e}", path.display()));
+                continue;
+            }
         };
 
         if !engine.detect(&content) {
+            ui::warning(&format!(
+                "{}: pattern did not match file content",
+                path.display()
+            ));
             continue;
         }
 
         let old_version = match engine.read_version(&content) {
             Some(v) => v,
-            None => continue,
+            None => {
+                ui::warning(&format!(
+                    "{}: could not extract version from matched content",
+                    path.display()
+                ));
+                continue;
+            }
         };
 
         let updated = match engine.write_version(&content, new_version) {
             Ok(u) => u,
-            Err(_) => continue,
+            Err(e) => {
+                ui::warning(&format!("{}: {e}", path.display()));
+                continue;
+            }
         };
 
         let actual_new_version = engine
@@ -337,6 +361,7 @@ fn process_custom_files(
             .unwrap_or_else(|| new_version.to_string());
 
         if fs::write(&path, &updated).is_err() {
+            ui::warning(&format!("{}: failed to write file", path.display()));
             continue;
         }
 
