@@ -209,6 +209,20 @@ fn run_range(
         }
     };
 
+    // If the range produced no commits, check if the user reversed the arguments.
+    // Probe the inverse direction — if that yields commits, the range is backwards.
+    if commits.is_empty() {
+        let inverse_has_commits = git::walk_commits(dir, &from_oid, Some(&to_oid))
+            .map(|c| !c.is_empty())
+            .unwrap_or(false);
+        if inverse_has_commits {
+            ui::warning(&format!(
+                "range '{range}' is empty — did you mean '{to_spec}..{from_spec}'?"
+            ));
+            return 1;
+        }
+    }
+
     // Use the "to" ref as the version label, stripping a leading 'v' if present.
     let version = to_spec.strip_prefix('v').unwrap_or(to_spec);
 

@@ -116,6 +116,33 @@ fn changelog_range_invalid_ref() {
 }
 
 #[test]
+fn changelog_range_warns_on_reversed_range() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+
+    add_commit(dir.path(), "a.txt", "feat: add feature A");
+    create_tag(dir.path(), "v1.1.0");
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["changelog", "--range", "v1.1.0..v1.0.0", "--stdout"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1);
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("warning:"),
+        "should print a warning, got stderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("did you mean 'v1.0.0..v1.1.0'"),
+        "should suggest the corrected range, got stderr: {stderr}"
+    );
+}
+
+#[test]
 fn changelog_range_no_conventional_commits() {
     let dir = tempfile::tempdir().unwrap();
     init_bump_repo(dir.path());
