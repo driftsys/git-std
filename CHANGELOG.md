@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.10.1] (2026-03-30)
+
+### Bug Fixes
+
+- **ecosystem:** emit warnings for silent error handling ([#353]) ([e9e5d45])
+
+[0.10.1]: https://github.com/driftsys/git-std/compare/v0.10.0...v0.10.1
+[e9e5d45]: https://github.com/driftsys/git-std/commit/e9e5d45
+[#353]: https://github.com/driftsys/git-std/issues/353
+
 ## [0.10.0] (2026-03-30)
 
 ### Bug Fixes
