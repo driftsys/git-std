@@ -236,6 +236,22 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
         return 1;
     }
 
+    // Temporarily unstage renames before the stash dance to prevent corruption
+    // (#387). git stash apply incorrectly splits renames into separate staged
+    // additions and unstaged deletions. We unstage them before stash, then
+    // re-stage after, so they bypass the stash corruption entirely.
+    let staged_rename_targets = if use_stash_dance {
+        stash::fetch_staged_rename_targets()
+    } else {
+        Vec::new()
+    };
+
+    if use_stash_dance && !stash::unstage_renames(&staged_rename_targets) {
+        ui::error("failed to unstage renames before stash dance");
+        print_failure_hints(hook);
+        return 1;
+    }
+
     // Capture files staged for deletion before the stash dance.
     // The stash dance restores deleted files to disk; we must re-delete them
     // in the index afterwards to preserve the user's `git rm` intent (#268).
@@ -425,6 +441,29 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
             }
 
             stash::stash_drop();
+        }
+
+        // Re-stage renamed files after the stash dance completes.
+        // They were unstaged before to prevent stash corruption (#387).
+        if !staged_rename_targets.is_empty() {
+            let mut cmd = Command::new("git");
+            cmd.args(["add", "--"]);
+            for f in &staged_rename_targets {
+                cmd.arg(f);
+            }
+            match cmd.status() {
+                Ok(s) if !s.success() => {
+                    ui::error("failed to re-stage renamed files after formatting");
+                    print_failure_hints(hook);
+                    return 1;
+                }
+                Err(e) => {
+                    ui::error(&format!("failed to re-stage renamed files: {e}"));
+                    print_failure_hints(hook);
+                    return 1;
+                }
+                _ => {}
+            }
         }
     }
 
