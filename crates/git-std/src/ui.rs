@@ -3,7 +3,9 @@
 //! All human-readable output goes to stderr. Symbols use
 //! yansi for colour when enabled.
 
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Write};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use yansi::Paint;
 
@@ -109,4 +111,51 @@ pub fn pending(index: usize, total: usize, display: &str) {
     } else {
         eprintln!("{INDENT}> {display}");
     }
+}
+
+/// Print a simple pending line for non-TTY without a counter.
+pub fn pending_non_tty(display: &str) {
+    eprintln!("{INDENT}> {display}");
+}
+
+/// Run `f` while animating a spinner on TTY for `display`.
+///
+/// On TTY: shows `  ⠋ display` with an animated braille spinner, clears
+/// the line with `\r\x1b[K` when `f` returns, ready for the caller to
+/// print the result line.
+///
+/// On non-TTY or when colour is disabled: prints `  > display\n` once
+/// (no animation) and runs `f` normally.
+pub fn spin_while<F, T>(display: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    if !is_tty() || !yansi::is_enabled() {
+        eprintln!("{INDENT}> {display}");
+        return f();
+    }
+
+    const FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+    let running = Arc::new(AtomicBool::new(true));
+    let stop = Arc::clone(&running);
+    let label = display.to_string();
+
+    let handle = std::thread::spawn(move || {
+        let mut i = 0usize;
+        while stop.load(Ordering::Relaxed) {
+            eprint!("\r{INDENT}{} {label}", FRAMES[i % FRAMES.len()]);
+            let _ = std::io::stderr().flush();
+            std::thread::sleep(std::time::Duration::from_millis(80));
+            i += 1;
+        }
+    });
+
+    let result = f();
+
+    running.store(false, Ordering::Relaxed);
+    let _ = handle.join();
+    eprint!("\r\x1b[K"); // clear spinner line before caller prints result
+
+    result
 }
