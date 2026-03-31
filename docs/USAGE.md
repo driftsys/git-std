@@ -60,18 +60,18 @@ scope, description, body, and breaking change, then runs
 
 **Flags:**
 
-| Flag               | Description                      |
-| ------------------ | -------------------------------- |
-| `--type <type>`    | Pre-fill type, skip prompt       |
-| `--scope <scope>`  | Pre-fill scope, skip prompt      |
-| `--message <msg>`  | Non-interactive mode             |
-| `--breaking <msg>` | Add `BREAKING CHANGE` footer     |
-| `--footer <text>`  | Add a trailer footer (repeatable)|
-| `--signoff` / `-s` | Add `Signed-off-by` trailer      |
-| `--dry-run`        | Print message without committing |
-| `--amend`          | Pass `--amend` to `git commit`   |
-| `--sign` / `-S`    | GPG-sign the commit              |
-| `--all` / `-a`     | Stage tracked changes            |
+| Flag               | Description                       |
+| ------------------ | --------------------------------- |
+| `--type <type>`    | Pre-fill type, skip prompt        |
+| `--scope <scope>`  | Pre-fill scope, skip prompt       |
+| `--message <msg>`  | Non-interactive mode              |
+| `--breaking <msg>` | Add `BREAKING CHANGE` footer      |
+| `--footer <text>`  | Add a trailer footer (repeatable) |
+| `--signoff` / `-s` | Add `Signed-off-by` trailer       |
+| `--dry-run`        | Print message without committing  |
+| `--amend`          | Pass `--amend` to `git commit`    |
+| `--sign` / `-S`    | GPG-sign the commit               |
+| `--all` / `-a`     | Stage tracked changes             |
 
 **Exit codes:** `0` = committed, `1` = validation/git error, `2` = usage error.
 
