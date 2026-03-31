@@ -5,7 +5,7 @@ use snapbox::cmd::Command;
 use snapbox::file;
 use support::TestRepo;
 
-/// `changelog --stdout` prints the changelog to stdout.
+/// `changelog` prints the changelog to stdout by default.
 #[test]
 fn changelog_stdout_prints_to_stdout() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
@@ -15,7 +15,7 @@ fn changelog_stdout_prints_to_stdout() {
     repo.add_commit("fix: correct edge case");
 
     Command::new(TestRepo::bin_path())
-        .args(["changelog", "--stdout"])
+        .args(["changelog"])
         .current_dir(repo.path())
         .assert()
         .success()
@@ -24,7 +24,7 @@ fn changelog_stdout_prints_to_stdout() {
         ]);
 }
 
-/// `changelog --full` regenerates the entire changelog file.
+/// `changelog --full -w` regenerates the entire changelog file.
 #[test]
 fn changelog_full_creates_file() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
@@ -34,7 +34,7 @@ fn changelog_full_creates_file() {
     repo.create_tag("v0.1.1");
 
     Command::new(TestRepo::bin_path())
-        .args(["changelog", "--full"])
+        .args(["changelog", "--full", "-w"])
         .current_dir(repo.path())
         .assert()
         .success();
@@ -54,7 +54,7 @@ fn changelog_full_creates_file() {
     );
 }
 
-/// `changelog --range v1.0.0..v2.0.0 --stdout` prints only commits between the two tags.
+/// `changelog --range v1.0.0..v2.0.0` prints only commits between the two tags.
 #[test]
 fn changelog_range_between_tags() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
@@ -66,7 +66,7 @@ fn changelog_range_between_tags() {
     repo.add_commit("feat: post-release feature");
 
     Command::new(TestRepo::bin_path())
-        .args(["changelog", "--range", "v1.0.0..v2.0.0", "--stdout"])
+        .args(["changelog", "--range", "v1.0.0..v2.0.0"])
         .current_dir(repo.path())
         .assert()
         .success()
@@ -75,7 +75,7 @@ fn changelog_range_between_tags() {
         ]);
 }
 
-/// `changelog --stdout` with no commits after the latest tag reports no unreleased changes.
+/// `changelog` with no commits after the latest tag reports no unreleased changes.
 #[test]
 fn changelog_no_unreleased_changes() {
     let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
@@ -83,7 +83,7 @@ fn changelog_no_unreleased_changes() {
     repo.create_tag("v1.0.0");
 
     Command::new(TestRepo::bin_path())
-        .args(["changelog", "--stdout"])
+        .args(["changelog"])
         .current_dir(repo.path())
         .assert()
         .success()
