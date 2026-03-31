@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use standard_version::CargoVersionFile;
+use standard_version::{CargoVersionFile, VersionFile};
 
 use super::{Ecosystem, SyncOutcome, WriteOutcome, cmd, native_write, try_sync};
 use crate::ui;
@@ -70,5 +70,9 @@ impl Ecosystem for Rust {
 
     fn lock_files(&self) -> &[&str] {
         &["Cargo.lock"]
+    }
+
+    fn version_file_engine(&self) -> Option<Box<dyn VersionFile>> {
+        Some(Box::new(CargoVersionFile))
     }
 }

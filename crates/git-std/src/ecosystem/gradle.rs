@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use standard_version::GradleVersionFile;
+use standard_version::{GradleVersionFile, VersionFile};
 
 use super::{Ecosystem, SyncOutcome, WriteOutcome, native_write};
 
@@ -30,5 +30,9 @@ impl Ecosystem for Gradle {
 
     fn sync_lock(&self, _root: &Path) -> Vec<SyncOutcome> {
         vec![SyncOutcome::NoLockFile]
+    }
+
+    fn version_file_engine(&self) -> Option<Box<dyn VersionFile>> {
+        Some(Box::new(GradleVersionFile))
     }
 }

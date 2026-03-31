@@ -16,7 +16,9 @@ mod rust;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use standard_version::{CustomVersionFile, RegexVersionFile, UpdateResult, VersionFile};
+use standard_version::{
+    CustomVersionFile, DetectedFile, RegexVersionFile, UpdateResult, VersionFile,
+};
 
 use crate::ui;
 
@@ -47,6 +49,15 @@ pub trait Ecosystem {
     /// Lock file name(s) this ecosystem manages (for dry-run display).
     fn lock_files(&self) -> &[&str] {
         &[]
+    }
+
+    /// Return the version-file engine used for read-only detection.
+    ///
+    /// Used by [`dry_run_version_files`] to detect existing versions without
+    /// writing. Ecosystems that own a `standard_version::VersionFile` engine
+    /// should return it here.
+    fn version_file_engine(&self) -> Option<Box<dyn VersionFile>> {
+        None
     }
 }
 
@@ -293,6 +304,95 @@ pub fn dry_run_lock_sync(root: &Path) {
             }
         }
     }
+}
+
+/// Detect version files through the ecosystem layer (read-only).
+///
+/// Uses each ecosystem's `detect()` gate and `version_file_engine()` to
+/// find version files, mirroring the detection that [`run_bump`] would
+/// perform. Custom `[[version_files]]` are appended via the regex engine.
+pub fn dry_run_version_files(root: &Path, custom_files: &[CustomVersionFile]) -> Vec<DetectedFile> {
+    let ecosystems = all_ecosystems();
+    let mut results: Vec<DetectedFile> = Vec::new();
+
+    for eco in &ecosystems {
+        if !eco.detect(root) {
+            continue;
+        }
+        let Some(engine) = eco.version_file_engine() else {
+            continue;
+        };
+        for filename in engine.filenames() {
+            let path = root.join(filename);
+            if !path.exists() {
+                continue;
+            }
+            let content = match fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            if !engine.detect(&content) {
+                continue;
+            }
+            let Some(old_version) = engine.read_version(&content) else {
+                continue;
+            };
+            results.push(DetectedFile {
+                path,
+                name: engine.name().to_string(),
+                old_version,
+            });
+        }
+    }
+
+    // Append custom [[version_files]] via regex engine.
+    for cf in custom_files {
+        let engine = match RegexVersionFile::new(cf) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let path = root.join(engine.path());
+        if !path.exists() {
+            continue;
+        }
+        let content = match fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        if !engine.detect(&content) {
+            continue;
+        }
+        let Some(old_version) = engine.read_version(&content) else {
+            continue;
+        };
+        results.push(DetectedFile {
+            path,
+            name: engine.name(),
+            old_version,
+        });
+    }
+
+    results
+}
+
+/// Return lock file names that would be synced during a real bump.
+///
+/// Only returns names for lock files that exist on disk, filtered through
+/// the ecosystem detection layer.
+pub fn dry_run_lock_file_names(root: &Path) -> Vec<String> {
+    let ecosystems = all_ecosystems();
+    let mut names = Vec::new();
+    for eco in &ecosystems {
+        if !eco.detect(root) {
+            continue;
+        }
+        for lock_file in eco.lock_files() {
+            if root.join(lock_file).exists() {
+                names.push(lock_file.to_string());
+            }
+        }
+    }
+    names
 }
 
 // ---------------------------------------------------------------------------

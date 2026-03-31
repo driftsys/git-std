@@ -87,13 +87,8 @@ pub(super) fn finalize_bump(
 
     // --- Dry run: print plan and exit ---
     if opts.dry_run {
-        let detected = match standard_version::detect_version_files(workdir, &custom_files) {
-            Ok(d) => d,
-            Err(e) => {
-                ui::warning(&format!("cannot detect version files: {e}"));
-                Vec::new()
-            }
-        };
+        let detected = crate::ecosystem::dry_run_version_files(workdir, &custom_files);
+        let lock_files = crate::ecosystem::dry_run_lock_file_names(workdir);
 
         if opts.format == OutputFormat::Json {
             let result = BumpResultJson {
@@ -117,7 +112,7 @@ pub(super) fn finalize_bump(
                         new_version: new_version.clone(),
                     })
                     .collect(),
-                synced_locks: Vec::new(),
+                synced_locks: lock_files,
                 changelog: !opts.skip_changelog,
                 commit: if !opts.no_commit {
                     Some(format!("chore(release): {new_version}"))

@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use standard_version::PyprojectVersionFile;
+use standard_version::{PyprojectVersionFile, VersionFile};
 
 use super::{Ecosystem, SyncOutcome, WriteOutcome, cmd, native_write, try_sync};
 use crate::ui;
@@ -63,6 +63,10 @@ impl Ecosystem for Python {
 
     fn lock_files(&self) -> &[&str] {
         &["uv.lock", "poetry.lock"]
+    }
+
+    fn version_file_engine(&self) -> Option<Box<dyn VersionFile>> {
+        Some(Box::new(PyprojectVersionFile))
     }
 }
 

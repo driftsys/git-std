@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use standard_version::PlainVersionFile;
+use standard_version::{PlainVersionFile, VersionFile};
 
 use super::{Ecosystem, SyncOutcome, WriteOutcome, native_write};
 
@@ -30,5 +30,9 @@ impl Ecosystem for Plain {
 
     fn sync_lock(&self, _root: &Path) -> Vec<SyncOutcome> {
         vec![SyncOutcome::NoLockFile]
+    }
+
+    fn version_file_engine(&self) -> Option<Box<dyn VersionFile>> {
+        Some(Box::new(PlainVersionFile))
     }
 }
