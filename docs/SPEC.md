@@ -308,11 +308,11 @@ changelog, commit, and tag.
    **Pre-1.0 convention** (major == 0): bump levels are
    downshifted following the Rust/Cargo convention:
 
-   | Commit type     | >= 1.0.0 | < 1.0.0  |
-   | --------------- | -------- | -------- |
-   | Breaking change | major    | minor    |
-   | Feature         | minor    | patch    |
-   | Fix             | patch    | patch    |
+   | Commit type     | >= 1.0.0 | < 1.0.0 |
+   | --------------- | -------- | ------- |
+   | Breaking change | major    | minor   |
+   | Feature         | minor    | patch   |
+   | Fix             | patch    | patch   |
 
    Example: `0.10.2` + breaking → `0.11.0`,
    `0.10.2` + feat → `0.10.3`.
