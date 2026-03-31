@@ -172,7 +172,7 @@ fn changelog_range_no_warning_for_same_commit_tags() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["changelog", "--range", "v1.0.0..v1.0.1", "--stdout"])
+        .args(["changelog", "--range", "v1.0.0..v1.0.1"])
         .current_dir(dir.path())
         .assert()
         .success();
