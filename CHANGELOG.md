@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.10.2] (2026-03-31)
+
+### Bug Fixes
+
+- **completions:** add git subcommand wrappers for bash, zsh, and fish
+  ([47e8b56])
+
+[0.10.2]: https://github.com/driftsys/git-std/compare/v0.10.1...v0.10.2
+[47e8b56]: https://github.com/driftsys/git-std/commit/47e8b56
+
 ## [0.10.1] (2026-03-30)
 
 ### Bug Fixes
