@@ -39,11 +39,11 @@ cargo install git-std
 ## Quick start
 
 ```bash
-git std hooks install                # set up hooks
+git std hook install                # set up hooks
 git std bootstrap install            # scaffold ./bootstrap for contributors
 git add .
 git std commit                       # interactive commit
-git std check --range main..HEAD     # validate commits
+git std lint --range main..HEAD     # validate commits
 git std changelog --stdout           # preview changelog
 git std bump                         # bump + changelog + tag
 git push --follow-tags

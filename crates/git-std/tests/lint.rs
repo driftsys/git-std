@@ -10,7 +10,7 @@ fn git_std() -> Command {
 #[test]
 fn valid_simple_message() {
     git_std()
-        .args(["check", "feat: add login"])
+        .args(["lint", "feat: add login"])
         .assert()
         .success();
 }
@@ -18,7 +18,7 @@ fn valid_simple_message() {
 #[test]
 fn valid_scoped_message() {
     git_std()
-        .args(["check", "feat(auth): add PKCE"])
+        .args(["lint", "feat(auth): add PKCE"])
         .assert()
         .success();
 }
@@ -26,7 +26,7 @@ fn valid_scoped_message() {
 #[test]
 fn valid_breaking_bang() {
     git_std()
-        .args(["check", "feat!: remove legacy API"])
+        .args(["lint", "feat!: remove legacy API"])
         .assert()
         .success();
 }
@@ -35,7 +35,7 @@ fn valid_breaking_bang() {
 fn valid_with_body() {
     git_std()
         .args([
-            "check",
+            "lint",
             "fix(core): handle nil pointer\n\nAdded nil check before dereferencing the config pointer.",
         ])
         .assert()
@@ -46,7 +46,7 @@ fn valid_with_body() {
 fn valid_with_breaking_change_footer() {
     git_std()
         .args([
-            "check",
+            "lint",
             "feat: change token format\n\nBREAKING CHANGE: tokens are now opaque strings",
         ])
         .assert()
@@ -58,7 +58,7 @@ fn valid_with_breaking_change_footer() {
 #[test]
 fn invalid_missing_type() {
     git_std()
-        .args(["check", "bad message"])
+        .args(["lint", "bad message"])
         .assert()
         .code(1)
         .stderr(contains("invalid"));
@@ -67,7 +67,7 @@ fn invalid_missing_type() {
 #[test]
 fn invalid_missing_description() {
     git_std()
-        .args(["check", "feat: "])
+        .args(["lint", "feat: "])
         .assert()
         .code(1)
         .stderr(contains("invalid"));
@@ -76,7 +76,7 @@ fn invalid_missing_description() {
 #[test]
 fn invalid_no_colon() {
     git_std()
-        .args(["check", "feat add login"])
+        .args(["lint", "feat add login"])
         .assert()
         .code(1)
         .stderr(contains("invalid"));
@@ -85,7 +85,7 @@ fn invalid_no_colon() {
 #[test]
 fn invalid_uppercase_type() {
     git_std()
-        .args(["check", "FEAT: add login"])
+        .args(["lint", "FEAT: add login"])
         .assert()
         .code(1)
         .stderr(contains("invalid"));
@@ -94,7 +94,7 @@ fn invalid_uppercase_type() {
 #[test]
 fn diagnostic_shows_expected_format() {
     git_std()
-        .args(["check", "not a valid commit"])
+        .args(["lint", "not a valid commit"])
         .assert()
         .code(1)
         .stderr(contains("Expected: <type>(<scope>): <description>"));
@@ -103,13 +103,13 @@ fn diagnostic_shows_expected_format() {
 #[test]
 fn diagnostic_shows_got_line() {
     git_std()
-        .args(["check", "not a valid commit"])
+        .args(["lint", "not a valid commit"])
         .assert()
         .code(1)
         .stderr(contains("Got:"));
 }
 
-// ── check --file (#11) ─────────────────────────────────────────
+// ── lint --file (#11) ──────────────────────────────────────────
 
 #[test]
 fn file_valid_message() {
@@ -118,7 +118,7 @@ fn file_valid_message() {
     std::fs::write(&path, "feat: add login\n").unwrap();
 
     git_std()
-        .args(["check", "--file", path.to_str().unwrap()])
+        .args(["lint", "--file", path.to_str().unwrap()])
         .assert()
         .success();
 }
@@ -134,7 +134,7 @@ fn file_strips_comment_lines() {
     .unwrap();
 
     git_std()
-        .args(["check", "--file", path.to_str().unwrap()])
+        .args(["lint", "--file", path.to_str().unwrap()])
         .assert()
         .success();
 }
@@ -146,7 +146,7 @@ fn file_invalid_message() {
     std::fs::write(&path, "bad message\n").unwrap();
 
     git_std()
-        .args(["check", "--file", path.to_str().unwrap()])
+        .args(["lint", "--file", path.to_str().unwrap()])
         .assert()
         .code(1)
         .stderr(contains("invalid"));
@@ -155,7 +155,7 @@ fn file_invalid_message() {
 #[test]
 fn file_not_found_exits_2() {
     git_std()
-        .args(["check", "--file", "/nonexistent/path"])
+        .args(["lint", "--file", "/nonexistent/path"])
         .assert()
         .code(2)
         .stderr(contains("cannot read"));
@@ -172,7 +172,7 @@ fn file_with_body_and_comments() {
     .unwrap();
 
     git_std()
-        .args(["check", "--file", path.to_str().unwrap()])
+        .args(["lint", "--file", path.to_str().unwrap()])
         .assert()
         .success();
 }

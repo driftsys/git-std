@@ -21,10 +21,10 @@ fn help_lists_subcommands() {
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
     for sub in [
         "commit",
-        "check",
+        "lint",
         "bump",
         "changelog",
-        "hooks",
+        "hook",
         "config",
         "completions",
     ] {
@@ -45,10 +45,10 @@ fn unknown_subcommand_exits_2() {
 }
 
 #[test]
-fn hooks_requires_subcommand() {
+fn hook_requires_subcommand() {
     Command::cargo_bin("git-std")
         .unwrap()
-        .arg("hooks")
+        .arg("hook")
         .assert()
         .code(2);
 }

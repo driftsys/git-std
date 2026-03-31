@@ -238,7 +238,7 @@ directory (e.g. `crates/core/CHANGELOG.md`). The root
 ### Setting up hooks
 
 ```bash
-git std hooks install
+git std hook install
 ```
 
 This writes `.githooks/*.hooks` template files and shim
@@ -307,7 +307,7 @@ Reject commits that don't follow conventional commits.
 `.githooks/commit-msg.hooks`:
 
 ```text
-! git std check --file {msg}
+! git std lint --file {msg}
 ```
 
 ### pre-push: PR readiness check
@@ -320,13 +320,13 @@ issues before CI does.
 ```text
 ! cargo test --workspace
 ! cargo clippy --workspace -- -D warnings
-! git std check --range origin/main..HEAD
+! git std lint --range origin/main..HEAD
 ```
 
 ### Managing hooks
 
 ```bash
-git std hooks enable pre-push
-git std hooks disable post-commit
-git std hooks list              # see status of all hooks
+git std hook enable pre-push
+git std hook disable post-commit
+git std hook list              # see status of all hooks
 ```

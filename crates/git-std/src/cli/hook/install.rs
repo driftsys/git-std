@@ -8,7 +8,7 @@ use standard_githooks::{KNOWN_HOOKS, generate_hooks_template, generate_shim};
 
 use crate::ui;
 
-/// Run the `hooks install` subcommand. Returns the process exit code.
+/// Run the `hook install` subcommand. Returns the process exit code.
 ///
 /// - Sets core.hooksPath
 /// - Creates .githooks/ directory

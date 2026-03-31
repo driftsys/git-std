@@ -11,7 +11,7 @@ use assert_cmd::Command;
 const SKIP_FLAGS: &[&str] = &["--help", "--version", "--color"];
 
 /// Subcommands whose flags should all appear in the docs.
-const SUBCOMMANDS: &[&str] = &["commit", "check", "bump", "changelog"];
+const SUBCOMMANDS: &[&str] = &["commit", "lint", "bump", "changelog"];
 
 fn git_std() -> Command {
     Command::cargo_bin("git-std").expect("binary git-std not found")

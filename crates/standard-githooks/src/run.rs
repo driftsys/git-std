@@ -46,8 +46,8 @@ pub fn default_mode(hook_name: &str) -> HookMode {
 /// ```
 /// use standard_githooks::substitute_msg;
 ///
-/// let result = substitute_msg("git std check --file {msg}", ".git/COMMIT_EDITMSG");
-/// assert_eq!(result, "git std check --file .git/COMMIT_EDITMSG");
+/// let result = substitute_msg("git std lint --file {msg}", ".git/COMMIT_EDITMSG");
+/// assert_eq!(result, "git std lint --file .git/COMMIT_EDITMSG");
 ///
 /// let unchanged = substitute_msg("cargo test", ".git/COMMIT_EDITMSG");
 /// assert_eq!(unchanged, "cargo test");
@@ -84,8 +84,8 @@ mod tests {
 
     #[test]
     fn substitute_msg_replaces_token() {
-        let result = substitute_msg("git std check --file {msg}", ".git/COMMIT_EDITMSG");
-        assert_eq!(result, "git std check --file .git/COMMIT_EDITMSG");
+        let result = substitute_msg("git std lint --file {msg}", ".git/COMMIT_EDITMSG");
+        assert_eq!(result, "git std lint --file .git/COMMIT_EDITMSG");
     }
 
     #[test]

@@ -36,7 +36,7 @@ impl TestRepo {
     }
 
     /// Write a `.git-std.toml` config file.
-    // Used by: spec/tests/check.rs, spec/tests/bump.rs (not referenced in every test binary)
+    // Used by: spec/tests/check.rs (lint), spec/tests/bump.rs (not referenced in every test binary)
     #[allow(dead_code)]
     pub fn with_config(self, content: &str) -> Self {
         std::fs::write(self.dir.path().join(".git-std.toml"), content)

@@ -81,7 +81,7 @@ fn bootstrap_skips_hooks_path_when_no_githooks() {
     let err = stderr_text(&a);
     // No output when nothing to do
     assert!(
-        !err.contains("hooks"),
+        !err.contains("hook"),
         "should be silent on skip, got: {err}"
     );
 }
@@ -368,7 +368,7 @@ fn hooks_install_generates_commit_msg_with_check_command() {
     // Run hooks install with env var to avoid interactive prompt
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "install"])
+        .args(["--color", "never", "hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "commit-msg")
         .current_dir(dir.path())
         .assert()
@@ -379,7 +379,7 @@ fn hooks_install_generates_commit_msg_with_check_command() {
 
     let content = std::fs::read_to_string(&hooks_file).unwrap();
     assert!(
-        content.contains("! git std check --file {msg}"),
+        content.contains("! git std lint --file {msg}"),
         "commit-msg.hooks should have default check command, got:\n{content}"
     );
 }
@@ -391,7 +391,7 @@ fn hooks_install_commit_msg_shim_is_active() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "install"])
+        .args(["--color", "never", "hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "commit-msg")
         .current_dir(dir.path())
         .assert()

@@ -64,7 +64,7 @@ pub enum Command {
         all: bool,
     },
     /// Validate commit messages.
-    Check {
+    Lint {
         /// Commit message to validate (inline).
         message: Option<String>,
         /// Read commit message from a file (strips `#` comment lines).
@@ -149,9 +149,9 @@ pub enum Command {
         dry_run: bool,
     },
     /// Git hooks management.
-    Hooks {
+    Hook {
         #[command(subcommand)]
-        subcommand: HooksCommand,
+        subcommand: HookCommand,
     },
     /// Inspect effective git-std configuration.
     Config {
@@ -201,9 +201,9 @@ pub enum ConfigCommand {
     },
 }
 
-/// Hooks subcommands.
+/// Hook subcommands.
 #[derive(Subcommand)]
-pub enum HooksCommand {
+pub enum HookCommand {
     /// Set up hooks directory, shims, and core.hooksPath.
     Install,
     /// Execute all commands in a hook file.

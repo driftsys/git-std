@@ -7,9 +7,9 @@ use crate::app::OutputFormat;
 use crate::ui;
 use standard_commit::LintConfig;
 
-/// JSON output schema for a single commit check.
+/// JSON output schema for a single commit lint result.
 #[derive(Serialize)]
-struct CheckResult {
+struct LintResult {
     valid: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     r#type: Option<String>,
@@ -24,7 +24,7 @@ struct CheckResult {
     skipped: bool,
 }
 
-/// Run the `check` subcommand with an inline message. Returns the exit code.
+/// Run the `lint` subcommand with an inline message. Returns the exit code.
 pub fn run(message: &str, lint_config: Option<&LintConfig>, format: OutputFormat) -> i32 {
     if format == OutputFormat::Json {
         return run_json(message, lint_config);
@@ -56,14 +56,14 @@ pub fn run(message: &str, lint_config: Option<&LintConfig>, format: OutputFormat
     }
 }
 
-/// Run check with JSON output.
+/// Run lint with JSON output.
 fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
     let result = if let Some(config) = lint_config {
         let errors = standard_commit::lint(message, config);
         if errors.is_empty() {
             build_valid_result(message)
         } else {
-            CheckResult {
+            LintResult {
                 valid: false,
                 r#type: None,
                 scope: None,
@@ -76,7 +76,7 @@ fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
     } else {
         match standard_commit::parse(message) {
             Ok(_) => build_valid_result(message),
-            Err(e) => CheckResult {
+            Err(e) => LintResult {
                 valid: false,
                 r#type: None,
                 scope: None,
@@ -93,10 +93,10 @@ fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
     code
 }
 
-/// Build a valid CheckResult by parsing the commit message.
-fn build_valid_result(message: &str) -> CheckResult {
+/// Build a valid LintResult by parsing the commit message.
+fn build_valid_result(message: &str) -> LintResult {
     match standard_commit::parse(message) {
-        Ok(commit) => CheckResult {
+        Ok(commit) => LintResult {
             valid: true,
             r#type: Some(commit.r#type),
             scope: commit.scope,
@@ -105,7 +105,7 @@ fn build_valid_result(message: &str) -> CheckResult {
             errors: vec![],
             skipped: false,
         },
-        Err(_) => CheckResult {
+        Err(_) => LintResult {
             valid: true,
             r#type: None,
             scope: None,
@@ -219,14 +219,14 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
     if failures > 0 { 1 } else { 0 }
 }
 
-/// Run range check with JSON output — outputs a JSON array.
+/// Run range lint with JSON output — outputs a JSON array.
 fn run_range_json(commits: &[(String, String)], lint_config: Option<&LintConfig>) -> i32 {
     let mut results = Vec::new();
     let mut any_invalid = false;
 
     for (_oid, message) in commits {
         if standard_commit::is_process_commit(message) {
-            results.push(CheckResult {
+            results.push(LintResult {
                 valid: true,
                 r#type: None,
                 scope: None,
@@ -243,7 +243,7 @@ fn run_range_json(commits: &[(String, String)], lint_config: Option<&LintConfig>
             if errors.is_empty() {
                 build_valid_result(message)
             } else {
-                CheckResult {
+                LintResult {
                     valid: false,
                     r#type: None,
                     scope: None,
@@ -256,7 +256,7 @@ fn run_range_json(commits: &[(String, String)], lint_config: Option<&LintConfig>
         } else {
             match standard_commit::parse(message) {
                 Ok(_) => build_valid_result(message),
-                Err(e) => CheckResult {
+                Err(e) => LintResult {
                     valid: false,
                     r#type: None,
                     scope: None,

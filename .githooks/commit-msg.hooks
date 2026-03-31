@@ -1,1 +1,1 @@
-! git std check --file {msg}
+! git std lint --file {msg}

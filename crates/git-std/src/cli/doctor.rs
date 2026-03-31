@@ -76,7 +76,7 @@ fn hooks_section(root: &Path) -> Section {
         hint: if dir_exists {
             None
         } else {
-            Some("run 'git std hooks install'".to_owned())
+            Some("run 'git std hook install'".to_owned())
         },
     });
 
@@ -104,7 +104,7 @@ fn hooks_section(root: &Path) -> Section {
         hint: if hooks_path_ok {
             None
         } else {
-            Some("run 'git std hooks install'".to_owned())
+            Some("run 'git std hook install'".to_owned())
         },
     });
 
@@ -145,7 +145,7 @@ fn hooks_section(root: &Path) -> Section {
     }
 
     Section {
-        name: "hooks",
+        name: "hook",
         checks,
     }
 }

@@ -36,7 +36,7 @@ single, fast binary — zero runtime dependencies.
 ## Quick start
 
 ```bash
-git std hooks install                # set up hooks
+git std hook install                # set up hooks
 git std commit                       # interactive commit
 git std bump                         # bump + changelog + tag
 git push --follow-tags
