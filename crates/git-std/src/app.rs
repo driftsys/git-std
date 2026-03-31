@@ -127,12 +127,9 @@ pub enum Command {
         /// Regenerate the entire changelog from the first commit.
         #[arg(long)]
         full: bool,
-        /// Print to stdout instead of writing to a file.
-        #[arg(long)]
-        stdout: bool,
-        /// Output file path.
-        #[arg(long, default_value = "CHANGELOG.md")]
-        output: String,
+        /// Write to file instead of stdout. Optionally specify a path (default: CHANGELOG.md).
+        #[arg(short = 'w', long, num_args = 0..=1, default_missing_value = "CHANGELOG.md")]
+        write: Option<String>,
         /// Git revision range (e.g. `v1.0.0..v2.0.0`).
         #[arg(long)]
         range: Option<String>,

@@ -62,7 +62,7 @@ fn changelog_range_valid_between_two_tags() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["changelog", "--range", "v1.0.0..v1.1.0", "--stdout"])
+        .args(["changelog", "--range", "v1.0.0..v1.1.0"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -89,7 +89,7 @@ fn changelog_range_invalid_missing_dotdot() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["changelog", "--range", "v1.0.0", "--stdout"])
+        .args(["changelog", "--range", "v1.0.0"])
         .current_dir(dir.path())
         .assert()
         .code(1)
@@ -103,12 +103,7 @@ fn changelog_range_invalid_ref() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args([
-            "changelog",
-            "--range",
-            "nonexistent..also-nonexistent",
-            "--stdout",
-        ])
+        .args(["changelog", "--range", "nonexistent..also-nonexistent"])
         .current_dir(dir.path())
         .assert()
         .code(1)
@@ -126,7 +121,7 @@ fn changelog_range_warns_on_reversed_range() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["changelog", "--range", "v1.1.0..v1.0.0", "--stdout"])
+        .args(["changelog", "--range", "v1.1.0..v1.0.0"])
         .current_dir(dir.path())
         .assert()
         .code(1);
@@ -154,7 +149,7 @@ fn changelog_range_no_conventional_commits() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["changelog", "--range", "v1.0.0..v1.0.1", "--stdout"])
+        .args(["changelog", "--range", "v1.0.0..v1.0.1"])
         .current_dir(dir.path())
         .assert()
         .success();
