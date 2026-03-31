@@ -6,6 +6,7 @@
 pub(crate) mod cmd;
 mod mutate;
 mod query;
+mod tag;
 
 pub use mutate::{
     amend_commit, branch_exists, checkout_branch, create_annotated_tag, create_branch,
@@ -13,7 +14,7 @@ pub use mutate::{
     is_working_tree_dirty, stage_files, stage_tracked_modified, workdir,
 };
 pub use query::{
-    collect_tags, commit_date, current_branch, detect_host, find_latest_calver_tag,
-    find_latest_version_tag, head_oid, resolve_rev, walk_commits, walk_commits_for_path,
-    walk_range,
+    commit_date, current_branch, detect_host, head_oid, resolve_rev, walk_commits,
+    walk_commits_for_path, walk_range,
 };
+pub use tag::{collect_tags, find_latest_calver_tag, find_latest_version_tag};
