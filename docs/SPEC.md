@@ -823,17 +823,20 @@ git std completions zsh    # Zsh completions
 git std completions fish   # Fish completions
 ```
 
+The generated scripts include wrappers that enable completion for
+both `git-std` (standalone) and `git std` (git subcommand) invocations.
+
 **Example — add to shell profile:**
 
 ```bash
 # Bash (~/.bashrc)
-eval "$(git std completions bash)"
+eval "$(git-std completions bash)"
 
 # Zsh (~/.zshrc)
-eval "$(git std completions zsh)"
+eval "$(git-std completions zsh)"
 
 # Fish (~/.config/fish/config.fish)
-git std completions fish | source
+git-std completions fish | source
 ```
 
 ### 2.9 Global Flags

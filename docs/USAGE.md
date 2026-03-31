@@ -225,7 +225,8 @@ git std doctor --format json  # machine-readable JSON on stdout
 
 ## `git std completions`
 
-Generate shell completion scripts.
+Generate shell completion scripts. The output includes wrappers that
+enable completion for both `git-std` and `git std` invocations.
 
 ```bash
 git std completions bash   # Bash

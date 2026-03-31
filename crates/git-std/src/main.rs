@@ -182,6 +182,7 @@ fn main() {
         Command::Completions { shell } => {
             let mut cmd = Cli::command();
             clap_complete::generate(shell, &mut cmd, "git-std", &mut std::io::stdout());
+            print!("{}", cli::completions::git_subcommand_wrapper(shell));
         }
     }
 }
