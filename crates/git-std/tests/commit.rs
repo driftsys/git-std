@@ -345,6 +345,209 @@ fn commit_dry_run_auto_scopes() {
         .stderr(predicate::str::contains("feat(web): add page"));
 }
 
+// ── --footer and --signoff flags (#407) ────────────────────────
+
+#[test]
+fn commit_dry_run_with_single_footer() {
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args([
+            "commit",
+            "--type",
+            "feat",
+            "-m",
+            "add login",
+            "--footer",
+            "Co-authored-by: Alice <a@b.com>",
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("feat: add login"))
+        .stderr(predicate::str::contains("Co-authored-by: Alice <a@b.com>"));
+}
+
+#[test]
+fn commit_dry_run_with_multiple_footers() {
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args([
+            "commit",
+            "--type",
+            "feat",
+            "-m",
+            "new api",
+            "--footer",
+            "Co-authored-by: Alice <a@b.com>",
+            "--footer",
+            "Reviewed-by: Carol <c@d.com>",
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Co-authored-by: Alice <a@b.com>"))
+        .stderr(predicate::str::contains("Reviewed-by: Carol <c@d.com>"));
+}
+
+#[test]
+fn commit_dry_run_with_signoff() {
+    let dir = tempfile::tempdir().unwrap();
+    init_commit_repo(dir.path());
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args([
+            "commit",
+            "--type",
+            "fix",
+            "-m",
+            "fix crash",
+            "--signoff",
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("fix: fix crash"))
+        .stderr(predicate::str::contains(
+            "Signed-off-by: Test <test@test.com>",
+        ));
+}
+
+#[test]
+fn commit_dry_run_with_signoff_short_flag() {
+    let dir = tempfile::tempdir().unwrap();
+    init_commit_repo(dir.path());
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args([
+            "commit",
+            "--type",
+            "fix",
+            "-m",
+            "fix crash",
+            "-s",
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(
+            "Signed-off-by: Test <test@test.com>",
+        ));
+}
+
+#[test]
+fn commit_dry_run_with_footer_and_signoff_combined() {
+    let dir = tempfile::tempdir().unwrap();
+    init_commit_repo(dir.path());
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args([
+            "commit",
+            "--type",
+            "feat",
+            "-m",
+            "add feature",
+            "--footer",
+            "Co-authored-by: Alice <a@b.com>",
+            "--signoff",
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Co-authored-by: Alice <a@b.com>"))
+        .stderr(predicate::str::contains(
+            "Signed-off-by: Test <test@test.com>",
+        ));
+}
+
+#[test]
+fn commit_actual_with_footer() {
+    let dir = tempfile::tempdir().unwrap();
+    init_commit_repo(dir.path());
+
+    std::fs::write(dir.path().join("feature.txt"), "feature").unwrap();
+    git(dir.path(), &["add", "feature.txt"]);
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args([
+            "commit",
+            "--type",
+            "feat",
+            "-m",
+            "add login",
+            "--footer",
+            "Co-authored-by: Alice <a@b.com>",
+        ])
+        .assert()
+        .success();
+
+    let msg = head_message(dir.path());
+    assert!(msg.starts_with("feat: add login"), "got: {msg}");
+    assert!(
+        msg.contains("Co-authored-by: Alice <a@b.com>"),
+        "got: {msg}"
+    );
+}
+
+#[test]
+fn commit_actual_with_signoff() {
+    let dir = tempfile::tempdir().unwrap();
+    init_commit_repo(dir.path());
+
+    std::fs::write(dir.path().join("fix.txt"), "fix").unwrap();
+    git(dir.path(), &["add", "fix.txt"]);
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["commit", "--type", "fix", "-m", "fix crash", "--signoff"])
+        .assert()
+        .success();
+
+    let msg = head_message(dir.path());
+    assert!(msg.starts_with("fix: fix crash"), "got: {msg}");
+    assert!(
+        msg.contains("Signed-off-by: Test <test@test.com>"),
+        "got: {msg}"
+    );
+}
+
+#[test]
+fn commit_help_shows_footer_and_signoff_flags() {
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["commit", "--help"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    for flag in ["--footer", "--signoff"] {
+        assert!(
+            stdout.contains(flag),
+            "commit help should list '{flag}' flag"
+        );
+    }
+}
+
+#[test]
+fn check_validates_commit_with_trailers() {
+    // Verify that `git std check` correctly validates a commit message with trailers.
+    let msg =
+        "feat: add login\n\nCo-authored-by: Alice <a@b.com>\nSigned-off-by: Test <test@test.com>";
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["check", msg])
+        .assert()
+        .success();
+}
+
 // ── post-commit confirmation output (#220) ──────────────────────
 
 #[test]

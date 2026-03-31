@@ -13,6 +13,8 @@ pub struct CommitOptions {
     pub amend: bool,
     pub sign: bool,
     pub all: bool,
+    pub footer: Vec<String>,
+    pub signoff: bool,
 }
 
 /// Run the commit flow: prompt (or use flags), format, validate, commit.
@@ -93,6 +95,7 @@ mod tests {
             body: None,
             breaking: None,
             refs: vec![],
+            extra_footers: vec![],
         };
         let commit = build_commit(answers);
         assert_eq!(commit.r#type, "feat");
@@ -111,6 +114,7 @@ mod tests {
             body: None,
             breaking: None,
             refs: vec![],
+            extra_footers: vec![],
         };
         let commit = build_commit(answers);
         assert_eq!(commit.scope.as_deref(), Some("auth"));
@@ -125,6 +129,7 @@ mod tests {
             body: Some("Full PKCE flow.".into()),
             breaking: None,
             refs: vec![],
+            extra_footers: vec![],
         };
         let commit = build_commit(answers);
         assert_eq!(commit.body.as_deref(), Some("Full PKCE flow."));
@@ -139,6 +144,7 @@ mod tests {
             body: None,
             breaking: Some("removed v1 endpoints".into()),
             refs: vec![],
+            extra_footers: vec![],
         };
         let commit = build_commit(answers);
         assert!(commit.is_breaking);
@@ -156,6 +162,7 @@ mod tests {
             body: None,
             breaking: None,
             refs: vec!["#42".into(), "#15".into()],
+            extra_footers: vec![],
         };
         let commit = build_commit(answers);
         assert_eq!(commit.footers.len(), 1);
@@ -172,6 +179,7 @@ mod tests {
             body: Some("Rewrote auth.".into()),
             breaking: Some("changed token format".into()),
             refs: vec!["#10".into()],
+            extra_footers: vec![],
         };
         let commit = build_commit(answers);
         assert!(commit.is_breaking);
@@ -190,6 +198,7 @@ mod tests {
             body: None,
             breaking: None,
             refs: vec![],
+            extra_footers: vec![],
         };
         let commit = build_commit(answers);
         assert!(!commit.is_breaking);
@@ -204,6 +213,7 @@ mod tests {
             body: None,
             breaking: None,
             refs: vec![],
+            extra_footers: vec![],
         };
         let commit = build_commit(answers);
         let message = standard_commit::format(&commit);
@@ -303,6 +313,8 @@ mod tests {
             amend: false,
             sign: false,
             all: false,
+            footer: vec![],
+            signoff: false,
         };
         let answers = gather_answers(&config, &opts).unwrap();
         assert_eq!(answers.commit_type, "feat");
@@ -330,6 +342,8 @@ mod tests {
             amend: false,
             sign: false,
             all: false,
+            footer: vec![],
+            signoff: false,
         };
         let answers = gather_answers(&config, &opts).unwrap();
         assert_eq!(answers.commit_type, "feat");
@@ -359,6 +373,8 @@ mod tests {
             amend: false,
             sign: false,
             all: false,
+            footer: vec![],
+            signoff: false,
         };
         let answers = gather_answers(&config, &opts).unwrap();
         assert_eq!(answers.scope.as_deref(), Some("git-std"));
@@ -381,9 +397,110 @@ mod tests {
             amend: false,
             sign: false,
             all: false,
+            footer: vec![],
+            signoff: false,
         };
         // dry_run returns 0 and doesn't try to open a repo.
         let code = run_interactive(&config, &opts);
         assert_eq!(code, 0);
+    }
+
+    #[test]
+    fn extra_footers_added_to_commit() {
+        let answers = PromptAnswers {
+            commit_type: "feat".into(),
+            scope: None,
+            description: "add login".into(),
+            body: None,
+            breaking: None,
+            refs: vec![],
+            extra_footers: vec!["Co-authored-by: Alice <a@b.com>".into()],
+        };
+        let commit = build_commit(answers);
+        assert_eq!(commit.footers.len(), 1);
+        assert_eq!(commit.footers[0].token, "Co-authored-by");
+        assert_eq!(commit.footers[0].value, "Alice <a@b.com>");
+    }
+
+    #[test]
+    fn multiple_extra_footers() {
+        let answers = PromptAnswers {
+            commit_type: "feat".into(),
+            scope: None,
+            description: "new api".into(),
+            body: None,
+            breaking: None,
+            refs: vec![],
+            extra_footers: vec![
+                "Co-authored-by: Alice <a@b.com>".into(),
+                "Reviewed-by: Carol <c@d.com>".into(),
+            ],
+        };
+        let commit = build_commit(answers);
+        assert_eq!(commit.footers.len(), 2);
+        assert_eq!(commit.footers[0].token, "Co-authored-by");
+        assert_eq!(commit.footers[1].token, "Reviewed-by");
+    }
+
+    #[test]
+    fn extra_footers_combined_with_breaking_and_refs() {
+        let answers = PromptAnswers {
+            commit_type: "feat".into(),
+            scope: None,
+            description: "new api".into(),
+            body: None,
+            breaking: Some("removed old endpoints".into()),
+            refs: vec!["#42".into()],
+            extra_footers: vec!["Signed-off-by: Test <test@test.com>".into()],
+        };
+        let commit = build_commit(answers);
+        assert_eq!(commit.footers.len(), 3);
+        assert_eq!(commit.footers[0].token, "BREAKING CHANGE");
+        assert_eq!(commit.footers[1].token, "Refs");
+        assert_eq!(commit.footers[2].token, "Signed-off-by");
+    }
+
+    #[test]
+    fn extra_footers_roundtrip_through_format_and_parse() {
+        let answers = PromptAnswers {
+            commit_type: "fix".into(),
+            scope: None,
+            description: "fix crash".into(),
+            body: None,
+            breaking: None,
+            refs: vec![],
+            extra_footers: vec!["Signed-off-by: Test <test@test.com>".into()],
+        };
+        let commit = build_commit(answers);
+        let message = standard_commit::format(&commit);
+        let parsed = standard_commit::parse(&message).unwrap();
+        assert_eq!(parsed.footers.len(), 1);
+        assert_eq!(parsed.footers[0].token, "Signed-off-by");
+        assert_eq!(parsed.footers[0].value, "Test <test@test.com>");
+    }
+
+    #[test]
+    fn gather_answers_with_footer_flags() {
+        let config = ProjectConfig {
+            types: vec!["feat".into()],
+            scopes: ScopesConfig::None,
+            strict: false,
+            ..Default::default()
+        };
+        let opts = CommitOptions {
+            commit_type: Some("feat".into()),
+            scope: None,
+            message: Some("add login".into()),
+            breaking: None,
+            dry_run: false,
+            amend: false,
+            sign: false,
+            all: false,
+            footer: vec!["Co-authored-by: Alice <a@b.com>".into()],
+            signoff: false,
+        };
+        let answers = gather_answers(&config, &opts).unwrap();
+        assert_eq!(answers.extra_footers.len(), 1);
+        assert_eq!(answers.extra_footers[0], "Co-authored-by: Alice <a@b.com>");
     }
 }

@@ -4,6 +4,11 @@ use std::path::Path;
 
 use super::cmd::{GitError, git};
 
+/// Read a git config value.
+pub fn config_value(dir: &Path, key: &str) -> Result<String, GitError> {
+    git(dir, &["config", key])
+}
+
 /// Return the full SHA of HEAD.
 pub fn head_oid(dir: &Path) -> Result<String, GitError> {
     git(dir, &["rev-parse", "HEAD"])

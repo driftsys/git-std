@@ -15,6 +15,7 @@ pub(super) struct PromptAnswers {
     pub(super) body: Option<String>,
     pub(super) breaking: Option<String>,
     pub(super) refs: Vec<String>,
+    pub(super) extra_footers: Vec<String>,
 }
 
 /// Assemble a `ConventionalCommit` from raw prompt answers.
@@ -32,6 +33,14 @@ pub(super) fn build_commit(answers: PromptAnswers) -> ConventionalCommit {
             token: "Refs".into(),
             value: answers.refs.join(", "),
         });
+    }
+    for raw in &answers.extra_footers {
+        if let Some((token, value)) = parse_trailer(raw) {
+            footers.push(standard_commit::Footer {
+                token: token.to_string(),
+                value: value.to_string(),
+            });
+        }
     }
 
     ConventionalCommit {
@@ -101,6 +110,20 @@ pub(super) fn gather_answers(
         prompt::prompt_refs()?
     };
 
+    // Collect extra footers from --footer flags, --signoff, and interactive prompt.
+    let mut extra_footers = opts.footer.clone();
+
+    if opts.signoff {
+        let dir = std::path::Path::new(".");
+        let signoff = resolve_signoff(dir)?;
+        extra_footers.push(signoff);
+    }
+
+    if !fully_non_interactive {
+        let prompted = prompt::prompt_footers()?;
+        extra_footers.extend(prompted);
+    }
+
     Ok(PromptAnswers {
         commit_type,
         scope,
@@ -108,5 +131,35 @@ pub(super) fn gather_answers(
         body,
         breaking,
         refs,
+        extra_footers,
     })
+}
+
+/// Parse a raw trailer string like `"Token: value"` into `(token, value)`.
+fn parse_trailer(raw: &str) -> Option<(&str, &str)> {
+    // Support both "Token: value" and "Token #value" (git trailer separators).
+    if let Some(pos) = raw.find(": ") {
+        let token = raw[..pos].trim();
+        let value = raw[pos + 2..].trim();
+        if !token.is_empty() && !value.is_empty() {
+            return Some((token, value));
+        }
+    }
+    if let Some(pos) = raw.find(" #") {
+        let token = raw[..pos].trim();
+        let value = raw[pos + 2..].trim();
+        if !token.is_empty() && !value.is_empty() {
+            return Some((token, value));
+        }
+    }
+    None
+}
+
+/// Build a `Signed-off-by` trailer from git config.
+fn resolve_signoff(dir: &std::path::Path) -> Result<String> {
+    let name = crate::git::config_value(dir, "user.name")
+        .map_err(|e| anyhow::anyhow!("cannot read git user.name: {e}"))?;
+    let email = crate::git::config_value(dir, "user.email")
+        .map_err(|e| anyhow::anyhow!("cannot read git user.email: {e}"))?;
+    Ok(format!("Signed-off-by: {name} <{email}>"))
 }

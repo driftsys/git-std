@@ -179,9 +179,9 @@ well-formed conventional commit message and runs
    use the conventional commit standard types.
 2. Prompt for type (required), scope (optional), subject
    (required), body (optional), breaking change footer
-   (optional).
+   (optional), trailer footers (optional).
 3. Assemble the message:
-   `<type>(<scope>): <subject>\n\n<body>\n\nBREAKING CHANGE: <description>`.
+   `<type>(<scope>): <subject>\n\n<body>\n\n<trailers>`.
 4. Validate the assembled message against the
    conventional commit spec (same rules as
    `git std lint`).
@@ -196,6 +196,8 @@ well-formed conventional commit message and runs
 | `--scope <scope>` | Pre-fill scope, skip scope prompt                                         |
 | `--message <msg>` | Non-interactive mode, full message provided. Validated before committing. |
 | `--breaking`      | Add `BREAKING CHANGE` footer (prompts for description)                    |
+| `--footer <text>` | Add a trailer footer (repeatable, e.g. `Co-authored-by: Name <email>`)    |
+| `--signoff` / `-s`| Add `Signed-off-by` trailer from git `user.name` / `user.email`           |
 | `--dry-run`       | Print the assembled message to stdout, do not commit                      |
 | `--amend`         | Pass `--amend` to `git commit`                                            |
 | `--sign` / `-S`   | Pass `--gpg-sign` to `git commit`                                         |
@@ -213,6 +215,7 @@ $ git std commit
 ? Subject:    add OAuth2 PKCE flow
 ? Body:       (empty)
 ? Breaking:   (none)
+? Footer:     (none)
 
 → feat(auth): add OAuth2 PKCE flow
 ```
@@ -221,6 +224,13 @@ $ git std commit
 
 ```bash
 git std commit -a --type fix --scope auth -m "fix(auth): handle expired refresh tokens"
+
+# With trailers
+git std commit --type feat -m "add login" --footer "Co-authored-by: Alice <a@b.com>"
+git std commit --type fix -m "fix crash" -s
+git std commit --type feat -m "new api" \
+  --footer "Co-authored-by: Alice <a@b.com>" \
+  --footer "Reviewed-by: Carol <c@d.com>"
 ```
 
 ### 2.2 `git std lint`
