@@ -30,7 +30,7 @@ git-std completions fish | source
 ## Set up hooks
 
 ```bash
-git std hooks install
+git std hook install
 ```
 
 This sets `core.hooksPath`, writes shim scripts, and
@@ -55,8 +55,8 @@ git std commit -m "feat(auth): add OAuth2 PKCE flow"
 ## Validate commits
 
 ```bash
-git std check "feat: add login"
-git std check --range main..HEAD
+git std lint "feat: add login"
+git std lint --range main..HEAD
 ```
 
 Use `--strict` to enforce types and scopes from

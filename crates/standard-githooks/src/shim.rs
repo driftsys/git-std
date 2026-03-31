@@ -10,7 +10,7 @@ pub const KNOWN_HOOKS: &[&str] = &[
 
 /// Generate the shim script content for a given hook name.
 ///
-/// The shim delegates execution to `git std hooks run <hook> -- <args>`,
+/// The shim delegates execution to `git std hook run <hook> -- <args>`,
 /// passing through any arguments git provides after `--` so that clap's
 /// `#[arg(last = true)]` can capture them.
 ///
@@ -20,14 +20,14 @@ pub const KNOWN_HOOKS: &[&str] = &[
 /// use standard_githooks::generate_shim;
 ///
 /// let shim = generate_shim("pre-commit");
-/// assert!(shim.contains("exec git std hooks run pre-commit"));
+/// assert!(shim.contains("exec git std hook run pre-commit"));
 /// ```
 pub fn generate_shim(hook_name: &str) -> String {
     format!(
         "#!/bin/bash\n\
          # Managed by git-std — do not edit.\n\
          # Configure commands in .githooks/{hook_name}.hooks\n\
-         exec git std hooks run {hook_name} -- \"$@\"\n"
+         exec git std hook run {hook_name} -- \"$@\"\n"
     )
 }
 
@@ -45,7 +45,7 @@ pub fn generate_hooks_template(hook_name: &str) -> String {
     };
 
     let default_commands = if hook_name == "commit-msg" {
-        "! git std check --file {msg}\n"
+        "! git std lint --file {msg}\n"
     } else {
         ""
     };
@@ -68,8 +68,8 @@ pub fn generate_hooks_template(hook_name: &str) -> String {
          #   ? cargo test          # run tests, never block commit\n\
          #\n\
          # Enable/disable this hook:\n\
-         #   git std hooks enable {hook_name}\n\
-         #   git std hooks disable {hook_name}\n\
+         #   git std hook enable {hook_name}\n\
+         #   git std hook disable {hook_name}\n\
          #\n\
          {default_commands}"
     )
@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn shim_contains_exec_line() {
         let shim = generate_shim("pre-commit");
-        assert!(shim.contains("exec git std hooks run pre-commit -- \"$@\""));
+        assert!(shim.contains("exec git std hook run pre-commit -- \"$@\""));
     }
 
     #[test]
@@ -110,13 +110,13 @@ mod tests {
     #[test]
     fn commit_msg_template_has_default_check_command() {
         let t = generate_hooks_template("commit-msg");
-        assert!(t.contains("! git std check --file {msg}"));
+        assert!(t.contains("! git std lint --file {msg}"));
     }
 
     #[test]
     fn non_commit_msg_template_has_no_default_commands() {
         let t = generate_hooks_template("pre-push");
-        assert!(!t.contains("git std check"));
+        assert!(!t.contains("git std lint"));
     }
 
     #[test]

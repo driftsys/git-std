@@ -208,10 +208,10 @@ mod tests {
 
     #[test]
     fn command_with_msg_substitution() {
-        let commands = parse("! git std check --file {msg}\n");
+        let commands = parse("! git std lint --file {msg}\n");
         assert_eq!(commands.len(), 1);
         assert_eq!(commands[0].prefix, Prefix::FailFast);
-        assert_eq!(commands[0].command, "git std check --file {msg}");
+        assert_eq!(commands[0].command, "git std lint --file {msg}");
         assert_eq!(commands[0].glob, None);
     }
 
@@ -258,11 +258,11 @@ cargo test --workspace --lib *.rs
 
     #[test]
     fn commit_msg_hooks_file() {
-        let input = "! git std check --file {msg}\n";
+        let input = "! git std lint --file {msg}\n";
         let commands = parse(input);
         assert_eq!(commands.len(), 1);
         assert_eq!(commands[0].prefix, Prefix::FailFast);
-        assert_eq!(commands[0].command, "git std check --file {msg}");
+        assert_eq!(commands[0].command, "git std lint --file {msg}");
         assert_eq!(commands[0].glob, None);
     }
 

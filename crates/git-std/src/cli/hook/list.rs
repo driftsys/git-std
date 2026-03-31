@@ -35,7 +35,7 @@ fn prefix_label(prefix: Prefix) -> &'static str {
     }
 }
 
-/// Run the `hooks list` subcommand. Returns the process exit code.
+/// Run the `hook list` subcommand. Returns the process exit code.
 ///
 /// Shows all known hooks with enabled/disabled status and their commands.
 pub fn list(format: OutputFormat) -> i32 {
@@ -48,7 +48,7 @@ pub fn list(format: OutputFormat) -> i32 {
         if format == OutputFormat::Json {
             println!("[]");
         } else {
-            ui::info("no hooks installed — run 'git std hooks install'");
+            ui::info("no hooks installed — run 'git std hook install'");
         }
         return 0;
     }

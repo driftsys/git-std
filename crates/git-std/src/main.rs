@@ -26,7 +26,7 @@ fn main() {
     }
 
     match cli.command {
-        Command::Check {
+        Command::Lint {
             message,
             file,
             range,
@@ -44,16 +44,16 @@ fn main() {
             };
 
             let code = if let Some(path) = file {
-                cli::check::run_file(&path, lint_ref, format)
+                cli::lint::run_file(&path, lint_ref, format)
             } else if let Some(range) = range {
-                cli::check::run_range(&range, lint_ref, format)
+                cli::lint::run_range(&range, lint_ref, format)
             } else if let Some(message) = message {
-                cli::check::run(&message, lint_ref, format)
+                cli::lint::run(&message, lint_ref, format)
             } else {
                 ui::error("no input provided");
-                ui::info("usage: git std check <message>");
-                ui::info("       git std check --file <path>");
-                ui::info("       git std check --range <from..to>");
+                ui::info("usage: git std lint <message>");
+                ui::info("       git std lint --file <path>");
+                ui::info("       git std lint --range <from..to>");
                 2
             };
             std::process::exit(code);
@@ -149,13 +149,13 @@ fn main() {
             };
             std::process::exit(code);
         }
-        Command::Hooks { subcommand } => {
+        Command::Hook { subcommand } => {
             let code = match subcommand {
-                HooksCommand::Install => cli::hooks::install(),
-                HooksCommand::Run { hook, args, format } => cli::hooks::run(&hook, &args, format),
-                HooksCommand::List { format } => cli::hooks::list(format),
-                HooksCommand::Enable { hook } => cli::hooks::enable(&hook),
-                HooksCommand::Disable { hook } => cli::hooks::disable(&hook),
+                HookCommand::Install => cli::hook::install(),
+                HookCommand::Run { hook, args, format } => cli::hook::run(&hook, &args, format),
+                HookCommand::List { format } => cli::hook::list(format),
+                HookCommand::Enable { hook } => cli::hook::enable(&hook),
+                HookCommand::Disable { hook } => cli::hook::disable(&hook),
             };
             std::process::exit(code);
         }

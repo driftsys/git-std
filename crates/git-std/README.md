@@ -33,7 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/driftsys/git-std/main/install.sh | 
 ```bash
 git add .
 git std commit                       # interactive commit
-git std check --range main..HEAD     # validate commits
+git std lint --range main..HEAD     # validate commits
 git std changelog --stdout           # preview changelog
 git std bump                         # bump + changelog + tag
 git push --follow-tags
@@ -44,10 +44,10 @@ git push --follow-tags
 | Command             | Purpose                          |
 | ------------------- | -------------------------------- |
 | `git std commit`    | Interactive conventional commit  |
-| `git std check`     | Commit message validation        |
+| `git std lint`      | Commit message validation        |
 | `git std bump`      | Version bump + changelog + tag   |
 | `git std changelog` | Generate or update the changelog |
-| `git std hooks`     | Git hooks management             |
+| `git std hook`      | Git hooks management             |
 
 ## Configuration
 

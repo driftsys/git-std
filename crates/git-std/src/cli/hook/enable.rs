@@ -2,7 +2,7 @@ use standard_githooks::KNOWN_HOOKS;
 
 use crate::ui;
 
-/// Run the `hooks enable <hook>` subcommand. Returns the process exit code.
+/// Run the `hook enable <hook>` subcommand. Returns the process exit code.
 pub fn enable(hook_name: &str) -> i32 {
     if !KNOWN_HOOKS.contains(&hook_name) {
         ui::error(&format!(
@@ -26,7 +26,7 @@ pub fn enable(hook_name: &str) -> i32 {
 
     if !off_path.exists() {
         ui::error(&format!(
-            "{hook_name}.off not found — run 'git std hooks install' first"
+            "{hook_name}.off not found — run 'git std hook install' first"
         ));
         return 1;
     }
@@ -47,7 +47,7 @@ pub fn enable(hook_name: &str) -> i32 {
     0
 }
 
-/// Run the `hooks disable <hook>` subcommand. Returns the process exit code.
+/// Run the `hook disable <hook>` subcommand. Returns the process exit code.
 pub fn disable(hook_name: &str) -> i32 {
     if !KNOWN_HOOKS.contains(&hook_name) {
         ui::error(&format!(
@@ -71,7 +71,7 @@ pub fn disable(hook_name: &str) -> i32 {
 
     if !active_path.exists() {
         ui::error(&format!(
-            "{hook_name} not found — run 'git std hooks install' first"
+            "{hook_name} not found — run 'git std hook install' first"
         ));
         return 1;
     }

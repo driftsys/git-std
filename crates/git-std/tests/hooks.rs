@@ -49,7 +49,7 @@ fn hooks_run_arg_passthrough_substitutes_msg_token() {
         .args([
             "--color",
             "never",
-            "hooks",
+            "hook",
             "run",
             "commit-msg",
             "--",
@@ -87,7 +87,7 @@ fn hooks_run_pre_commit_workflow() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .code(1);
@@ -128,7 +128,7 @@ fn hooks_run_commit_msg_bad_message_fails() {
     std::fs::create_dir_all(&hooks_dir).unwrap();
     std::fs::write(
         hooks_dir.join("commit-msg.hooks"),
-        format!("! {bin_str} check --file {{msg}}\n"),
+        format!("! {bin_str} lint --file {{msg}}\n"),
     )
     .unwrap();
 
@@ -141,7 +141,7 @@ fn hooks_run_commit_msg_bad_message_fails() {
         .args([
             "--color",
             "never",
-            "hooks",
+            "hook",
             "run",
             "commit-msg",
             "--",
@@ -169,7 +169,7 @@ fn hooks_run_commit_msg_good_message_passes() {
     std::fs::create_dir_all(&hooks_dir).unwrap();
     std::fs::write(
         hooks_dir.join("commit-msg.hooks"),
-        format!("! {bin_str} check --file {{msg}}\n"),
+        format!("! {bin_str} lint --file {{msg}}\n"),
     )
     .unwrap();
 
@@ -182,7 +182,7 @@ fn hooks_run_commit_msg_good_message_passes() {
         .args([
             "--color",
             "never",
-            "hooks",
+            "hook",
             "run",
             "commit-msg",
             "--",
@@ -218,14 +218,14 @@ fn hooks_full_install_cycle() {
     let bin_str = bin.to_string_lossy();
     std::fs::write(
         hooks_dir.join("commit-msg.hooks"),
-        format!("! {bin_str} check --file {{msg}}\n"),
+        format!("! {bin_str} lint --file {{msg}}\n"),
     )
     .unwrap();
 
-    // Run `git std hooks install`.
+    // Run `git std hook install`.
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit,commit-msg")
         .current_dir(dir.path())
         .assert()
@@ -256,7 +256,7 @@ fn hooks_full_install_cycle() {
         );
     }
 
-    // The shims call `git std hooks run ...` which invokes `git-std` as a
+    // The shims call `git std hook run ...` which invokes `git-std` as a
     // git subcommand. For this to work, the `git-std` binary must be on
     // PATH. Locate the cargo-built binary and prepend its directory.
     let bin_path = Command::cargo_bin("git-std")
@@ -327,7 +327,7 @@ fn hooks_run_fail_fast_skips_remaining_on_failure() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-push"])
+        .args(["--color", "never", "hook", "run", "pre-push"])
         .current_dir(dir.path())
         .assert()
         .code(1);
@@ -382,7 +382,7 @@ fn hooks_run_fail_fast_prefix_overrides_collect_mode() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .code(1);
@@ -430,7 +430,7 @@ fn hooks_run_fix_mode_staged_files_passed_as_positional_args() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -460,7 +460,7 @@ fn hooks_run_staged_files_passed_to_normal_commands() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -498,7 +498,7 @@ fn hooks_run_fix_mode_pre_commit_restages_formatted_content() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -529,7 +529,7 @@ fn hooks_run_fix_mode_non_pre_commit_warns_and_treats_as_fail_fast() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "commit-msg"])
+        .args(["--color", "never", "hook", "run", "commit-msg"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -558,7 +558,7 @@ fn hooks_run_fix_mode_non_pre_commit_failing_command_fails() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "commit-msg"])
+        .args(["--color", "never", "hook", "run", "commit-msg"])
         .current_dir(dir.path())
         .assert()
         .code(1);
@@ -594,7 +594,7 @@ fn hooks_run_fix_mode_preserves_staged_deletions() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -651,7 +651,7 @@ fn hooks_run_fix_mode_excludes_deleted_files_from_args() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -691,7 +691,7 @@ fn hooks_run_no_stash_dance_without_fix_commands() {
     // Should succeed without any stash-related warnings.
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -732,7 +732,7 @@ fn hooks_run_fix_mode_preserves_staged_deletions_on_failfast() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .code(1);
@@ -777,7 +777,7 @@ fn hooks_run_fix_mode_preserves_renamed_files() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -832,7 +832,7 @@ fn hooks_run_fix_mode_does_not_stage_formatter_created_files() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -884,7 +884,7 @@ fn hooks_run_fix_mode_preserves_binary_files() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -923,7 +923,7 @@ fn hooks_run_fix_mode_failure_prints_hints() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .code(1);
@@ -976,7 +976,7 @@ fn hooks_run_fix_mode_skips_restage_of_formatter_deleted_files() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -1069,7 +1069,7 @@ fn hooks_run_fix_mode_rejects_staged_submodules() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
         .code(1);
@@ -1097,7 +1097,7 @@ fn hooks_run_from_subdirectory() {
     // Create an active shim for pre-commit so `hooks run` finds it.
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
         .current_dir(dir.path())
         .assert()
@@ -1108,7 +1108,7 @@ fn hooks_run_from_subdirectory() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hooks", "run", "pre-commit"])
+        .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(&subdir)
         .assert()
         .success();

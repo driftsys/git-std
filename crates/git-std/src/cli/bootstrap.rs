@@ -53,7 +53,7 @@ pub fn run(dry_run: bool) -> i32 {
         if dry_run {
             ui::info(&format!("{}  custom bootstrap hooks executed", ui::pass()));
         } else {
-            let code = super::hooks::run("bootstrap", &[], crate::app::OutputFormat::Text);
+            let code = super::hook::run("bootstrap", &[], crate::app::OutputFormat::Text);
             if code != 0 {
                 failed = true;
             }

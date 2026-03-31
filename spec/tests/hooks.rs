@@ -5,7 +5,7 @@ use snapbox::cmd::Command;
 use snapbox::file;
 use support::TestRepo;
 
-/// `hooks list` displays configured hooks with their mode and commands.
+/// `hook list` displays configured hooks with their mode and commands.
 #[test]
 fn hooks_list_shows_configured_hooks() {
     let repo = TestRepo::new().with_hooks_file(
@@ -14,7 +14,7 @@ fn hooks_list_shows_configured_hooks() {
     );
 
     Command::new(TestRepo::bin_path())
-        .args(["hooks", "list"])
+        .args(["hook", "list"])
         .current_dir(repo.path())
         .assert()
         .success()
@@ -23,7 +23,7 @@ fn hooks_list_shows_configured_hooks() {
         ]);
 }
 
-/// `hooks list` shows fail-fast mode for pre-push hooks.
+/// `hook list` shows fail-fast mode for pre-push hooks.
 #[test]
 fn hooks_list_fail_fast_mode() {
     let repo = TestRepo::new().with_hooks_file(
@@ -32,7 +32,7 @@ fn hooks_list_fail_fast_mode() {
     );
 
     Command::new(TestRepo::bin_path())
-        .args(["hooks", "list"])
+        .args(["hook", "list"])
         .current_dir(repo.path())
         .assert()
         .success()
@@ -41,26 +41,26 @@ fn hooks_list_fail_fast_mode() {
         ]);
 }
 
-/// `hooks list` with no hooks configured prints a message to stderr.
+/// `hook list` with no hooks configured prints a message to stderr.
 #[test]
 fn hooks_list_no_hooks() {
     let repo = TestRepo::new();
 
     Command::new(TestRepo::bin_path())
-        .args(["hooks", "list"])
+        .args(["hook", "list"])
         .current_dir(repo.path())
         .assert()
         .success()
         .stderr_eq(file!["../snapshots/hooks/list_no_hooks.stderr.expected"]);
 }
 
-/// `hooks install` creates shim scripts for each `.hooks` file.
+/// `hook install` creates shim scripts for each `.hooks` file.
 #[test]
 fn hooks_install_creates_shims() {
     let repo = TestRepo::new().with_hooks_file("pre-commit", "dprint check\ncargo test\n");
 
     Command::new(TestRepo::bin_path())
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
         .current_dir(repo.path())
         .assert()
@@ -74,13 +74,13 @@ fn hooks_install_creates_shims() {
     assert!(shim_path.exists(), "shim should exist");
 }
 
-/// `hooks run` shows pass, fail, and advisory results in collect mode.
+/// `hook run` shows pass, fail, and advisory results in collect mode.
 #[test]
 fn hooks_run_pass_fail_advisory() {
     let repo = TestRepo::new().with_hooks_file("pre-commit", "true\n?false\n!false\n");
 
     Command::new(TestRepo::bin_path())
-        .args(["hooks", "run", "pre-commit"])
+        .args(["hook", "run", "pre-commit"])
         .current_dir(repo.path())
         .assert()
         .code(1)
@@ -89,13 +89,13 @@ fn hooks_run_pass_fail_advisory() {
         ]);
 }
 
-/// `hooks run` skips execution when GIT_STD_SKIP_HOOKS=1 is set.
+/// `hook run` skips execution when GIT_STD_SKIP_HOOKS=1 is set.
 #[test]
 fn hooks_run_skip_via_env_var() {
     let repo = TestRepo::new().with_hooks_file("pre-commit", "false\n");
 
     Command::new(TestRepo::bin_path())
-        .args(["hooks", "run", "pre-commit"])
+        .args(["hook", "run", "pre-commit"])
         .env("GIT_STD_SKIP_HOOKS", "1")
         .current_dir(repo.path())
         .assert()
@@ -105,13 +105,13 @@ fn hooks_run_skip_via_env_var() {
         ]);
 }
 
-/// `hooks run` skips execution when GIT_STD_SKIP_HOOKS=true is set.
+/// `hook run` skips execution when GIT_STD_SKIP_HOOKS=true is set.
 #[test]
 fn hooks_run_skip_via_env_var_true() {
     let repo = TestRepo::new().with_hooks_file("pre-commit", "false\n");
 
     Command::new(TestRepo::bin_path())
-        .args(["hooks", "run", "pre-commit"])
+        .args(["hook", "run", "pre-commit"])
         .env("GIT_STD_SKIP_HOOKS", "true")
         .current_dir(repo.path())
         .assert()
@@ -121,7 +121,7 @@ fn hooks_run_skip_via_env_var_true() {
         ]);
 }
 
-/// `hooks run` displays glob patterns and skips commands that don't match.
+/// `hook run` displays glob patterns and skips commands that don't match.
 #[test]
 fn hooks_run_glob_filtering() {
     let mut repo = TestRepo::new().with_hooks_file("pre-push", "true *.txt\ntrue *.py\n");
@@ -129,7 +129,7 @@ fn hooks_run_glob_filtering() {
     repo.add_commit("chore: init");
 
     Command::new(TestRepo::bin_path())
-        .args(["hooks", "run", "pre-push"])
+        .args(["hook", "run", "pre-push"])
         .current_dir(repo.path())
         .assert()
         .success()
@@ -138,7 +138,7 @@ fn hooks_run_glob_filtering() {
         ]);
 }
 
-/// `hooks run` correctly handles staged renames with fix mode (#387).
+/// `hook run` correctly handles staged renames with fix mode (#387).
 /// The stash dance corrupts renames by splitting them, but we repair
 /// them by re-staging the old name as a deletion after formatting.
 #[test]
@@ -171,14 +171,14 @@ fn hooks_run_fix_mode_handles_staged_renames() {
     // Run pre-commit hook with a fix command (~).
     // Should succeed and repair the rename corruption from stash apply.
     let output = std::process::Command::new(TestRepo::bin_path())
-        .args(["hooks", "run", "pre-commit"])
+        .args(["hook", "run", "pre-commit"])
         .current_dir(repo.path())
         .output()
-        .expect("failed to run hooks run");
+        .expect("failed to run hook run");
 
     assert!(
         output.status.success(),
-        "hooks run should succeed, stderr: {}",
+        "hook run should succeed, stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 

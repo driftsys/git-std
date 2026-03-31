@@ -48,11 +48,11 @@ updates.
 | Subcommand            | Purpose                                                |
 | --------------------- | ------------------------------------------------------ |
 | `git std commit`      | Interactive conventional commit builder                |
-| `git std check`       | Commit message validation                              |
+| `git std lint`        | Commit message validation                              |
 | `git std bump`        | Version bump + changelog + commit + tag                |
 | `git std changelog`   | Changelog generation (incremental or full)             |
 | `git std bootstrap`   | Post-clone environment setup                           |
-| `git std hooks`       | Git hooks management (install/run/list/enable/disable) |
+| `git std hook`        | Git hooks management (install/run/list/enable/disable) |
 | `git std completions` | Generate shell completion scripts                      |
 
 **Key design decisions:**

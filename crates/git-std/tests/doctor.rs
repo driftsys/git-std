@@ -59,7 +59,7 @@ fn doctor_hooks_pass_when_fully_configured() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stderr(contains("hooks"));
+        .stderr(contains("hook"));
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn doctor_hooks_fail_when_githooks_dir_missing() {
         .current_dir(dir.path())
         .assert()
         .code(1)
-        .stderr(contains("hooks"));
+        .stderr(contains("hook"));
 }
 
 #[test]
@@ -290,7 +290,7 @@ fn doctor_from_subdirectory() {
         .current_dir(&subdir)
         .assert()
         .success()
-        .stderr(contains("hooks"))
+        .stderr(contains("hook"))
         .stderr(contains("config"));
 }
 
@@ -348,7 +348,7 @@ fn doctor_from_git_worktree() {
         .current_dir(&wt_path)
         .assert()
         .success()
-        .stderr(contains("hooks"))
+        .stderr(contains("hook"))
         .stderr(contains("config"));
 }
 

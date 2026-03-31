@@ -6,13 +6,13 @@ use snapbox::file;
 use support::TestRepo;
 
 #[test]
-fn trycmd_check() {
-    trycmd::TestCases::new().case("tests/cmd/check/*.toml");
+fn trycmd_lint() {
+    trycmd::TestCases::new().case("tests/cmd/lint/*.toml");
 }
 
-/// `check --range` with a mix of valid and invalid commits reports both and exits 1.
+/// `lint --range` with a mix of valid and invalid commits reports both and exits 1.
 #[test]
-fn check_range_mixed_valid_invalid() {
+fn lint_range_mixed_valid_invalid() {
     let mut repo = TestRepo::new();
     repo.add_commit("feat: initial");
     repo.add_commit("fix: valid one");
@@ -32,7 +32,7 @@ fn check_range_mixed_valid_invalid() {
     let range = format!("{}..HEAD", &first_oid[..7]);
 
     Command::new(TestRepo::bin_path())
-        .args(["check", "--range", &range])
+        .args(["lint", "--range", &range])
         .current_dir(repo.path())
         .assert()
         .code(1)
@@ -41,13 +41,13 @@ fn check_range_mixed_valid_invalid() {
         ]);
 }
 
-/// `check --strict` rejects types not in the configured allowed list.
+/// `lint --strict` rejects types not in the configured allowed list.
 #[test]
-fn check_strict_rejects_unknown_type() {
+fn lint_strict_rejects_unknown_type() {
     let repo = TestRepo::new().with_config("types = [\"feat\", \"fix\"]\n");
 
     Command::new(TestRepo::bin_path())
-        .args(["check", "--strict", "docs: update readme"])
+        .args(["lint", "--strict", "docs: update readme"])
         .current_dir(repo.path())
         .assert()
         .code(1)
@@ -56,14 +56,14 @@ fn check_strict_rejects_unknown_type() {
         ]);
 }
 
-/// `check --strict` with scopes configured requires a scope and rejects unknown scopes.
+/// `lint --strict` with scopes configured requires a scope and rejects unknown scopes.
 #[test]
-fn check_strict_rejects_missing_scope() {
+fn lint_strict_rejects_missing_scope() {
     let repo =
         TestRepo::new().with_config("types = [\"feat\", \"fix\"]\nscopes = [\"auth\", \"api\"]\n");
 
     Command::new(TestRepo::bin_path())
-        .args(["check", "--strict", "feat: no scope provided"])
+        .args(["lint", "--strict", "feat: no scope provided"])
         .current_dir(repo.path())
         .assert()
         .code(1)
@@ -72,14 +72,14 @@ fn check_strict_rejects_missing_scope() {
         ]);
 }
 
-/// `check --strict` with scopes configured rejects unknown scopes.
+/// `lint --strict` with scopes configured rejects unknown scopes.
 #[test]
-fn check_strict_rejects_unknown_scope() {
+fn lint_strict_rejects_unknown_scope() {
     let repo =
         TestRepo::new().with_config("types = [\"feat\", \"fix\"]\nscopes = [\"auth\", \"api\"]\n");
 
     Command::new(TestRepo::bin_path())
-        .args(["check", "--strict", "feat(unknown): add login"])
+        .args(["lint", "--strict", "feat(unknown): add login"])
         .current_dir(repo.path())
         .assert()
         .code(1)
@@ -88,14 +88,14 @@ fn check_strict_rejects_unknown_scope() {
         ]);
 }
 
-/// `check --strict --format json` returns structured errors for unknown types.
+/// `lint --strict --format json` returns structured errors for unknown types.
 #[test]
-fn check_strict_json_rejects_unknown_type() {
+fn lint_strict_json_rejects_unknown_type() {
     let repo = TestRepo::new().with_config("types = [\"feat\", \"fix\"]\n");
 
     Command::new(TestRepo::bin_path())
         .args([
-            "check",
+            "lint",
             "--strict",
             "--format",
             "json",
@@ -109,11 +109,11 @@ fn check_strict_json_rejects_unknown_type() {
         ]);
 }
 
-/// `check --format json` with an invalid message returns structured errors.
+/// `lint --format json` with an invalid message returns structured errors.
 #[test]
-fn check_json_invalid_message() {
+fn lint_json_invalid_message() {
     Command::new(TestRepo::bin_path())
-        .args(["check", "--format", "json", "bad message"])
+        .args(["lint", "--format", "json", "bad message"])
         .assert()
         .code(1)
         .stdout_eq(file![

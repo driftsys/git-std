@@ -33,7 +33,7 @@ fn git(dir: &std::path::Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
 
-// ── check --range (#12) ────────────────────────────────────────
+// ── lint --range (#12) ─────────────────────────────────────────
 
 #[test]
 fn range_all_valid_exits_0() {
@@ -46,7 +46,7 @@ fn range_all_valid_exits_0() {
     let range = format!("{}..HEAD", &initial[..7]);
 
     git_std()
-        .args(["check", "--range", &range])
+        .args(["lint", "--range", &range])
         .current_dir(dir.path())
         .assert()
         .success()
@@ -64,7 +64,7 @@ fn range_invalid_commit_exits_1() {
     let range = format!("{}..HEAD", &initial[..7]);
 
     git_std()
-        .args(["check", "--range", &range])
+        .args(["lint", "--range", &range])
         .current_dir(dir.path())
         .assert()
         .code(1)
@@ -83,7 +83,7 @@ fn range_mixed_reports_both() {
     let range = format!("{}..HEAD", &initial[..7]);
 
     git_std()
-        .args(["check", "--range", &range])
+        .args(["lint", "--range", &range])
         .current_dir(dir.path())
         .assert()
         .code(1)
@@ -94,7 +94,7 @@ fn range_mixed_reports_both() {
 #[test]
 fn range_invalid_range_exits_2() {
     git_std()
-        .args(["check", "--range", "nonexistent..also-nonexistent"])
+        .args(["lint", "--range", "nonexistent..also-nonexistent"])
         .assert()
         .code(2);
 }

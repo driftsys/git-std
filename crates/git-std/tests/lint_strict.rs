@@ -33,7 +33,7 @@ fn strict_accepts_default_types_without_config() {
     let dir = tempfile::tempdir().unwrap();
     // No .git-std.toml — should use default types
     git_std()
-        .args(["check", "--strict", "feat: add login"])
+        .args(["lint", "--strict", "feat: add login"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -43,7 +43,7 @@ fn strict_accepts_default_types_without_config() {
 fn strict_rejects_unknown_type_without_config() {
     let dir = tempfile::tempdir().unwrap();
     git_std()
-        .args(["check", "--strict", "yolo: do things"])
+        .args(["lint", "--strict", "yolo: do things"])
         .current_dir(dir.path())
         .assert()
         .code(1)
@@ -60,7 +60,7 @@ fn strict_with_custom_types_accepts_custom() {
     .unwrap();
 
     git_std()
-        .args(["check", "--strict", "custom: do something"])
+        .args(["lint", "--strict", "custom: do something"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -76,7 +76,7 @@ fn strict_with_custom_types_rejects_unlisted() {
     .unwrap();
 
     git_std()
-        .args(["check", "--strict", "docs: update readme"])
+        .args(["lint", "--strict", "docs: update readme"])
         .current_dir(dir.path())
         .assert()
         .code(1)
@@ -94,7 +94,7 @@ fn strict_with_scopes_requires_scope() {
 
     // No scope provided — should fail
     git_std()
-        .args(["check", "--strict", "feat: add login"])
+        .args(["lint", "--strict", "feat: add login"])
         .current_dir(dir.path())
         .assert()
         .code(1)
@@ -111,7 +111,7 @@ fn strict_with_scopes_rejects_unknown_scope() {
     .unwrap();
 
     git_std()
-        .args(["check", "--strict", "feat(unknown): add login"])
+        .args(["lint", "--strict", "feat(unknown): add login"])
         .current_dir(dir.path())
         .assert()
         .code(1)
@@ -128,7 +128,7 @@ fn strict_with_scopes_accepts_valid_scope() {
     .unwrap();
 
     git_std()
-        .args(["check", "--strict", "feat(auth): add login"])
+        .args(["lint", "--strict", "feat(auth): add login"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -141,7 +141,7 @@ fn without_strict_any_type_accepted() {
 
     // Without --strict, custom types pass (only parse validation)
     git_std()
-        .args(["check", "yolo: do things"])
+        .args(["lint", "yolo: do things"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -159,7 +159,7 @@ fn strict_file_validates_against_config() {
     std::fs::write(&msg_path, "docs: update readme\n").unwrap();
 
     git_std()
-        .args(["check", "--strict", "--file", msg_path.to_str().unwrap()])
+        .args(["lint", "--strict", "--file", msg_path.to_str().unwrap()])
         .current_dir(dir.path())
         .assert()
         .code(1)
@@ -171,7 +171,7 @@ fn strict_file_validates_against_config() {
 #[test]
 fn json_valid_simple() {
     let output = git_std()
-        .args(["check", "--format", "json", "feat: add login"])
+        .args(["lint", "--format", "json", "feat: add login"])
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -188,7 +188,7 @@ fn json_valid_simple() {
 fn json_valid_scoped_breaking() {
     let output = git_std()
         .args([
-            "check",
+            "lint",
             "--format",
             "json",
             "refactor(runtime)!: drop Python 2 support",
@@ -206,7 +206,7 @@ fn json_valid_scoped_breaking() {
 #[test]
 fn json_invalid_message() {
     let output = git_std()
-        .args(["check", "--format", "json", "bad message"])
+        .args(["lint", "--format", "json", "bad message"])
         .output()
         .unwrap();
     assert!(!output.status.success());
@@ -219,7 +219,7 @@ fn json_invalid_message() {
 fn json_invalid_strict() {
     let dir = tempfile::tempdir().unwrap();
     let output = git_std()
-        .args(["check", "--strict", "--format", "json", "yolo: do things"])
+        .args(["lint", "--strict", "--format", "json", "yolo: do things"])
         .current_dir(dir.path())
         .output()
         .unwrap();
@@ -240,7 +240,7 @@ fn json_invalid_strict() {
 #[test]
 fn color_never_no_ansi_codes_valid() {
     let output = git_std()
-        .args(["--color", "never", "check", "feat: add login"])
+        .args(["--color", "never", "lint", "feat: add login"])
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -256,7 +256,7 @@ fn color_never_no_ansi_codes_valid() {
 #[test]
 fn color_never_no_ansi_codes_invalid() {
     let output = git_std()
-        .args(["--color", "never", "check", "bad message"])
+        .args(["--color", "never", "lint", "bad message"])
         .output()
         .unwrap();
     assert!(!output.status.success());
@@ -278,7 +278,7 @@ fn strict_auto_scopes_accepts_discovered() {
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 
     git_std()
-        .args(["check", "--strict", "feat(auth): add login"])
+        .args(["lint", "--strict", "feat(auth): add login"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -292,7 +292,7 @@ fn strict_auto_scopes_rejects_unknown() {
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 
     git_std()
-        .args(["check", "--strict", "feat(unknown): something"])
+        .args(["lint", "--strict", "feat(unknown): something"])
         .current_dir(dir.path())
         .assert()
         .code(1)
@@ -307,7 +307,7 @@ fn strict_auto_scopes_requires_scope() {
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 
     git_std()
-        .args(["check", "--strict", "feat: no scope"])
+        .args(["lint", "--strict", "feat: no scope"])
         .current_dir(dir.path())
         .assert()
         .code(1)
@@ -322,7 +322,7 @@ fn strict_auto_scopes_empty_dirs_no_requirement() {
     std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
 
     git_std()
-        .args(["check", "--strict", "feat: anything"])
+        .args(["lint", "--strict", "feat: anything"])
         .current_dir(dir.path())
         .assert()
         .success();

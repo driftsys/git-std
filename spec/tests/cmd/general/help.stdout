@@ -4,11 +4,11 @@ Usage: git-std [OPTIONS] <COMMAND>
 
 Commands:
   commit       Interactive conventional commit builder
-  check        Validate commit messages
+  lint         Validate commit messages
   bump         Version bump, changelog, commit, and tag
   changelog    Generate a changelog (incremental by default, --full to regenerate)
   bootstrap    Post-clone environment setup
-  hooks        Git hooks management
+  hook         Git hooks management
   config       Inspect effective git-std configuration
   doctor       Run health checks on the local git-std setup
   completions  Generate shell completion scripts

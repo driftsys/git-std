@@ -38,7 +38,7 @@ fn hooks_install_creates_shims() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
         .current_dir(dir.path())
         .assert()
@@ -51,7 +51,7 @@ fn hooks_install_creates_shims() {
 
     // Shim should contain exec line and managed comment.
     let content = std::fs::read_to_string(&shim_path).unwrap();
-    assert!(content.contains("exec git std hooks run pre-commit"));
+    assert!(content.contains("exec git std hook run pre-commit"));
     assert!(content.contains("Managed by git-std"));
 
     // Other hooks should be .off.
@@ -76,7 +76,7 @@ fn hooks_install_multiple_hooks() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit,pre-push,commit-msg")
         .current_dir(dir.path())
         .assert()
@@ -102,7 +102,7 @@ fn hooks_install_is_idempotent() {
     for _ in 0..2 {
         Command::cargo_bin("git-std")
             .unwrap()
-            .args(["hooks", "install"])
+            .args(["hook", "install"])
             .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
             .current_dir(dir.path())
             .assert()
@@ -111,7 +111,7 @@ fn hooks_install_is_idempotent() {
 
     // Shim should exist and contain exec line.
     let content = std::fs::read_to_string(hooks_dir.join("pre-commit")).unwrap();
-    assert!(content.contains("exec git std hooks run pre-commit"));
+    assert!(content.contains("exec git std hook run pre-commit"));
 }
 
 #[test]
@@ -125,7 +125,7 @@ fn hooks_install_preserves_non_hooks_files() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
         .current_dir(dir.path())
         .assert()
@@ -153,7 +153,7 @@ fn hooks_list_shows_configured_hooks() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "list"])
+        .args(["hook", "list"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -183,7 +183,7 @@ fn hooks_list_fail_fast_mode() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "list"])
+        .args(["hook", "list"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -208,13 +208,13 @@ fn hooks_list_commit_msg() {
     std::fs::create_dir_all(&hooks_dir).unwrap();
     std::fs::write(
         hooks_dir.join("commit-msg.hooks"),
-        "! git std check --file {msg}\n",
+        "! git std lint --file {msg}\n",
     )
     .unwrap();
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "list"])
+        .args(["hook", "list"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -225,7 +225,7 @@ fn hooks_list_commit_msg() {
         "should show commit-msg with fail-fast mode"
     );
     assert!(
-        stderr.contains("git std check --file {msg}"),
+        stderr.contains("git std lint --file {msg}"),
         "should show command with {{msg}} token"
     );
 }
@@ -238,7 +238,7 @@ fn hooks_list_no_hooks() {
     // No .githooks/ directory at all.
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "list"])
+        .args(["hook", "list"])
         .current_dir(dir.path())
         .assert()
         .success()
@@ -257,7 +257,7 @@ fn hooks_list_multiple_hooks() {
 
     let assert = Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "list"])
+        .args(["hook", "list"])
         .current_dir(dir.path())
         .assert()
         .success();
@@ -278,7 +278,7 @@ fn hooks_install_sets_core_hooks_path() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "none")
         .current_dir(dir.path())
         .assert()
@@ -298,7 +298,7 @@ fn hooks_install_creates_githooks_dir() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "none")
         .current_dir(dir.path())
         .assert()
@@ -317,7 +317,7 @@ fn hooks_install_enable_all() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "all")
         .current_dir(dir.path())
         .assert()
@@ -340,7 +340,7 @@ fn hooks_install_non_tty_without_env_fails() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .current_dir(dir.path())
         .assert()
         .failure()
@@ -357,7 +357,7 @@ fn hooks_install_non_tty_with_env_succeeds() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "all")
         .current_dir(dir.path())
         .assert()
@@ -371,7 +371,7 @@ fn hooks_install_enable_none() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "none")
         .current_dir(dir.path())
         .assert()
@@ -397,7 +397,7 @@ fn hooks_list_from_subdirectory() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "list"])
+        .args(["hook", "list"])
         .current_dir(&subdir)
         .assert()
         .success()
@@ -413,7 +413,7 @@ fn hooks_install_from_subdirectory() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hooks", "install"])
+        .args(["hook", "install"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
         .current_dir(&subdir)
         .assert()

@@ -12,7 +12,7 @@ git std <command> [options]
 | `--version` / `-V` | Print version                       |
 | `--color <when>`   | `auto` (default), `always`, `never` |
 
-## `git std check`
+## `git std lint`
 
 Validate commit messages against the
 [Conventional Commits][conv-commits] specification.
@@ -20,9 +20,9 @@ Validate commit messages against the
 **Input modes:**
 
 ```bash
-git std check "feat: add login"                    # inline message
-git std check --file .git/COMMIT_EDITMSG           # from file (strips # comments)
-git std check --range main..HEAD                   # all commits in a range
+git std lint "feat: add login"                    # inline message
+git std lint --file .git/COMMIT_EDITMSG           # from file (strips # comments)
+git std lint --range main..HEAD                   # all commits in a range
 ```
 
 **Flags:**
@@ -40,16 +40,16 @@ git std check --range main..HEAD                   # all commits in a range
 
 ```bash
 # Validate a single message
-git std check "feat(auth): add OAuth2 PKCE flow"
+git std lint "feat(auth): add OAuth2 PKCE flow"
 
 # Validate all commits on a branch
-git std check --range main..HEAD
+git std lint --range main..HEAD
 
 # Strict mode — reject unknown types and scopes
-git std check --strict --range main..HEAD
+git std lint --strict --range main..HEAD
 
 # As a commit-msg hook
-git std check --file "$1"
+git std lint --file "$1"
 ```
 
 ## `git std commit`
@@ -139,16 +139,16 @@ Generate or update the changelog from git history.
 either, generates an incremental changelog from unreleased
 commits since the last tag.
 
-## `git std hooks`
+## `git std hook`
 
 Manage git hooks defined in `.githooks/*.hooks` files.
 
 ```bash
-git std hooks install          # set up hooks directory and shim scripts
-git std hooks run <hook>       # execute a hook manually
-git std hooks list             # display configured hooks
-git std hooks enable <hook>    # activate a hook (rename .off → shim)
-git std hooks disable <hook>   # deactivate a hook (rename shim → .off)
+git std hook install          # set up hooks directory and shim scripts
+git std hook run <hook>       # execute a hook manually
+git std hook list             # display configured hooks
+git std hook enable <hook>    # activate a hook (rename .off → shim)
+git std hook disable <hook>   # deactivate a hook (rename shim → .off)
 ```
 
 **Subcommands:**
@@ -212,7 +212,7 @@ git std doctor              # check all sections, exit 0 (pass) or 1 (fail)
 git std doctor --format json  # machine-readable JSON on stdout
 ```
 
-**Sections:** `hooks`, `bootstrap`, `config`.
+**Sections:** `hook`, `bootstrap`, `config`.
 
 **Flags:**
 

@@ -1,2 +1,2 @@
 #!/bin/bash
-exec git std hooks run pre-commit -- "$@"
+exec git std hook run pre-commit -- "$@"
