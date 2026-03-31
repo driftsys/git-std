@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use standard_version::DenoVersionFile;
+use standard_version::{DenoVersionFile, VersionFile};
 
 use super::{Ecosystem, SyncOutcome, WriteOutcome, native_write, try_sync};
 
@@ -38,5 +38,9 @@ impl Ecosystem for Deno {
 
     fn lock_files(&self) -> &[&str] {
         &["deno.lock"]
+    }
+
+    fn version_file_engine(&self) -> Option<Box<dyn VersionFile>> {
+        Some(Box::new(DenoVersionFile))
     }
 }

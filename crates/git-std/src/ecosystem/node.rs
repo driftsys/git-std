@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use standard_version::JsonVersionFile;
+use standard_version::{JsonVersionFile, VersionFile};
 
 use super::{Ecosystem, SyncOutcome, WriteOutcome, cmd, native_write, try_sync};
 use crate::ui;
@@ -77,6 +77,10 @@ impl Ecosystem for Node {
 
     fn lock_files(&self) -> &[&str] {
         &["package-lock.json", "yarn.lock", "pnpm-lock.yaml"]
+    }
+
+    fn version_file_engine(&self) -> Option<Box<dyn VersionFile>> {
+        Some(Box::new(JsonVersionFile))
     }
 }
 
