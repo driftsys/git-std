@@ -216,9 +216,8 @@ fn run_range(
             .map(|c| !c.is_empty())
             .unwrap_or(false);
         if inverse_has_commits {
-            ui::warning(&format!(
-                "range '{range}' is empty — did you mean '{to_spec}..{from_spec}'?"
-            ));
+            ui::warning(&format!("range '{range}' is empty"));
+            ui::hint(&format!("did you mean '{to_spec}..{from_spec}'?"));
             return 1;
         }
     }

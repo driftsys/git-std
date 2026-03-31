@@ -133,12 +133,12 @@ fn changelog_range_warns_on_reversed_range() {
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stderr.contains("warning:"),
-        "should print a warning, got stderr: {stderr}"
+        stderr.contains("warning:") && stderr.contains("is empty"),
+        "should print a warning about empty range, got stderr: {stderr}"
     );
     assert!(
-        stderr.contains("did you mean 'v1.0.0..v1.1.0'"),
-        "should suggest the corrected range, got stderr: {stderr}"
+        stderr.contains("hint:") && stderr.contains("did you mean 'v1.0.0..v1.1.0'"),
+        "should print a hint with the corrected range, got stderr: {stderr}"
     );
 }
 
@@ -160,6 +160,33 @@ fn changelog_range_no_conventional_commits() {
         .success();
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("no conventional commits found"),
+        "should report no conventional commits, got stderr: {stderr}"
+    );
+}
+
+#[test]
+fn changelog_range_no_warning_for_same_commit_tags() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+
+    // Create a second tag on the same commit.
+    git(dir.path(), &["tag", "-a", "v1.0.1", "-m", "v1.0.1"]);
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["changelog", "--range", "v1.0.0..v1.0.1", "--stdout"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        !stderr.contains("warning:"),
+        "should not print a warning for same-commit tags, got stderr: {stderr}"
+    );
     assert!(
         stderr.contains("no conventional commits found"),
         "should report no conventional commits, got stderr: {stderr}"
