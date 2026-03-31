@@ -190,18 +190,18 @@ well-formed conventional commit message and runs
 
 **Flags:**
 
-| Flag              | Description                                                               |
-| ----------------- | ------------------------------------------------------------------------- |
-| `--type <type>`   | Pre-fill type, skip type prompt                                           |
-| `--scope <scope>` | Pre-fill scope, skip scope prompt                                         |
-| `--message <msg>` | Non-interactive mode, full message provided. Validated before committing. |
-| `--breaking`      | Add `BREAKING CHANGE` footer (prompts for description)                    |
-| `--footer <text>` | Add a trailer footer (repeatable, e.g. `Co-authored-by: Name <email>`)    |
-| `--signoff` / `-s`| Add `Signed-off-by` trailer from git `user.name` / `user.email`           |
-| `--dry-run`       | Print the assembled message to stdout, do not commit                      |
-| `--amend`         | Pass `--amend` to `git commit`                                            |
-| `--sign` / `-S`   | Pass `--gpg-sign` to `git commit`                                         |
-| `--all` / `-a`    | Pass `--all` to `git commit` (stage tracked changes)                      |
+| Flag               | Description                                                               |
+| ------------------ | ------------------------------------------------------------------------- |
+| `--type <type>`    | Pre-fill type, skip type prompt                                           |
+| `--scope <scope>`  | Pre-fill scope, skip scope prompt                                         |
+| `--message <msg>`  | Non-interactive mode, full message provided. Validated before committing. |
+| `--breaking`       | Add `BREAKING CHANGE` footer (prompts for description)                    |
+| `--footer <text>`  | Add a trailer footer (repeatable, e.g. `Co-authored-by: Name <email>`)    |
+| `--signoff` / `-s` | Add `Signed-off-by` trailer from git `user.name` / `user.email`           |
+| `--dry-run`        | Print the assembled message to stdout, do not commit                      |
+| `--amend`          | Pass `--amend` to `git commit`                                            |
+| `--sign` / `-S`    | Pass `--gpg-sign` to `git commit`                                         |
+| `--all` / `-a`     | Pass `--all` to `git commit` (stage tracked changes)                      |
 
 **Exit codes:** `0` = committed, `1` = validation failed
 or git error, `2` = usage error.
