@@ -610,11 +610,11 @@ using `standard-changelog`.
 
 **Flags:**
 
-| Flag                      | Description                                            |
-| ------------------------- | ------------------------------------------------------ |
-| `--full`                  | Regenerate the entire changelog from the first commit  |
-| `--range <range>`         | Generate changelog for a tag range (e.g. `v1.0..v2.0`) |
-| `-w`, `--write [path]`    | Write to file (default: `CHANGELOG.md`)                |
+| Flag                   | Description                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `--full`               | Regenerate the entire changelog from the first commit  |
+| `--range <range>`      | Generate changelog for a tag range (e.g. `v1.0..v2.0`) |
+| `-w`, `--write [path]` | Write to file (default: `CHANGELOG.md`)                |
 
 Output goes to stdout by default. Pass `-w` / `--write` to
 write to `CHANGELOG.md`, or `-w <path>` to write to a
