@@ -133,11 +133,17 @@ fn build_tag_name(template: &str, pkg_name: &str, version: &str) -> String {
 }
 
 /// Format a bump level as a human-readable reason string.
-fn bump_reason(level: standard_version::BumpLevel) -> &'static str {
-    match level {
-        standard_version::BumpLevel::Major => "major \u{2014} breaking change",
-        standard_version::BumpLevel::Minor => "minor \u{2014} new feature",
-        standard_version::BumpLevel::Patch => "patch \u{2014} bug fix",
+///
+/// When `is_pre1` is true, labels reflect the pre-1.0 downshift
+/// (Major→minor, Minor→patch).
+fn bump_reason(level: standard_version::BumpLevel, is_pre1: bool) -> &'static str {
+    match (level, is_pre1) {
+        (standard_version::BumpLevel::Major, true) => "minor \u{2014} breaking change (pre-1.0)",
+        (standard_version::BumpLevel::Minor, true) => "patch \u{2014} new feature (pre-1.0)",
+        (standard_version::BumpLevel::Patch, true) => "patch \u{2014} bug fix",
+        (standard_version::BumpLevel::Major, false) => "major \u{2014} breaking change",
+        (standard_version::BumpLevel::Minor, false) => "minor \u{2014} new feature",
+        (standard_version::BumpLevel::Patch, false) => "patch \u{2014} bug fix",
     }
 }
 
@@ -941,9 +947,14 @@ fn print_plan_text(
         ui::heading("Packages:", "");
         for plan in package_plans {
             let prev = plan.prev_version.as_deref().unwrap_or("none");
+            let is_pre1 = plan
+                .prev_version
+                .as_ref()
+                .and_then(|v| semver::Version::parse(v).ok())
+                .is_none_or(|v| v.major == 0);
             let reason = match &plan.cascade_from {
                 Some(source) => format!("patch — dependency cascade from {source}"),
-                None => bump_reason(plan.bump_level).to_string(),
+                None => bump_reason(plan.bump_level, is_pre1).to_string(),
             };
             ui::info(&format!(
                 "{}: {} ({})",

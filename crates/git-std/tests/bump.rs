@@ -111,13 +111,14 @@ fn bump_dry_run_shows_plan() {
     // Add a feat commit.
     add_commit(dir.path(), "a.txt", "feat: add feature A");
 
+    // Pre-1.0: feat (Minor) downshifts to Patch → 0.1.0 → 0.1.1.
     Command::cargo_bin("git-std")
         .unwrap()
         .args(["bump", "--dry-run"])
         .current_dir(dir.path())
         .assert()
         .success()
-        .stderr(predicate::str::contains("0.1.0 → 0.2.0"))
+        .stderr(predicate::str::contains("0.1.0 → 0.1.1"))
         .stderr(predicate::str::contains("Would commit"))
         .stderr(predicate::str::contains("Would tag"));
 }
@@ -581,6 +582,129 @@ fn bump_dry_run_skips_untriggered_lock_file() {
         .assert()
         .success()
         .stderr(predicate::str::contains("Would sync:   uv.lock").not());
+}
+
+// ── Pre-1.0 semver convention ──────────────────────────────────
+
+/// Pre-1.0: a breaking change bumps minor, not major.
+#[test]
+fn bump_pre1_breaking_bumps_minor() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v0.10.2");
+
+    add_commit(dir.path(), "brk.txt", "feat!: remove old API");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("0.10.2 → 0.11.0"));
+
+    let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+    assert!(cargo.contains("version = \"0.11.0\""));
+    assert!(tag_exists(dir.path(), "v0.11.0"));
+}
+
+/// Pre-1.0: a feat bumps patch, not minor.
+#[test]
+fn bump_pre1_feat_bumps_patch() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v0.10.2");
+
+    add_commit(dir.path(), "ft.txt", "feat: add feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("0.10.2 → 0.10.3"));
+
+    let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+    assert!(cargo.contains("version = \"0.10.3\""));
+}
+
+/// Pre-1.0: a fix bumps patch.
+#[test]
+fn bump_pre1_fix_bumps_patch() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v0.10.2");
+
+    add_commit(dir.path(), "fx.txt", "fix: handle edge case");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("0.10.2 → 0.10.3"));
+}
+
+/// Pre-1.0: --release-as still overrides computed version.
+#[test]
+fn bump_pre1_release_as_overrides() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v0.10.2");
+
+    add_commit(dir.path(), "ra.txt", "feat: something");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--release-as", "1.0.0"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("0.10.2 → 1.0.0"));
+
+    let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+    assert!(cargo.contains("version = \"1.0.0\""));
+    assert!(tag_exists(dir.path(), "v1.0.0"));
+}
+
+/// Pre-1.0: --dry-run shows the downshifted bump plan.
+#[test]
+fn bump_pre1_dry_run_shows_correct_plan() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v0.10.2");
+
+    add_commit(dir.path(), "dr.txt", "feat!: breaking API change");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("0.10.2 → 0.11.0"))
+        .stderr(predicate::str::contains("Would commit"))
+        .stderr(predicate::str::contains("Would tag"));
+}
+
+/// Post-1.0: breaking change still bumps major (behaviour unchanged).
+#[test]
+fn bump_post1_breaking_bumps_major() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.2.3");
+
+    add_commit(dir.path(), "brk2.txt", "feat!: remove old API");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.2.3 → 2.0.0"));
 }
 
 /// Cargo.lock is synced when `cargo` is available and Cargo.toml was updated.

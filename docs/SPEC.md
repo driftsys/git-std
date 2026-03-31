@@ -299,10 +299,24 @@ changelog, commit, and tag.
 2. Collect all commits between that tag and `HEAD`.
 3. Parse each commit as a conventional commit.
    Non-conforming commits are ignored (not an error).
-4. Apply bump rules inferred from `scheme`: if any
-   commit has a `BREAKING CHANGE` footer or `!` after
-   the type, bump major. Otherwise, the highest bump
-   wins (`minor` > `patch`).
+4. Apply bump rules inferred from `scheme`. The highest
+   bump level wins (`major` > `minor` > `patch`):
+   - `BREAKING CHANGE` footer or `!` suffix → major
+   - `feat` → minor
+   - `fix` / `perf` / `revert` → patch
+
+   **Pre-1.0 convention** (major == 0): bump levels are
+   downshifted following the Rust/Cargo convention:
+
+   | Commit type     | >= 1.0.0 | < 1.0.0  |
+   | --------------- | -------- | -------- |
+   | Breaking change | major    | minor    |
+   | Feature         | minor    | patch    |
+   | Fix             | patch    | patch    |
+
+   Example: `0.10.2` + breaking → `0.11.0`,
+   `0.10.2` + feat → `0.10.3`.
+   To force a 1.0.0 release: `git std bump --release-as 1.0.0`.
 5. If no bump-worthy commits exist, print a message and exit `0` (not an error).
 6. Compute the new version string.
 7. Update all version files:

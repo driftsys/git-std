@@ -120,6 +120,7 @@ fn monorepo_dry_run_shows_package_plans() {
         "feat: add core feature",
     );
 
+    // Pre-1.0: feat (Minor) → "patch — new feature (pre-1.0)".
     Command::cargo_bin("git-std")
         .unwrap()
         .args(["bump", "--dry-run"])
@@ -128,7 +129,7 @@ fn monorepo_dry_run_shows_package_plans() {
         .success()
         .stderr(predicate::str::contains("core"))
         .stderr(predicate::str::contains("0.1.0"))
-        .stderr(predicate::str::contains("minor"));
+        .stderr(predicate::str::contains("patch"));
 }
 
 #[test]
@@ -176,6 +177,7 @@ fn monorepo_package_filter() {
     );
     add_commit(dir.path(), "crates/cli/src/main.rs", "fix: fix cli bug");
 
+    // Pre-1.0: feat (Minor) → "patch — new feature (pre-1.0)".
     Command::cargo_bin("git-std")
         .unwrap()
         .args(["bump", "--dry-run", "-p", "core"])
@@ -183,7 +185,7 @@ fn monorepo_package_filter() {
         .assert()
         .success()
         .stderr(predicate::str::contains("core"))
-        .stderr(predicate::str::contains("minor"));
+        .stderr(predicate::str::contains("patch"));
 }
 
 #[test]
@@ -320,9 +322,9 @@ fn monorepo_full_bump_creates_tags_and_commit() {
         .assert()
         .success();
 
-    // Verify tags created.
+    // Pre-1.0: feat (Minor) downshifts to Patch → core@0.1.1.
     let tags = collect_tag_names(dir.path());
-    assert!(tags.iter().any(|t| t.starts_with("core@0.2.")));
+    assert!(tags.iter().any(|t| t == "core@0.1.1"));
 
     // Verify commit message.
     let msg = head_message(dir.path());
@@ -350,9 +352,9 @@ fn monorepo_no_tag_flag() {
         .assert()
         .success();
 
-    // No new tags should be created.
+    // No new tags should be created (pre-1.0 would be core@0.1.1).
     let tags = collect_tag_names(dir.path());
-    assert!(!tags.iter().any(|t| t.starts_with("core@0.2.")));
+    assert!(!tags.iter().any(|t| t == "core@0.1.1"));
 }
 
 #[test]
