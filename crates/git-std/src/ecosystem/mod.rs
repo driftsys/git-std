@@ -274,6 +274,8 @@ pub fn run_bump(root: &Path, new_version: &str, custom_files: &[CustomVersionFil
         }
     }
 
+    let custom_count_before = update_results.len();
+
     // Process custom [[version_files]] via regex engine.
     process_custom_files(
         root,
@@ -282,6 +284,47 @@ pub fn run_bump(root: &Path, new_version: &str, custom_files: &[CustomVersionFil
         &mut update_results,
         &mut modified_paths,
     );
+
+    let custom_updated = update_results.len() > custom_count_before;
+
+    // If custom files were updated but the ecosystem loop didn't trigger a
+    // lock sync (e.g. the root Cargo.toml is a workspace manifest with no
+    // [package] section), sync lock files now for any detected ecosystem.
+    if custom_updated {
+        for eco in &ecosystems {
+            if !eco.detect(root) {
+                continue;
+            }
+            // Skip ecosystems already synced above.
+            if eco
+                .lock_files()
+                .iter()
+                .any(|lf| synced_locks.contains(&lf.to_string()))
+            {
+                continue;
+            }
+            for outcome in eco.sync_lock(root) {
+                match outcome {
+                    SyncOutcome::Synced { lock_file } => {
+                        ui::item("Synced:", &lock_file);
+                        synced_locks.push(lock_file);
+                    }
+                    SyncOutcome::ToolMissing {
+                        lock_file, hint, ..
+                    } => {
+                        ui::warning(&format!("{lock_file} not synced \u{2014} run '{hint}'"));
+                    }
+                    SyncOutcome::Failed {
+                        lock_file,
+                        exit_code,
+                    } => {
+                        ui::warning(&format!("{lock_file} sync failed (exit {exit_code})"));
+                    }
+                    SyncOutcome::NoLockFile => {}
+                }
+            }
+        }
+    }
 
     BumpResult {
         update_results,

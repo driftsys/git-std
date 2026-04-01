@@ -1168,6 +1168,69 @@ fn bump_push_failure_exits_nonzero() {
         .failure();
 }
 
+/// Cargo.lock is synced via custom [[version_files]] when root Cargo.toml is a
+/// workspace manifest with no [package] section (the ecosystem native_write
+/// returns NotDetected, so sync must fire from the custom-files path).
+#[test]
+fn bump_cargo_lock_sync_via_custom_version_files() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // Workspace-style repo: root Cargo.toml has no [package], only [workspace].
+    let workspace_toml = r#"[workspace]
+members = ["app"]
+resolver = "2"
+"#;
+    std::fs::write(dir.path().join("Cargo.toml"), workspace_toml).unwrap();
+
+    // Member crate.
+    std::fs::create_dir_all(dir.path().join("app/src")).unwrap();
+    std::fs::write(dir.path().join("app/src/main.rs"), "fn main() {}").unwrap();
+    std::fs::write(
+        dir.path().join("app/Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"1.0.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+
+    // .git-std.toml with custom [[version_files]] pointing at the member.
+    std::fs::write(
+        dir.path().join(".git-std.toml"),
+        "[[version_files]]\npath = \"app/Cargo.toml\"\nregex = 'version = \"([^\"]+)\"'\n",
+    )
+    .unwrap();
+
+    // Init git repo and generate Cargo.lock.
+    git(dir.path(), &["init"]);
+    git(dir.path(), &["config", "user.email", "test@example.com"]);
+    git(dir.path(), &["config", "user.name", "Test"]);
+    std::process::Command::new("cargo")
+        .args(["generate-lockfile"])
+        .current_dir(dir.path())
+        .status()
+        .expect("cargo must be available");
+    git(dir.path(), &["add", "."]);
+    git(dir.path(), &["commit", "-m", "chore: initial"]);
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "x.txt", "fix: a bug");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Synced:"));
+
+    // Cargo.lock must be in the bump commit.
+    let files_in_commit = git(
+        dir.path(),
+        &["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+    );
+    assert!(
+        files_in_commit.contains("Cargo.lock"),
+        "Cargo.lock should be staged in the bump commit, got: {files_in_commit}"
+    );
+}
+
 /// Cargo.lock is synced when `cargo` is available and Cargo.toml was updated.
 #[test]
 fn bump_cargo_lock_sync_happy_path() {
