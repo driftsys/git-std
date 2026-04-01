@@ -825,7 +825,114 @@ command that project maintainers run once and commit.
 All steps are idempotent — running twice produces the
 same result.
 
-### 2.8 Global Flags
+### 2.8 `git std version`
+
+Lightweight, scriptable version queries without the overhead of `bump --dry-run`.
+
+```bash
+git std version                  # 0.10.2
+git std version --describe       # 0.10.2-dev.7+g3a2b1c.dirty
+git std version --next           # 0.11.0
+git std version --label          # minor
+git std version --code           # 10299
+git std version --format json    # all fields as JSON
+```
+
+Output is always to stdout. No `v` prefix — the command outputs a version
+**value**, not a git tag name.
+
+#### Flags
+
+| Flag             | Description                                                           |
+| ---------------- | --------------------------------------------------------------------- |
+| `--describe`     | Cargo-style describe: `-dev.N` pre-release + `+hash[.dirty]` metadata |
+| `--next`         | Next version computed from conventional commits since the last tag    |
+| `--label`        | Bump label (`major`/`minor`/`patch`/`none`) accounting for pre-1.0    |
+| `--code`         | Integer version code (see §2.8.1)                                     |
+| `--format <fmt>` | `text` (default) or `json`                                            |
+
+Multiple flags may be combined. With `--format json` all fields are always
+included regardless of which other flags are set.
+
+#### `--describe` format
+
+`<version>[-dev.<N>][+g<hash>[.dirty]]`
+
+- `-dev.N` — appended when HEAD is `N` commits ahead of the version tag.
+- `+g<hash>` — the first 7 characters of the HEAD SHA, prefixed with `g`.
+  Present when HEAD is ahead of the tag.
+- `.dirty` — appended when the working tree has uncommitted changes.
+
+Example: `0.10.2-dev.7+g3a2b1c.dirty`
+
+#### `--label` and pre-1.0 rule
+
+For versions `< 1.0.0`, bump levels are downshifted following the Cargo pre-1.0
+convention (same as `git std bump`):
+
+- Breaking change → `minor`
+- New feature → `patch`
+- Bug fix → `patch`
+
+When no bump-worthy commits exist, the label is `none`.
+
+#### `--format json` schema
+
+```json
+{
+  "version": "0.10.2",
+  "describe": "0.10.2-dev.3+g1a2b3c4",
+  "next": "0.11.0",
+  "label": "minor",
+  "code": 100299
+}
+```
+
+Fields `describe`, `next`, `label`, and `code` are always present in JSON
+output (computed unconditionally). Fields may be `null` only if computation
+fails (e.g., no tags).
+
+#### §2.8.1 Version code (`--code`)
+
+A monotonically increasing integer encoding of the version, suitable for
+Android `versionCode`, iOS `CFBundleVersion`, or any platform that requires an
+integer build number.
+
+**Semver formula:**
+
+```text
+code = ((MAJOR × 1 000 + MINOR) × 100 + PATCH) × 100 + stage
+```
+
+**Calver formula:**
+
+```text
+code = days_since_epoch × 10 000 + MICRO × 100 + stage
+```
+
+Where `days_since_epoch` is the number of days since 1970-01-01 for the
+first day of the calver period, and `MICRO` is the PATCH component.
+
+**Stage table (shared):**
+
+| Pre-release          | Stage |
+| -------------------- | ----- |
+| (unknown)            | 1     |
+| `dev`                | 9     |
+| `dev.0`–`dev.28`     | 10–38 |
+| `alpha`              | 39    |
+| `alpha.0`–`alpha.18` | 40–58 |
+| `beta`               | 59    |
+| `beta.0`–`beta.18`   | 60–78 |
+| `rc`                 | 79    |
+| `rc.0`–`rc.18`       | 80–98 |
+| (stable)             | 99    |
+
+The stage range ensures every pre-release build is numerically less than the
+final stable release while remaining monotonically increasing within each
+pre-release track.
+
+### 2.9 Global Flags
 
 | Flag                    | Description                          |
 | ----------------------- | ------------------------------------ |

@@ -196,5 +196,22 @@ fn main() {
             let cwd = std::env::current_dir().unwrap_or_default();
             std::process::exit(cli::doctor::run(&cwd, format));
         }
+        Command::Version {
+            describe,
+            next,
+            label,
+            code,
+            format,
+        } => {
+            let project_config = config::load(&std::env::current_dir().unwrap_or_default());
+            let opts = cli::version::VersionOptions {
+                describe,
+                next,
+                label,
+                code,
+                format,
+            };
+            std::process::exit(cli::version::run(&project_config, &opts));
+        }
     }
 }

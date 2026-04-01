@@ -175,6 +175,24 @@ pub enum Command {
         #[arg(long, default_value = "text")]
         format: OutputFormat,
     },
+    /// Query the current project version.
+    Version {
+        /// Print cargo-style describe: version with distance + hash + dirty flag.
+        #[arg(long)]
+        describe: bool,
+        /// Compute and print the next version from conventional commits.
+        #[arg(long)]
+        next: bool,
+        /// Print the bump label (major/minor/patch).
+        #[arg(long)]
+        label: bool,
+        /// Print the version code integer.
+        #[arg(long)]
+        code: bool,
+        /// Output format.
+        #[arg(long, default_value = "text")]
+        format: OutputFormat,
+    },
 }
 
 /// Config subcommands.
