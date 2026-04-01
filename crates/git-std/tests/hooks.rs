@@ -222,10 +222,10 @@ fn hooks_full_install_cycle() {
     )
     .unwrap();
 
-    // Run `git std hook install`.
+    // Run `git std init`.
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit,commit-msg")
         .current_dir(dir.path())
         .assert()
@@ -1097,7 +1097,7 @@ fn hooks_run_from_subdirectory() {
     // Create an active shim for pre-commit so `hooks run` finds it.
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
         .current_dir(dir.path())
         .assert()

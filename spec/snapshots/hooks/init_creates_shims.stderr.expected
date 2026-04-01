@@ -1,0 +1,10 @@
+  ✓  git hooks configured
+
+  ✓  pre-commit             enabled 
+  ✓  commit-msg             disabled
+  ✓  pre-push               disabled
+  ✓  post-commit            disabled
+  ✓  prepare-commit-msg     disabled
+  ✓  post-merge             disabled
+  ✓  bootstrap created
+  ✓  .githooks/bootstrap.hooks created

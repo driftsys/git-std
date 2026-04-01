@@ -38,7 +38,7 @@ fn hooks_install_creates_shims() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
         .current_dir(dir.path())
         .assert()
@@ -76,7 +76,7 @@ fn hooks_install_multiple_hooks() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit,pre-push,commit-msg")
         .current_dir(dir.path())
         .assert()
@@ -102,7 +102,7 @@ fn hooks_install_is_idempotent() {
     for _ in 0..2 {
         Command::cargo_bin("git-std")
             .unwrap()
-            .args(["hook", "install"])
+            .args(["init"])
             .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
             .current_dir(dir.path())
             .assert()
@@ -125,7 +125,7 @@ fn hooks_install_preserves_non_hooks_files() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
         .current_dir(dir.path())
         .assert()
@@ -278,7 +278,7 @@ fn hooks_install_sets_core_hooks_path() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "none")
         .current_dir(dir.path())
         .assert()
@@ -298,7 +298,7 @@ fn hooks_install_creates_githooks_dir() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "none")
         .current_dir(dir.path())
         .assert()
@@ -317,7 +317,7 @@ fn hooks_install_enable_all() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "all")
         .current_dir(dir.path())
         .assert()
@@ -340,7 +340,7 @@ fn hooks_install_non_tty_without_env_fails() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .current_dir(dir.path())
         .assert()
         .failure()
@@ -357,7 +357,7 @@ fn hooks_install_non_tty_with_env_succeeds() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "all")
         .current_dir(dir.path())
         .assert()
@@ -371,7 +371,7 @@ fn hooks_install_enable_none() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "none")
         .current_dir(dir.path())
         .assert()
@@ -413,7 +413,7 @@ fn hooks_install_from_subdirectory() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
         .current_dir(&subdir)
         .assert()

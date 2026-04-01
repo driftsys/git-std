@@ -143,6 +143,35 @@ write to `CHANGELOG.md`, or `-w <path>` for a custom path.
 either, generates an incremental changelog from unreleased
 commits since the last tag.
 
+## `git std init`
+
+Scaffold hooks, bootstrap script, and README section in one step.
+Consolidates hook setup and bootstrap scaffolding for maintainers.
+
+```bash
+git std init            # scaffold everything interactively
+git std init --force    # overwrite existing files
+```
+
+**What it does:**
+
+1. Creates `.githooks/` directory.
+2. Sets `core.hooksPath` to `.githooks`.
+3. Writes `.hooks` templates (`pre-commit`, `commit-msg`, `pre-push`, etc.).
+4. Prompts which hooks to enable, writes shims.
+5. Generates `./bootstrap` script.
+6. Generates `.githooks/bootstrap.hooks`.
+7. Appends post-clone section to `README.md` and `AGENTS.md` (if found).
+8. Stages all created files.
+
+**Flags:**
+
+| Flag      | Description              |
+| --------- | ------------------------ |
+| `--force` | Overwrite existing files |
+
+**Exit codes:** `0` = success, `1` = error.
+
 ## `git std hook`
 
 Manage git hooks defined in `.githooks/*.hooks` files.

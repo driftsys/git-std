@@ -7,9 +7,11 @@ Commands:
   lint       Validate commit messages
   bump       Version bump, changelog, commit, and tag
   changelog  Generate a changelog (incremental by default, --full to regenerate)
+  init       Scaffold hooks, bootstrap script, and README section in one step
   bootstrap  Post-clone environment setup
   hook       Git hooks management
   config     Inspect effective git-std configuration
   doctor     Run health checks on the local git-std setup
   help       Print this message or the help of the given subcommand(s)
 ...
+

@@ -43,7 +43,7 @@ Library crates are pure — no git2, no I/O, no terminal output — except
 `standard-version`, which performs file I/O for version file detection and
 updates.
 
-**Seven subcommands**, each a separate concern:
+**Eight subcommands**, each a separate concern:
 
 | Subcommand          | Purpose                                                |
 | ------------------- | ------------------------------------------------------ |
@@ -51,8 +51,9 @@ updates.
 | `git std lint`      | Commit message validation                              |
 | `git std bump`      | Version bump + changelog + commit + tag                |
 | `git std changelog` | Changelog generation (incremental or full)             |
+| `git std init`      | Maintainer setup (hooks + bootstrap scaffold)          |
 | `git std bootstrap` | Post-clone environment setup                           |
-| `git std hook`      | Git hooks management (install/run/list/enable/disable) |
+| `git std hook`      | Git hooks management (run/list/enable/disable)         |
 
 **Global flag** (no subcommand required):
 

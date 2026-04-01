@@ -37,12 +37,13 @@ fn run_bootstrap(dir: &Path, extra_args: &[&str]) -> assert_cmd::assert::Assert 
         .assert()
 }
 
-fn run_bootstrap_install(dir: &Path, extra_args: &[&str]) -> assert_cmd::assert::Assert {
-    let mut args = vec!["--color", "never", "bootstrap", "install"];
+fn run_init(dir: &Path, extra_args: &[&str]) -> assert_cmd::assert::Assert {
+    let mut args = vec!["--color", "never", "init"];
     args.extend_from_slice(extra_args);
     Command::cargo_bin("git-std")
         .unwrap()
         .args(&args)
+        .env("GIT_STD_HOOKS_ENABLE", "none")
         .current_dir(dir)
         .assert()
 }
@@ -215,15 +216,15 @@ fn bootstrap_exits_zero_with_nothing_to_do() {
 }
 
 // ===========================================================================
-// #295 — git std bootstrap install
+// #400 — git std init
 // ===========================================================================
 
 #[test]
-fn bootstrap_install_creates_files() {
+fn init_creates_files() {
     let dir = tempfile::tempdir().unwrap();
     init_repo(dir.path());
 
-    run_bootstrap_install(dir.path(), &[]).success();
+    run_init(dir.path(), &[]).success();
 
     // ./bootstrap exists and is executable
     let script = dir.path().join("bootstrap");
@@ -260,11 +261,11 @@ fn bootstrap_install_creates_files() {
 }
 
 #[test]
-fn bootstrap_install_min_version_matches_crate() {
+fn init_min_version_matches_crate() {
     let dir = tempfile::tempdir().unwrap();
     init_repo(dir.path());
 
-    run_bootstrap_install(dir.path(), &[]).success();
+    run_init(dir.path(), &[]).success();
 
     let script = std::fs::read_to_string(dir.path().join("bootstrap")).unwrap();
     let version = env!("CARGO_PKG_VERSION");
@@ -275,7 +276,7 @@ fn bootstrap_install_min_version_matches_crate() {
 }
 
 #[test]
-fn bootstrap_install_skips_existing_without_force() {
+fn init_skips_existing_without_force() {
     let dir = tempfile::tempdir().unwrap();
     init_repo(dir.path());
 
@@ -284,7 +285,7 @@ fn bootstrap_install_skips_existing_without_force() {
     std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
     std::fs::write(dir.path().join(".githooks/bootstrap.hooks"), "existing\n").unwrap();
 
-    let a = run_bootstrap_install(dir.path(), &[]).success();
+    let a = run_init(dir.path(), &[]).success();
     let err = stderr_text(&a);
     assert!(
         err.contains("already exists"),
@@ -297,7 +298,7 @@ fn bootstrap_install_skips_existing_without_force() {
 }
 
 #[test]
-fn bootstrap_install_overwrites_with_force() {
+fn init_overwrites_with_force() {
     let dir = tempfile::tempdir().unwrap();
     init_repo(dir.path());
 
@@ -306,7 +307,7 @@ fn bootstrap_install_overwrites_with_force() {
     std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
     std::fs::write(dir.path().join(".githooks/bootstrap.hooks"), "old\n").unwrap();
 
-    run_bootstrap_install(dir.path(), &["--force"]).success();
+    run_init(dir.path(), &["--force"]).success();
 
     // Verify content was replaced
     let content = std::fs::read_to_string(dir.path().join("bootstrap")).unwrap();
@@ -314,14 +315,14 @@ fn bootstrap_install_overwrites_with_force() {
 }
 
 #[test]
-fn bootstrap_install_appends_marker_to_docs() {
+fn init_appends_marker_to_docs() {
     let dir = tempfile::tempdir().unwrap();
     init_repo(dir.path());
 
     std::fs::write(dir.path().join("README.md"), "# My Project\n").unwrap();
     std::fs::write(dir.path().join("AGENTS.md"), "# Agents\n").unwrap();
 
-    run_bootstrap_install(dir.path(), &[]).success();
+    run_init(dir.path(), &[]).success();
 
     let readme = std::fs::read_to_string(dir.path().join("README.md")).unwrap();
     assert!(
@@ -341,15 +342,15 @@ fn bootstrap_install_appends_marker_to_docs() {
 }
 
 #[test]
-fn bootstrap_install_does_not_double_append() {
+fn init_does_not_double_append() {
     let dir = tempfile::tempdir().unwrap();
     init_repo(dir.path());
 
     std::fs::write(dir.path().join("README.md"), "# My Project\n").unwrap();
 
     // Run twice
-    run_bootstrap_install(dir.path(), &["--force"]).success();
-    run_bootstrap_install(dir.path(), &["--force"]).success();
+    run_init(dir.path(), &["--force"]).success();
+    run_init(dir.path(), &["--force"]).success();
 
     let readme = std::fs::read_to_string(dir.path().join("README.md")).unwrap();
     let count = readme.matches("<!-- git-std:bootstrap -->").count();
@@ -357,18 +358,18 @@ fn bootstrap_install_does_not_double_append() {
 }
 
 // ===========================================================================
-// commit-msg default template (#294 AC)
+// commit-msg default template (#294 AC — now via git std init)
 // ===========================================================================
 
 #[test]
-fn hooks_install_generates_commit_msg_with_check_command() {
+fn init_generates_commit_msg_with_check_command() {
     let dir = tempfile::tempdir().unwrap();
     init_repo(dir.path());
 
-    // Run hooks install with env var to avoid interactive prompt
+    // Run init with env var to select only commit-msg hook
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hook", "install"])
+        .args(["--color", "never", "init"])
         .env("GIT_STD_HOOKS_ENABLE", "commit-msg")
         .current_dir(dir.path())
         .assert()
@@ -385,13 +386,13 @@ fn hooks_install_generates_commit_msg_with_check_command() {
 }
 
 #[test]
-fn hooks_install_commit_msg_shim_is_active() {
+fn init_commit_msg_shim_is_active() {
     let dir = tempfile::tempdir().unwrap();
     init_repo(dir.path());
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["--color", "never", "hook", "install"])
+        .args(["--color", "never", "init"])
         .env("GIT_STD_HOOKS_ENABLE", "commit-msg")
         .current_dir(dir.path())
         .assert()
@@ -434,14 +435,14 @@ fn bootstrap_run_from_subdirectory() {
 }
 
 #[test]
-fn bootstrap_install_from_subdirectory() {
+fn init_from_subdirectory() {
     let dir = tempfile::tempdir().unwrap();
     init_repo(dir.path());
 
     let subdir = dir.path().join("src");
     std::fs::create_dir_all(&subdir).unwrap();
 
-    run_bootstrap_install(&subdir, &[]).success();
+    run_init(&subdir, &[]).success();
 
     // Files should be at repo root, not in subdirectory
     assert!(

@@ -65,14 +65,15 @@ dependencies.
 
 git-std covers six concerns:
 
-| Concern                      | Subcommand                                                      |
-| ---------------------------- | --------------------------------------------------------------- |
-| Conventional commit creation | `git std commit`                                                |
-| Commit message validation    | `git std lint`                                                  |
-| Version bump + changelog     | `git std bump`, `git std changelog`                             |
-| Git hooks management         | `git std hook install`, `git std hook run`, `git std hook list` |
-| Post-clone bootstrap         | `git std bootstrap`, `git std bootstrap install`                |
-| Shell completions            | `git std --completions <shell>`                                 |
+| Concern                      | Subcommand                                        |
+| ---------------------------- | ------------------------------------------------- |
+| Conventional commit creation | `git std commit`                                  |
+| Commit message validation    | `git std lint`                                    |
+| Version bump + changelog     | `git std bump`, `git std changelog`               |
+| Maintainer setup             | `git std init`                                    |
+| Git hooks management         | `git std hook run`, `git std hook list`           |
+| Post-clone bootstrap         | `git std bootstrap`                               |
+| Shell completions            | `git std --completions <shell>`                   |
 
 **Out of scope:** repo scaffolding, directory structure
 compliance, formatting, linting, CI pipeline generation,
@@ -637,37 +638,7 @@ are mutually exclusive.
 
 Manage and execute git hooks defined in `.githooks/*.hooks` files.
 
-#### 2.5.1 `git std hook install`
-
-Sets up the hooks directory and generates shim scripts. Performs three actions:
-
-1. **Configures git:** runs `git config core.hooksPath .githooks`.
-2. **Creates directory:** ensures `.githooks/` exists.
-3. **Writes shims:** for each `<hook>.hooks` file, writes a `.githooks/<hook>` shim.
-
-Each shim delegates to `git std hook run`:
-
-```bash
-#!/bin/bash
-exec git std hook run <hook> -- "$@"
-```
-
-Idempotent — re-running overwrites existing shims.
-User-created hook scripts without a matching `.hooks`
-file are not touched.
-
-**Output:**
-
-```text
-$ git std hook install
-
-  ✓  core.hooksPath → .githooks
-  ✓  .githooks/pre-commit      → git std hook run pre-commit
-  ✓  .githooks/pre-push        → git std hook run pre-push
-  ✓  .githooks/commit-msg      → git std hook run commit-msg
-```
-
-#### 2.5.2 `git std hook run <hook>`
+#### 2.5.1 `git std hook run <hook>`
 
 Execute all commands in `.githooks/<hook>.hooks`.
 
@@ -806,27 +777,7 @@ Uses the standard `.hooks` file format:
 - `?` prefix = advisory (best-effort)
 - No prefix = default mode
 
-#### 2.7.3 `git std bootstrap install`
-
-Scaffolds bootstrap files for a project maintainer to
-commit:
-
-1. Generates `./bootstrap` at repo root — a bash script
-   that checks `MIN_VERSION`, installs git-std from
-   GitHub Releases if missing or outdated, then runs
-   `git std bootstrap`.
-2. Generates `.githooks/bootstrap.hooks` with a commented
-   template.
-3. Appends a post-clone reminder to `AGENTS.md` and
-   `README.md` (idempotent, uses HTML comment marker).
-
 **Flags:**
-
-| Flag      | Description              |
-| --------- | ------------------------ |
-| `--force` | Overwrite existing files |
-
-**Flags for `git std bootstrap`:**
 
 | Flag        | Description                             |
 | ----------- | --------------------------------------- |
@@ -834,6 +785,42 @@ commit:
 
 **Exit codes:** `0` success (including nothing to do),
 `1` failure.
+
+### 2.8 `git std init`
+
+Single maintainer setup command. Consolidates hook
+setup and bootstrap scaffolding into one idempotent
+command that project maintainers run once and commit.
+
+**Steps performed:**
+
+1. Creates `.githooks/` directory.
+2. Sets `core.hooksPath` to `.githooks`.
+3. Writes `.hooks` templates (pre-commit, commit-msg,
+   pre-push, and others).
+4. Prompts which hooks to enable; writes active shims
+   and `.off` shims for the rest.
+5. Generates `./bootstrap` script that installs
+   git-std and delegates to `git std bootstrap`.
+6. Generates `.githooks/bootstrap.hooks` template.
+7. Appends a post-clone reminder to `AGENTS.md` and
+   `README.md` (idempotent, HTML comment marker).
+8. Stages all created/modified files.
+
+**Two personas:**
+
+- **Maintainer:** `git std init` — scaffold everything,
+  commit the result.
+- **Contributor:** `./bootstrap` — post-clone setup
+  (calls `git std bootstrap`).
+
+**Flags:**
+
+| Flag      | Description              |
+| --------- | ------------------------ |
+| `--force` | Overwrite existing files |
+
+**Exit codes:** `0` success, `1` failure.
 
 All steps are idempotent — running twice produces the
 same result.
@@ -873,6 +860,7 @@ eval "$(git-std --completions zsh)"
 # Fish (~/.config/fish/config.fish)
 git-std --completions fish | source
 ```
+
 
 ---
 

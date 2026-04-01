@@ -149,11 +149,15 @@ pub enum Command {
     },
     /// Post-clone environment setup.
     Bootstrap {
-        #[command(subcommand)]
-        subcommand: Option<BootstrapCommand>,
         /// Print what would be done without executing.
         #[arg(long)]
         dry_run: bool,
+    },
+    /// Scaffold hooks, bootstrap script, and README section in one step.
+    Init {
+        /// Overwrite existing files.
+        #[arg(long)]
+        force: bool,
     },
     /// Git hooks management.
     Hook {
@@ -170,17 +174,6 @@ pub enum Command {
         /// Output format.
         #[arg(long, default_value = "text")]
         format: OutputFormat,
-    },
-}
-
-/// Bootstrap subcommands.
-#[derive(Subcommand)]
-pub enum BootstrapCommand {
-    /// Generate bootstrap script and hooks template.
-    Install {
-        /// Overwrite existing files.
-        #[arg(long)]
-        force: bool,
     },
 }
 
@@ -206,8 +199,6 @@ pub enum ConfigCommand {
 /// Hook subcommands.
 #[derive(Subcommand)]
 pub enum HookCommand {
-    /// Set up hooks directory, shims, and core.hooksPath.
-    Install,
     /// Execute all commands in a hook file.
     Run {
         /// Hook name (e.g. pre-commit, commit-msg, pre-push).

@@ -26,7 +26,7 @@ pub fn enable(hook_name: &str) -> i32 {
 
     if !off_path.exists() {
         ui::error(&format!(
-            "{hook_name}.off not found — run 'git std hook install' first"
+            "{hook_name}.off not found — run 'git std init' first"
         ));
         return 1;
     }
@@ -70,9 +70,7 @@ pub fn disable(hook_name: &str) -> i32 {
     }
 
     if !active_path.exists() {
-        ui::error(&format!(
-            "{hook_name} not found — run 'git std hook install' first"
-        ));
+        ui::error(&format!("{hook_name} not found — run 'git std init' first"));
         return 1;
     }
 
