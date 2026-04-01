@@ -72,14 +72,31 @@ fn commit_bump(commit: &ConventionalCommit) -> Option<BumpLevel> {
 /// Apply a bump level to a semver version, returning the new version.
 ///
 /// Resets lower components to zero (e.g. minor bump `1.2.3` → `1.3.0`).
-/// For versions `< 1.0.0`, major bumps still increment the major component.
+///
+/// For versions `< 1.0.0`, bump levels are downshifted following the
+/// Rust/Cargo pre-1.0 convention:
+/// - `Major` (breaking) → bumps minor (`0.10.2` → `0.11.0`)
+/// - `Minor` (feature) → bumps patch (`0.10.2` → `0.10.3`)
+/// - `Patch` (fix) → bumps patch (`0.10.2` → `0.10.3`)
+///
+/// For versions `>= 1.0.0`, behaviour is unchanged.
 pub fn apply_bump(current: &semver::Version, level: BumpLevel) -> semver::Version {
     let mut next = current.clone();
     // Clear any pre-release or build metadata.
     next.pre = semver::Prerelease::EMPTY;
     next.build = semver::BuildMetadata::EMPTY;
 
-    match level {
+    // Pre-1.0: downshift bump levels (Major→Minor, Minor→Patch, Patch→Patch).
+    let effective = if current.major == 0 {
+        match level {
+            BumpLevel::Major => BumpLevel::Minor,
+            BumpLevel::Minor | BumpLevel::Patch => BumpLevel::Patch,
+        }
+    } else {
+        level
+    };
+
+    match effective {
         BumpLevel::Major => {
             next.major += 1;
             next.minor = 0;
@@ -333,5 +350,84 @@ mod tests {
     fn bump_level_ordering() {
         assert!(BumpLevel::Major > BumpLevel::Minor);
         assert!(BumpLevel::Minor > BumpLevel::Patch);
+    }
+
+    // ── Pre-1.0 semver convention ──────────────────────────────────
+
+    #[test]
+    fn pre1_breaking_bumps_minor() {
+        let v = semver::Version::new(0, 10, 2);
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Major),
+            semver::Version::new(0, 11, 0)
+        );
+    }
+
+    #[test]
+    fn pre1_feat_bumps_patch() {
+        let v = semver::Version::new(0, 10, 2);
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Minor),
+            semver::Version::new(0, 10, 3)
+        );
+    }
+
+    #[test]
+    fn pre1_fix_bumps_patch() {
+        let v = semver::Version::new(0, 10, 2);
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Patch),
+            semver::Version::new(0, 10, 3)
+        );
+    }
+
+    #[test]
+    fn pre1_zero_minor_breaking_bumps_minor() {
+        let v = semver::Version::new(0, 0, 5);
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Major),
+            semver::Version::new(0, 1, 0)
+        );
+    }
+
+    #[test]
+    fn pre1_zero_minor_feat_bumps_patch() {
+        let v = semver::Version::new(0, 0, 5);
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Minor),
+            semver::Version::new(0, 0, 6)
+        );
+    }
+
+    #[test]
+    fn post1_major_unchanged() {
+        let v = semver::Version::new(1, 2, 3);
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Major),
+            semver::Version::new(2, 0, 0)
+        );
+    }
+
+    #[test]
+    fn pre1_clears_prerelease_metadata() {
+        let v = semver::Version::parse("0.3.0-rc.2").unwrap();
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Major),
+            semver::Version::new(0, 4, 0)
+        );
+    }
+
+    #[test]
+    fn pre1_prerelease_breaking() {
+        let v = semver::Version::new(0, 5, 0);
+        let next = apply_prerelease(&v, BumpLevel::Major, "rc");
+        assert_eq!(next, semver::Version::parse("0.6.0-rc.0").unwrap());
+    }
+
+    #[test]
+    fn pre1_prerelease_feat() {
+        let v = semver::Version::new(0, 5, 0);
+        let next = apply_prerelease(&v, BumpLevel::Minor, "rc");
+        assert_eq!(next, semver::Version::parse("0.5.1-rc.0").unwrap());
     }
 }

@@ -251,10 +251,18 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         format!("forced as {forced}")
     } else {
         let level = standard_version::determine_bump(&parsed).unwrap();
-        let reason = match level {
-            standard_version::BumpLevel::Major => "major \u{2014} breaking change detected",
-            standard_version::BumpLevel::Minor => "minor \u{2014} new feature",
-            standard_version::BumpLevel::Patch => "patch \u{2014} bug fix",
+        let is_pre1 = cur_ver.major == 0;
+        let reason = match (level, is_pre1) {
+            (standard_version::BumpLevel::Major, true) => {
+                "minor \u{2014} breaking change (pre-1.0)"
+            }
+            (standard_version::BumpLevel::Minor, true) => "patch \u{2014} new feature (pre-1.0)",
+            (standard_version::BumpLevel::Patch, true) => "patch \u{2014} bug fix",
+            (standard_version::BumpLevel::Major, false) => {
+                "major \u{2014} breaking change detected"
+            }
+            (standard_version::BumpLevel::Minor, false) => "minor \u{2014} new feature",
+            (standard_version::BumpLevel::Patch, false) => "patch \u{2014} bug fix",
         };
         reason.to_string()
     };

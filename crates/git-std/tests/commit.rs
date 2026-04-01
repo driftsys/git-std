@@ -364,7 +364,7 @@ fn commit_prints_committed_confirmation() {
         .assert()
         .success()
         .stderr(
-            predicate::str::is_match(&format!(r"committed \[{branch} [0-9a-f]{{7}}\]")).unwrap(),
+            predicate::str::is_match(format!(r"committed \[{branch} [0-9a-f]{{7}}\]")).unwrap(),
         );
 }
 
@@ -391,5 +391,5 @@ fn commit_amend_prints_amended_confirmation() {
         .args(["commit", "--amend", "--type", "fix", "-m", "corrected"])
         .assert()
         .success()
-        .stderr(predicate::str::is_match(&format!(r"amended \[{branch} [0-9a-f]{{7}}\]")).unwrap());
+        .stderr(predicate::str::is_match(format!(r"amended \[{branch} [0-9a-f]{{7}}\]")).unwrap());
 }

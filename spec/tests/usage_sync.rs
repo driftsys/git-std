@@ -83,10 +83,11 @@ fn usage_md_documents_all_flags() {
             if trimmed.is_empty() {
                 break;
             }
-            if let Some(cmd) = trimmed.split_whitespace().next() {
-                if cmd != "help" && !docs.contains(&format!("git std {cmd}")) {
-                    missing_cmds.push(cmd.to_string());
-                }
+            if let Some(cmd) = trimmed.split_whitespace().next()
+                && cmd != "help"
+                && !docs.contains(&format!("git std {cmd}"))
+            {
+                missing_cmds.push(cmd.to_string());
             }
         }
     }

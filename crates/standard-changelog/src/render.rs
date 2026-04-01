@@ -718,8 +718,10 @@ mod tests {
             breaking_changes: vec![],
         };
 
-        let mut config = ChangelogConfig::default();
-        config.bug_url = Some("https://jira.co/browse/%s".to_string());
+        let config = ChangelogConfig {
+            bug_url: Some("https://jira.co/browse/%s".to_string()),
+            ..Default::default()
+        };
         let host = RepoHost::Unknown;
 
         let output = render_version(&release, &config, &host);
