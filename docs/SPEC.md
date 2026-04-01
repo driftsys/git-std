@@ -72,7 +72,7 @@ git-std covers six concerns:
 | Version bump + changelog     | `git std bump`, `git std changelog`                             |
 | Git hooks management         | `git std hook install`, `git std hook run`, `git std hook list` |
 | Post-clone bootstrap         | `git std bootstrap`, `git std bootstrap install`                |
-| Shell completions            | `git std completions`                                           |
+| Shell completions            | `git std --completions <shell>`                                 |
 
 **Out of scope:** repo scaffolding, directory structure
 compliance, formatting, linting, CI pipeline generation,
@@ -838,14 +838,24 @@ commit:
 All steps are idempotent — running twice produces the
 same result.
 
-### 2.8 `git std completions`
+### 2.8 Global Flags
 
-Generate shell completion scripts for bash, zsh, or fish.
+| Flag                    | Description                          |
+| ----------------------- | ------------------------------------ |
+| `--help` / `-h`         | Print help                           |
+| `--version` / `-V`      | Print git-std version                |
+| `--color <when>`        | `auto` (default), `always`, `never`  |
+| `--completions <shell>` | Generate shell completions to stdout |
+
+#### `--completions <shell>`
+
+Generate shell completion scripts for bash, zsh, or fish. Works
+without a subcommand — usable regardless of install method.
 
 ```bash
-git std completions bash   # Bash completions
-git std completions zsh    # Zsh completions
-git std completions fish   # Fish completions
+git std --completions bash   # Bash completions
+git std --completions zsh    # Zsh completions
+git std --completions fish   # Fish completions
 ```
 
 The generated scripts include wrappers that enable completion for
@@ -855,22 +865,14 @@ both `git-std` (standalone) and `git std` (git subcommand) invocations.
 
 ```bash
 # Bash (~/.bashrc)
-eval "$(git-std completions bash)"
+eval "$(git-std --completions bash)"
 
 # Zsh (~/.zshrc)
-eval "$(git-std completions zsh)"
+eval "$(git-std --completions zsh)"
 
 # Fish (~/.config/fish/config.fish)
-git-std completions fish | source
+git-std --completions fish | source
 ```
-
-### 2.9 Global Flags
-
-| Flag               | Description                         |
-| ------------------ | ----------------------------------- |
-| `--help` / `-h`    | Print help                          |
-| `--version` / `-V` | Print git-std version               |
-| `--color <when>`   | `auto` (default), `always`, `never` |
 
 ---
 

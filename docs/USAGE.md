@@ -6,11 +6,12 @@ git std <command> [options]
 
 ## Global Flags
 
-| Flag               | Description                         |
-| ------------------ | ----------------------------------- |
-| `--help` / `-h`    | Print help                          |
-| `--version` / `-V` | Print version                       |
-| `--color <when>`   | `auto` (default), `always`, `never` |
+| Flag                    | Description                          |
+| ----------------------- | ------------------------------------ |
+| `--help` / `-h`         | Print help                           |
+| `--version` / `-V`      | Print version                        |
+| `--color <when>`        | `auto` (default), `always`, `never`  |
+| `--completions <shell>` | Generate shell completions to stdout |
 
 ## `git std lint`
 
@@ -226,28 +227,29 @@ git std doctor --format json  # machine-readable JSON on stdout
 **Exit codes:** `0` = all checks pass, `1` = one or more checks failed,
 `2` = not a git repository.
 
-## `git std completions`
+## `--completions <shell>`
 
-Generate shell completion scripts. The output includes wrappers that
-enable completion for both `git-std` and `git std` invocations.
+Generate shell completion scripts to stdout. The output includes wrappers
+that enable completion for both `git-std` and `git std` invocations.
+Works without a subcommand — usable regardless of install method.
 
 ```bash
-git std completions bash   # Bash
-git std completions zsh    # Zsh
-git std completions fish   # Fish
+git std --completions bash   # Bash
+git std --completions zsh    # Zsh
+git std --completions fish   # Fish
 ```
 
 Add to your shell profile:
 
 ```bash
 # Bash (~/.bashrc)
-eval "$(git-std completions bash)"
+eval "$(git-std --completions bash)"
 
 # Zsh (~/.zshrc)
-eval "$(git-std completions zsh)"
+eval "$(git-std --completions zsh)"
 
 # Fish (~/.config/fish/config.fish)
-git-std completions fish | source
+git-std --completions fish | source
 ```
 
 ## `git std config`

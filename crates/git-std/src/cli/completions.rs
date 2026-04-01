@@ -52,12 +52,11 @@ const GIT_SUBCMD_FISH: &str = r#"
 # Register "std" as a git subcommand for "git std <TAB>" completion.
 complete -f -c git -n __fish_git_needs_command -a std -d 'Conventional commit standards'
 complete -f -c git -n '__fish_git_using_command std' -a commit -d 'Interactive conventional commit builder'
-complete -f -c git -n '__fish_git_using_command std' -a check -d 'Validate commit messages'
+complete -f -c git -n '__fish_git_using_command std' -a lint -d 'Validate commit messages'
 complete -f -c git -n '__fish_git_using_command std' -a bump -d 'Version bump, changelog, commit, and tag'
 complete -f -c git -n '__fish_git_using_command std' -a changelog -d 'Generate a changelog'
 complete -f -c git -n '__fish_git_using_command std' -a bootstrap -d 'Post-clone environment setup'
-complete -f -c git -n '__fish_git_using_command std' -a hooks -d 'Git hooks management'
+complete -f -c git -n '__fish_git_using_command std' -a hook -d 'Git hooks management'
 complete -f -c git -n '__fish_git_using_command std' -a config -d 'Inspect git-std configuration'
 complete -f -c git -n '__fish_git_using_command std' -a doctor -d 'Run health checks'
-complete -f -c git -n '__fish_git_using_command std' -a completions -d 'Generate shell completions'
 "#;
