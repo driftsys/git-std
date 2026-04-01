@@ -48,7 +48,7 @@ pub fn list(format: OutputFormat) -> i32 {
         if format == OutputFormat::Json {
             println!("[]");
         } else {
-            ui::info("no hooks installed — run 'git std hook install'");
+            ui::info("no hooks installed — run 'git std init'");
         }
         return 0;
     }

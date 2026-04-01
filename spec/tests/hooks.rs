@@ -54,19 +54,19 @@ fn hooks_list_no_hooks() {
         .stderr_eq(file!["../snapshots/hooks/list_no_hooks.stderr.expected"]);
 }
 
-/// `hook install` creates shim scripts for each `.hooks` file.
+/// `git std init` creates shim scripts for each `.hooks` file.
 #[test]
-fn hooks_install_creates_shims() {
+fn init_creates_shims() {
     let repo = TestRepo::new().with_hooks_file("pre-commit", "dprint check\ncargo test\n");
 
     Command::new(TestRepo::bin_path())
-        .args(["hook", "install"])
+        .args(["init"])
         .env("GIT_STD_HOOKS_ENABLE", "pre-commit")
         .current_dir(repo.path())
         .assert()
         .success()
         .stderr_eq(file![
-            "../snapshots/hooks/install_creates_shims.stderr.expected"
+            "../snapshots/hooks/init_creates_shims.stderr.expected"
         ]);
 
     // Verify shim exists.

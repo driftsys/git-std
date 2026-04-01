@@ -160,19 +160,15 @@ fn main() {
             let code = cli::bump::run(&project_config, &opts);
             std::process::exit(code);
         }
-        Command::Bootstrap {
-            subcommand,
-            dry_run,
-        } => {
-            let code = match subcommand {
-                Some(BootstrapCommand::Install { force }) => cli::bootstrap::install(force),
-                None => cli::bootstrap::run(dry_run),
-            };
+        Command::Init { force } => {
+            std::process::exit(cli::init::run(force));
+        }
+        Command::Bootstrap { dry_run } => {
+            let code = cli::bootstrap::run(dry_run);
             std::process::exit(code);
         }
         Command::Hook { subcommand } => {
             let code = match subcommand {
-                HookCommand::Install => cli::hook::install(),
                 HookCommand::Run { hook, args, format } => cli::hook::run(&hook, &args, format),
                 HookCommand::List { format } => cli::hook::list(format),
                 HookCommand::Enable { hook } => cli::hook::enable(&hook),
