@@ -1269,3 +1269,213 @@ fn bump_cargo_lock_sync_happy_path() {
         "Cargo.lock should be staged in the bump commit, got: {files_in_commit}"
     );
 }
+
+/// Workspace where members inherit the version via `version.workspace = true`.
+/// Only the root `[workspace.package]` version should be updated; member
+/// Cargo.toml files must not be modified.
+#[test]
+fn bump_workspace_package_inheritance() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // Root manifest: declares the version in [workspace.package].
+    let workspace_toml = r#"[workspace]
+members = ["app"]
+resolver = "2"
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+"#;
+    std::fs::write(dir.path().join("Cargo.toml"), workspace_toml).unwrap();
+
+    // Member crate: inherits version from workspace.
+    std::fs::create_dir_all(dir.path().join("app/src")).unwrap();
+    std::fs::write(dir.path().join("app/src/main.rs"), "fn main() {}").unwrap();
+    std::fs::write(
+        dir.path().join("app/Cargo.toml"),
+        "[package]\nname = \"app\"\nversion.workspace = true\nedition.workspace = true\n",
+    )
+    .unwrap();
+
+    git(dir.path(), &["init"]);
+    git(dir.path(), &["config", "user.email", "test@example.com"]);
+    git(dir.path(), &["config", "user.name", "Test"]);
+    std::process::Command::new("cargo")
+        .args(["generate-lockfile"])
+        .current_dir(dir.path())
+        .status()
+        .expect("cargo must be available");
+    git(dir.path(), &["add", "."]);
+    git(dir.path(), &["commit", "-m", "chore: initial"]);
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "x.txt", "fix: a bug");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // Root manifest must have the new version.
+    let root_content = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+    assert!(
+        root_content.contains("version = \"1.0.1\""),
+        "root [workspace.package] version should be updated"
+    );
+
+    // Member manifest must still use workspace inheritance — not a pinned version.
+    let member_content = std::fs::read_to_string(dir.path().join("app/Cargo.toml")).unwrap();
+    assert!(
+        member_content.contains("version.workspace = true"),
+        "member must not have its workspace inherit rewritten"
+    );
+    assert!(
+        !member_content.contains("version = \""),
+        "member must not gain a pinned version field"
+    );
+}
+
+/// Workspace where member crates carry their own pinned versions (not
+/// inheriting from `[workspace.package]`). Each member must be updated by the
+/// native walker when `cargo set-version` is unavailable.
+#[test]
+fn bump_workspace_pinned_members() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // Root manifest: no [workspace.package] version.
+    let workspace_toml = "[workspace]\nmembers = [\"alpha\", \"beta\"]\nresolver = \"2\"\n";
+    std::fs::write(dir.path().join("Cargo.toml"), workspace_toml).unwrap();
+
+    for name in ["alpha", "beta"] {
+        std::fs::create_dir_all(dir.path().join(name).join("src")).unwrap();
+        std::fs::write(dir.path().join(name).join("src/lib.rs"), "").unwrap();
+        std::fs::write(
+            dir.path().join(name).join("Cargo.toml"),
+            format!("[package]\nname = \"{name}\"\nversion = \"2.0.0\"\nedition = \"2021\"\n"),
+        )
+        .unwrap();
+    }
+
+    git(dir.path(), &["init"]);
+    git(dir.path(), &["config", "user.email", "test@example.com"]);
+    git(dir.path(), &["config", "user.name", "Test"]);
+    std::process::Command::new("cargo")
+        .args(["generate-lockfile"])
+        .current_dir(dir.path())
+        .status()
+        .expect("cargo must be available");
+    git(dir.path(), &["add", "."]);
+    git(dir.path(), &["commit", "-m", "chore: initial"]);
+    create_tag(dir.path(), "v2.0.0");
+    add_commit(dir.path(), "x.txt", "fix: patch");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Synced:"));
+
+    for name in ["alpha", "beta"] {
+        let content = std::fs::read_to_string(dir.path().join(name).join("Cargo.toml")).unwrap();
+        assert!(
+            content.contains("version = \"2.0.1\""),
+            "{name}/Cargo.toml should be updated to 2.0.1, got:\n{content}"
+        );
+    }
+
+    // Both updated members must be in the bump commit.
+    let files_in_commit = git(
+        dir.path(),
+        &["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+    );
+    assert!(
+        files_in_commit.contains("alpha/Cargo.toml"),
+        "alpha/Cargo.toml must be staged"
+    );
+    assert!(
+        files_in_commit.contains("beta/Cargo.toml"),
+        "beta/Cargo.toml must be staged"
+    );
+}
+
+/// Workspace with [workspace.dependencies] local path deps — version
+/// constraints in [workspace.dependencies] must be updated to match the bump.
+#[test]
+fn bump_workspace_deps_version_updated() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // Root manifest with [workspace.package] version and two local path deps.
+    let workspace_toml = r#"[workspace]
+members = ["alpha", "beta"]
+resolver = "2"
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+
+[workspace.dependencies]
+alpha = { version = "1.0.0", path = "alpha" }
+beta = { version = "1.0.0", path = "beta" }
+serde = "1"
+"#;
+    std::fs::write(dir.path().join("Cargo.toml"), workspace_toml).unwrap();
+
+    for name in ["alpha", "beta"] {
+        std::fs::create_dir_all(dir.path().join(name).join("src")).unwrap();
+        std::fs::write(dir.path().join(name).join("src/lib.rs"), "").unwrap();
+        std::fs::write(
+            dir.path().join(name).join("Cargo.toml"),
+            format!(
+                "[package]\nname = \"{name}\"\nversion.workspace = true\nedition.workspace = true\n"
+            ),
+        )
+        .unwrap();
+    }
+
+    git(dir.path(), &["init"]);
+    git(dir.path(), &["config", "user.email", "test@example.com"]);
+    git(dir.path(), &["config", "user.name", "Test"]);
+    std::process::Command::new("cargo")
+        .args(["generate-lockfile"])
+        .current_dir(dir.path())
+        .status()
+        .expect("cargo must be available");
+    git(dir.path(), &["add", "."]);
+    git(dir.path(), &["commit", "-m", "chore: initial"]);
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "x.txt", "fix: a bug");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let root = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+
+    // [workspace.package] version updated.
+    assert!(
+        root.contains("version = \"1.0.1\""),
+        "[workspace.package] version should be 1.0.1"
+    );
+
+    // Local path dep constraints updated.
+    assert!(
+        root.contains("alpha = { version = \"1.0.1\", path = \"alpha\" }"),
+        "alpha workspace dep version should be 1.0.1, got:\n{root}"
+    );
+    assert!(
+        root.contains("beta = { version = \"1.0.1\", path = \"beta\" }"),
+        "beta workspace dep version should be 1.0.1, got:\n{root}"
+    );
+
+    // Non-path dep must be untouched.
+    assert!(
+        root.contains("serde = \"1\""),
+        "serde (non-path dep) must not be modified"
+    );
+}
