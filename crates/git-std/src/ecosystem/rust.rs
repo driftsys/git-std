@@ -233,6 +233,25 @@ fn replace_inline_version(inline: &str, new_version: &str) -> Option<String> {
     ))
 }
 
+/// Return `true` if the manifest contains `publish = false` in its
+/// `[package]` section — such crates are never published to crates.io and
+/// must not have their version dragged along with the workspace.
+fn is_publish_false(content: &str) -> bool {
+    let mut in_package = false;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed == "[package]" {
+            in_package = true;
+        } else if trimmed.starts_with('[') {
+            in_package = false;
+        }
+        if in_package && trimmed.starts_with("publish") && trimmed.contains("false") {
+            return true;
+        }
+    }
+    false
+}
+
 /// Try to update a single member crate's `Cargo.toml`.
 ///
 /// Silently skips the file if it has no pinned `version` field (e.g. uses
@@ -245,6 +264,12 @@ fn update_member_crate(path: &Path, new_version: &str, results: &mut Vec<UpdateR
             return;
         }
     };
+
+    // Skip crates with `publish = false` — they have their own release cycle
+    // and must not be dragged along with the workspace version.
+    if is_publish_false(&content) {
+        return;
+    }
 
     // read_version returns None when there is no pinned version field
     // (including version.workspace = true after the toml_helpers fix).

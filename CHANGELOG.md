@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.11.1] (2026-04-01)
+
+### Features
+
+- **cli:** add background update check with version hint ([#383]) ([26015b0])
+- **rust:** sync [workspace.dependencies] local path dep versions ([bc12ac9])
+- **rust:** remove cargo-edit dependency — native walker is now the only path
+  ([94481a0])
+- **rust:** native Cargo workspace walker — no cargo-edit required
+  ([abed88f]), closes [#431]
+
+### Bug Fixes
+
+- **git-std:** skip publish = false crates in workspace walker ([31b6c54])
+- **rust:** warn when [workspace.dependencies] local dep cannot be updated
+  ([e222a62])
+- **bump:** stage Cargo.lock when version is set via custom [[version_files]]
+  ([#429]) ([7813b9d])
+
+[0.11.1]: https://github.com/driftsys/git-std/compare/v0.11.0...v0.11.1
+[26015b0]: https://github.com/driftsys/git-std/commit/26015b0
+[#383]: https://github.com/driftsys/git-std/issues/383
+[bc12ac9]: https://github.com/driftsys/git-std/commit/bc12ac9
+[94481a0]: https://github.com/driftsys/git-std/commit/94481a0
+[abed88f]: https://github.com/driftsys/git-std/commit/abed88f
+[#431]: https://github.com/driftsys/git-std/issues/431
+[31b6c54]: https://github.com/driftsys/git-std/commit/31b6c54
+[e222a62]: https://github.com/driftsys/git-std/commit/e222a62
+[7813b9d]: https://github.com/driftsys/git-std/commit/7813b9d
+[#429]: https://github.com/driftsys/git-std/issues/429
+
 ## [0.11.0] (2026-04-01)
 
 ### Features
