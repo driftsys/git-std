@@ -64,8 +64,9 @@ pub fn walk_range(dir: &Path, range: &str) -> Result<Vec<(String, String)>, GitE
 /// Walk commits from `from` (inclusive) back to `until` (exclusive),
 /// filtered to only those touching the given paths.
 ///
-/// Uses `--first-parent` to avoid counting merge-commit duplicates.
 /// Returns `(full_sha, commit_message)` pairs in topological order.
+/// Branch commits merged via pull requests are included — the path filter
+/// already limits results to commits that actually touched the given paths.
 pub fn walk_commits_for_path(
     dir: &Path,
     from: &str,
@@ -77,14 +78,7 @@ pub fn walk_commits_for_path(
         None => from.to_string(),
     };
 
-    let mut args = vec![
-        "log",
-        "--format=%H%x00%B%x00",
-        "--topo-order",
-        "--first-parent",
-        &range,
-        "--",
-    ];
+    let mut args = vec!["log", "--format=%H%x00%B%x00", "--topo-order", &range, "--"];
     args.extend(paths);
 
     let output = git(dir, &args)?;
@@ -314,5 +308,71 @@ mod tests {
             walk_commits_for_path(dir.path(), &head, None, &["crates/core"]).unwrap();
         assert_eq!(core_commits.len(), 1);
         assert_eq!(core_commits[0].1, "feat: core feature");
+    }
+
+    /// Regression: branch commits merged via a PR must be visible to
+    /// `walk_commits_for_path`. Previously `--first-parent` caused git to skip
+    /// the feature-branch commits entirely, so the path-filtered query returned
+    /// an empty result even though conventional commits existed for the path.
+    #[test]
+    fn walk_commits_for_path_includes_merged_branch_commits() {
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        let base = commit(dir.path(), "chore: init");
+
+        // Simulate a feature branch: create a detached branch from base, add a
+        // commit touching crates/core, then merge it into main.
+        std::process::Command::new("git")
+            .current_dir(dir.path())
+            .args(["checkout", "-b", "feature"])
+            .output()
+            .unwrap();
+        let ts = next_timestamp();
+        std::fs::create_dir_all(dir.path().join("crates/core")).unwrap();
+        std::fs::write(dir.path().join("crates/core/f.txt"), "x").unwrap();
+        std::process::Command::new("git")
+            .current_dir(dir.path())
+            .args(["add", "crates/core/f.txt"])
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .current_dir(dir.path())
+            .args(["commit", "-m", "feat: core feature on branch"])
+            .env("GIT_COMMITTER_DATE", &ts)
+            .env("GIT_AUTHOR_DATE", &ts)
+            .output()
+            .unwrap();
+
+        // Switch back to main and merge (creates a merge commit).
+        std::process::Command::new("git")
+            .current_dir(dir.path())
+            .args(["checkout", "-"])
+            .output()
+            .unwrap();
+        let ts2 = next_timestamp();
+        std::process::Command::new("git")
+            .current_dir(dir.path())
+            .args([
+                "merge",
+                "--no-ff",
+                "feature",
+                "-m",
+                "Merge branch 'feature'",
+            ])
+            .env("GIT_COMMITTER_DATE", &ts2)
+            .env("GIT_AUTHOR_DATE", &ts2)
+            .output()
+            .unwrap();
+
+        let head = head_oid(dir.path()).unwrap();
+        let commits =
+            walk_commits_for_path(dir.path(), &head, Some(&base), &["crates/core"]).unwrap();
+
+        assert_eq!(
+            commits.len(),
+            1,
+            "branch commit must be visible after merge"
+        );
+        assert_eq!(commits[0].1, "feat: core feature on branch");
     }
 }
