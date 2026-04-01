@@ -57,7 +57,7 @@ fn git_lfs_version() -> Option<String> {
     if out.status.success() {
         let s = String::from_utf8_lossy(&out.stdout);
         // "git-lfs/3.4.1 ..." → "3.4.1"
-        let first = s.trim().split_whitespace().next()?;
+        let first = s.split_whitespace().next()?;
         first
             .strip_prefix("git-lfs/")
             .map(str::trim)
@@ -306,11 +306,7 @@ pub fn run(cwd: &Path, format: OutputFormat) -> i32 {
     };
 
     // Resolve the actual repo root for config/hooks (handles worktrees + subfolders).
-    let repo_root = if root.join(".git-std.toml").exists() {
-        root.clone()
-    } else {
-        root.clone()
-    };
+    let repo_root = root.clone();
 
     let (status_tools, status_hints) = build_status_section(&repo_root);
     let hooks = build_hooks_section(&repo_root);
