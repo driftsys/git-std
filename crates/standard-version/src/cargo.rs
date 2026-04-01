@@ -1,18 +1,38 @@
 //! Cargo.toml version file engine.
 //!
 //! Implements [`VersionFile`] for Rust's `Cargo.toml` manifest, detecting and
-//! rewriting the `version` field inside the `[package]` section while
-//! preserving formatting.
+//! rewriting the `version` field inside the `[package]` section (regular crate)
+//! or the `[workspace.package]` section (workspace manifest) while preserving
+//! formatting.
 
 use crate::toml_helpers;
 use crate::version_file::{VersionFile, VersionFileError};
 
-/// TOML section header for `Cargo.toml`.
-const SECTION: &str = "[package]";
+/// TOML section header for a regular crate manifest.
+const PACKAGE_SECTION: &str = "[package]";
+
+/// TOML section header for a Cargo workspace manifest.
+const WORKSPACE_PACKAGE_SECTION: &str = "[workspace.package]";
 
 /// Version file engine for `Cargo.toml`.
+///
+/// Handles both regular crates (`[package]`) and workspace manifests
+/// (`[workspace.package]`), trying `[package]` first.
 #[derive(Debug, Clone, Copy)]
 pub struct CargoVersionFile;
+
+impl CargoVersionFile {
+    /// Return the section that contains the version field, if any.
+    fn active_section(content: &str) -> Option<&'static str> {
+        if toml_helpers::detect_version_in_section(content, PACKAGE_SECTION) {
+            Some(PACKAGE_SECTION)
+        } else if toml_helpers::detect_version_in_section(content, WORKSPACE_PACKAGE_SECTION) {
+            Some(WORKSPACE_PACKAGE_SECTION)
+        } else {
+            None
+        }
+    }
+}
 
 impl VersionFile for CargoVersionFile {
     fn name(&self) -> &str {
@@ -24,15 +44,17 @@ impl VersionFile for CargoVersionFile {
     }
 
     fn detect(&self, content: &str) -> bool {
-        toml_helpers::detect_version_in_section(content, SECTION)
+        Self::active_section(content).is_some()
     }
 
     fn read_version(&self, content: &str) -> Option<String> {
-        toml_helpers::read_version_in_section(content, SECTION)
+        let section = Self::active_section(content)?;
+        toml_helpers::read_version_in_section(content, section)
     }
 
     fn write_version(&self, content: &str, new_version: &str) -> Result<String, VersionFileError> {
-        toml_helpers::write_version_in_section(content, SECTION, new_version)
+        let section = Self::active_section(content).ok_or(VersionFileError::NoVersionField)?;
+        toml_helpers::write_version_in_section(content, section, new_version)
     }
 }
 
@@ -126,5 +148,55 @@ foo = { version = "1.0" }
         let result = CargoVersionFile.write_version(content, "0.2.0").unwrap();
         assert!(!result.ends_with('\n'));
         assert!(result.contains("version = \"0.2.0\""));
+    }
+
+    // --- workspace.package ---
+
+    const WORKSPACE_TOML: &str = r#"[workspace]
+members = ["app"]
+resolver = "2"
+
+[workspace.package]
+version = "0.10.0"
+edition = "2021"
+
+[workspace.dependencies]
+anyhow = "1"
+"#;
+
+    #[test]
+    fn detect_workspace_package_version() {
+        assert!(CargoVersionFile.detect(WORKSPACE_TOML));
+    }
+
+    #[test]
+    fn read_version_workspace_package() {
+        assert_eq!(
+            CargoVersionFile.read_version(WORKSPACE_TOML),
+            Some("0.10.0".to_string()),
+        );
+    }
+
+    #[test]
+    fn write_version_workspace_package() {
+        let result = CargoVersionFile
+            .write_version(WORKSPACE_TOML, "0.11.0")
+            .unwrap();
+        assert!(result.contains("version = \"0.11.0\""));
+        // [workspace.dependencies] versions untouched.
+        assert!(result.contains("anyhow = \"1\""));
+        // members and resolver untouched.
+        assert!(result.contains("members = [\"app\"]"));
+    }
+
+    #[test]
+    fn package_section_takes_priority_over_workspace_package() {
+        // A crate Cargo.toml that happens to also mention [workspace.package]
+        // should use [package] version, not [workspace.package].
+        let content = "[package]\nname = \"x\"\nversion = \"1.0.0\"\n\n[workspace.package]\nversion = \"2.0.0\"\n";
+        assert_eq!(
+            CargoVersionFile.read_version(content),
+            Some("1.0.0".to_string()),
+        );
     }
 }
