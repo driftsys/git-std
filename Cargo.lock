@@ -422,6 +422,7 @@ version = "0.3.0"
 dependencies = [
  "assert_cmd",
  "predicates",
+ "serde_json",
  "snapbox",
  "tempfile",
  "trycmd",

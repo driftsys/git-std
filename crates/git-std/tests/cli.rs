@@ -19,7 +19,7 @@ fn help_lists_subcommands() {
         .success();
 
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
-    for sub in ["commit", "lint", "bump", "changelog", "hook", "config"] {
+    for sub in ["commit", "lint", "bump", "changelog", "hook", "doctor"] {
         assert!(
             stdout.contains(sub),
             "help output should list '{sub}' subcommand"
