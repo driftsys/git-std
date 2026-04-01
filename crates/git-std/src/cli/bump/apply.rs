@@ -9,6 +9,7 @@ use crate::config::ProjectConfig;
 use crate::git;
 use crate::ui;
 
+use super::lifecycle::run_lifecycle_hook;
 use super::{BumpOptions, FinalizeContext};
 
 /// JSON output schema for a version file update.
@@ -216,6 +217,13 @@ pub(super) fn finalize_bump(
         );
     }
 
+    // post-changelog hook: runs after CHANGELOG.md is written, before staging/commit.
+    if !opts.skip_changelog
+        && let Err(code) = run_lifecycle_hook("post-changelog", &[])
+    {
+        return code;
+    }
+
     // Create commit.
     if !opts.no_commit {
         let mut rel_paths: Vec<String> = version_results
@@ -283,6 +291,14 @@ pub(super) fn finalize_bump(
         if opts.format != OutputFormat::Json {
             ui::info(&format!("Tagged:    {}", tag_name.green()));
         }
+    }
+
+    // post-bump hook: runs after commit+tag are created.
+    // Skipped when --no-commit is set (nothing was committed or tagged).
+    if !opts.no_commit
+        && let Err(code) = run_lifecycle_hook("post-bump", &[])
+    {
+        return code;
     }
 
     if opts.format == OutputFormat::Json {

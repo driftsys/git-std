@@ -6,6 +6,7 @@ use crate::ui;
 
 use super::apply::finalize_bump;
 use super::detect::today_calver_date;
+use super::lifecycle::run_lifecycle_hook;
 use super::{BumpOptions, FinalizeContext};
 
 /// Run the bump subcommand in patch-only mode.
@@ -65,8 +66,16 @@ pub(super) fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     let prev_ver_str = current_version.as_ref().map(|(_, v)| v.to_string());
 
+    let new_version_str = new_version.to_string();
+
+    if !opts.dry_run
+        && let Err(code) = run_lifecycle_hook("post-version", &[&new_version_str])
+    {
+        return code;
+    }
+
     let ctx = FinalizeContext {
-        new_version: new_version.to_string(),
+        new_version: new_version_str,
         prev_version: prev_ver_str.as_deref(),
         raw_commits: &raw_commits,
     };
@@ -139,6 +148,12 @@ pub(super) fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         "{} (calver)",
         format!("{} \u{2192} {new_version}", prev_ver.unwrap_or("none")).bold(),
     ));
+
+    if !opts.dry_run
+        && let Err(code) = run_lifecycle_hook("post-version", &[&new_version])
+    {
+        return code;
+    }
 
     let ctx = FinalizeContext {
         new_version: new_version.clone(),
@@ -274,9 +289,16 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     ));
 
     let prev_ver_str = current_version.as_ref().map(|(_, v)| v.to_string());
+    let new_version_str = new_version.to_string();
+
+    if !opts.dry_run
+        && let Err(code) = run_lifecycle_hook("post-version", &[&new_version_str])
+    {
+        return code;
+    }
 
     let ctx = FinalizeContext {
-        new_version: new_version.to_string(),
+        new_version: new_version_str,
         prev_version: prev_ver_str.as_deref(),
         raw_commits: &raw_commits,
     };

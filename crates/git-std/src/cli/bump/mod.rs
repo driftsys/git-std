@@ -1,5 +1,6 @@
 mod apply;
 mod detect;
+mod lifecycle;
 pub(crate) mod monorepo;
 mod plan;
 mod stable;
@@ -51,6 +52,14 @@ pub(super) struct FinalizeContext<'a> {
 
 /// Run the bump subcommand. Returns the exit code.
 pub fn run(config: &crate::config::ProjectConfig, opts: &BumpOptions) -> i32 {
+    // pre-bump gate: runs before version detection, non-zero exit aborts bump.
+    // Skipped for --dry-run.
+    if !opts.dry_run
+        && let Err(code) = lifecycle::run_lifecycle_hook("pre-bump", &[])
+    {
+        return code;
+    }
+
     if opts.stable.is_some() {
         return stable::run_stable(config, opts);
     }

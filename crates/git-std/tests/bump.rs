@@ -707,6 +707,323 @@ fn bump_post1_breaking_bumps_major() {
         .stderr(predicate::str::contains("1.2.3 → 2.0.0"));
 }
 
+// ── Bump lifecycle hooks ───────────────────────────────────────
+
+/// Helper: write a `.githooks/<name>.hooks` file with the given content.
+fn write_hooks_file(dir: &std::path::Path, hook_name: &str, content: &str) {
+    let hooks_dir = dir.join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join(format!("{hook_name}.hooks")), content).unwrap();
+}
+
+/// `pre-bump` with a required command that exits 0 — bump proceeds normally.
+#[test]
+fn bump_lifecycle_pre_bump_passes() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    write_hooks_file(dir.path(), "pre-bump", "! true\n");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.0.0 → 1.0.1"));
+}
+
+/// `pre-bump` with a required command that exits non-zero — bump is aborted.
+#[test]
+fn bump_lifecycle_pre_bump_aborts_on_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    write_hooks_file(dir.path(), "pre-bump", "! false\n");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .failure();
+
+    // Cargo.toml must not have been updated.
+    let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+    assert!(
+        !cargo.contains("version = \"1.0.1\""),
+        "Cargo.toml must not be updated when pre-bump fails"
+    );
+    // No tag must exist.
+    assert!(!tag_exists(dir.path(), "v1.0.1"), "tag must not exist");
+}
+
+/// `pre-bump` is skipped when `--dry-run` is used.
+#[test]
+fn bump_lifecycle_pre_bump_skipped_on_dry_run() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    // A failing pre-bump hook must not abort dry-run.
+    write_hooks_file(dir.path(), "pre-bump", "! false\n");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+/// `post-version` receives the new version as its first argument.
+#[test]
+fn bump_lifecycle_post_version_receives_version() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    // Write the first positional arg ($1) to a file inside the tempdir.
+    let sentinel = dir.path().join("post-version-arg.txt");
+    let sentinel_str = sentinel.to_string_lossy();
+    write_hooks_file(
+        dir.path(),
+        "post-version",
+        &format!("! echo $1 > {sentinel_str}\n"),
+    );
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let written = std::fs::read_to_string(&sentinel)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    assert_eq!(written, "1.0.1", "post-version should receive '1.0.1'");
+}
+
+/// `post-version` aborts bump when it exits non-zero.
+#[test]
+fn bump_lifecycle_post_version_aborts_on_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    write_hooks_file(dir.path(), "post-version", "! false\n");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .failure();
+
+    // No tag should have been created.
+    assert!(!tag_exists(dir.path(), "v1.0.1"), "tag must not exist");
+}
+
+/// `post-changelog` runs after the changelog is written.
+#[test]
+fn bump_lifecycle_post_changelog_runs() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    // Touch a sentinel file inside the tempdir so we know the hook ran.
+    let sentinel = dir.path().join("post-changelog-ran.txt");
+    let sentinel_str = sentinel.to_string_lossy();
+    write_hooks_file(
+        dir.path(),
+        "post-changelog",
+        &format!("! touch {sentinel_str}\n"),
+    );
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    assert!(
+        sentinel.exists(),
+        "post-changelog sentinel file must exist after bump"
+    );
+}
+
+/// `post-changelog` aborts bump when it exits non-zero.
+#[test]
+fn bump_lifecycle_post_changelog_aborts_on_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    write_hooks_file(dir.path(), "post-changelog", "! false\n");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .failure();
+
+    // No release commit should have been created.
+    assert_ne!(
+        head_message(dir.path()),
+        "chore(release): 1.0.1",
+        "release commit must not exist"
+    );
+}
+
+/// `post-changelog` is skipped when `--skip-changelog` is used.
+#[test]
+fn bump_lifecycle_post_changelog_skipped_when_skip_changelog() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    // Failing post-changelog hook must not abort bump when --skip-changelog is passed.
+    write_hooks_file(dir.path(), "post-changelog", "! false\n");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--skip-changelog"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+/// `post-bump` runs after the release tag is created.
+#[test]
+fn bump_lifecycle_post_bump_runs_after_tag() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    // Touch a sentinel file inside the tempdir.
+    let sentinel = dir.path().join("post-bump-ran.txt");
+    let sentinel_str = sentinel.to_string_lossy();
+    write_hooks_file(
+        dir.path(),
+        "post-bump",
+        &format!("! touch {sentinel_str}\n"),
+    );
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // Tag must already exist when post-bump runs (hook runs after tag).
+    assert!(tag_exists(dir.path(), "v1.0.1"), "tag must exist");
+    assert!(
+        sentinel.exists(),
+        "post-bump sentinel file must exist after bump"
+    );
+}
+
+/// `post-bump` with advisory command (`?`) — failure is tolerated.
+#[test]
+fn bump_lifecycle_post_bump_advisory_tolerates_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    // Advisory command that always fails.
+    write_hooks_file(dir.path(), "post-bump", "? false\n");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // Tag should still have been created.
+    assert!(tag_exists(dir.path(), "v1.0.1"), "tag must exist");
+}
+
+/// `post-bump` is skipped when `--no-commit` is used (no commit/tag created).
+#[test]
+fn bump_lifecycle_post_bump_skipped_on_no_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    // Failing post-bump hook must not abort bump when --no-commit is passed.
+    write_hooks_file(dir.path(), "post-bump", "! false\n");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--no-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+/// `GIT_STD_SKIP_HOOKS=1` skips all lifecycle hooks.
+#[test]
+fn bump_lifecycle_skip_hooks_env_var() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    // All hooks fail — GIT_STD_SKIP_HOOKS=1 must suppress them all.
+    for hook in ["pre-bump", "post-version", "post-changelog", "post-bump"] {
+        write_hooks_file(dir.path(), hook, "! false\n");
+    }
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .env("GIT_STD_SKIP_HOOKS", "1")
+        .assert()
+        .success();
+}
+
+/// `--dry-run` skips all lifecycle hooks (`post-version`, `post-changelog`,
+/// `post-bump`).
+#[test]
+fn bump_lifecycle_dry_run_skips_all_hooks() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "fix: a fix");
+
+    // All four hooks fail if executed — dry-run must not run any of them.
+    for hook in ["pre-bump", "post-version", "post-changelog", "post-bump"] {
+        write_hooks_file(dir.path(), hook, "! false\n");
+    }
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
 /// Cargo.lock is synced when `cargo` is available and Cargo.toml was updated.
 #[test]
 fn bump_cargo_lock_sync_happy_path() {

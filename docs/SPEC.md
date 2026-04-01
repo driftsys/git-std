@@ -604,6 +604,73 @@ $ git std bump --dry-run
 for a package, the first semver release defaults to
 `0.1.0`. Calver packages use the current date.
 
+#### 2.3.4 Lifecycle Hooks
+
+`git std bump` supports four lifecycle hooks that run at
+defined points in the bump pipeline. Hook files live in
+`.githooks/` with the `.hooks` extension, using the same
+format and sigils as git hooks (see §2.6).
+
+**Lifecycle positions:**
+
+```text
+                      ← pre-bump               (gate: validate, abort)
+1. Detect version
+2. Collect + parse commits
+3. Compute new version
+                      ← post-version {version} (build, generate artifacts)
+4. Update version files
+5. Sync lock files
+6. Generate changelog
+                      ← post-changelog         (lint, rewrite CHANGELOG.md)
+7. Stage files
+8. Create commit
+9. Create tag
+                      ← post-bump              (publish, notify — code is committed and tagged)
+```
+
+**Hook summary:**
+
+| Hook             | Argument    | Use case                                   |
+| ---------------- | ----------- | ------------------------------------------ |
+| `pre-bump`       | —           | Tests pass, clean tree, correct branch     |
+| `post-version`   | `{version}` | Build with new version, stamp binaries     |
+| `post-changelog` | —           | Lint/reformat `CHANGELOG.md`, rewrite URLs |
+| `post-bump`      | —           | `cargo publish`, deploy, notify            |
+
+**Rules:**
+
+- Missing hook file → silently skipped (not an error).
+- `!` (required) commands: non-zero exit aborts the bump.
+- `?` (advisory) commands: non-zero exit prints a warning,
+  bump continues.
+- `--dry-run` skips all lifecycle hooks.
+- `post-changelog` is skipped when `--skip-changelog` is
+  used.
+- `post-version` receives the computed version string as
+  its first positional argument (`$1`).
+- Hook names do not collide with standard git hook names,
+  so `git std hook list` / `enable` / `disable` work for
+  bump hooks too.
+
+**Example:**
+
+```gitconfig
+# .githooks/pre-bump.hooks
+!  just verify
+
+# .githooks/post-version.hooks
+!  cargo build --release
+?  cp target/release/mybin dist/
+
+# .githooks/post-changelog.hooks
+?  dprint fmt CHANGELOG.md
+
+# .githooks/post-bump.hooks
+!  cargo publish
+?  curl -X POST https://hooks.slack.com/...
+```
+
 ### 2.4 `git std changelog`
 
 Generate or update the changelog from git commit history
