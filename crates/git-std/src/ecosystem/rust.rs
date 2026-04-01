@@ -126,6 +126,7 @@ fn update_workspace_deps(content: &str, parsed: &toml::Value, new_version: &str)
     let mut result = String::with_capacity(content.len());
     let mut changed = false;
     let mut in_section = false;
+    let mut rewritten: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -142,9 +143,11 @@ fn update_workspace_deps(content: &str, parsed: &toml::Value, new_version: &str)
 
         if in_section {
             // Check if this line starts with a known local dep name.
-            if let Some(new_line) = try_rewrite_dep_line(line, &local_deps, new_version) {
+            if let Some((new_line, dep_name)) = try_rewrite_dep_line(line, &local_deps, new_version)
+            {
                 result.push_str(&new_line);
                 result.push('\n');
+                rewritten.insert(dep_name);
                 changed = true;
                 continue;
             }
@@ -152,6 +155,18 @@ fn update_workspace_deps(content: &str, parsed: &toml::Value, new_version: &str)
 
         result.push_str(line);
         result.push('\n');
+    }
+
+    // Warn about any local path deps that were found in the parsed manifest
+    // but could not be rewritten (e.g. multi-line or table-header style).
+    for dep in &local_deps {
+        if !rewritten.contains(dep) {
+            ui::warning(&format!(
+                "[workspace.dependencies] {dep}: version not updated \
+                 — unsupported format (inline table required). \
+                 Update manually: {dep} = {{ version = \"{new_version}\", path = \"...\" }}"
+            ));
+        }
     }
 
     // Preserve original trailing-newline behaviour.
@@ -163,13 +178,13 @@ fn update_workspace_deps(content: &str, parsed: &toml::Value, new_version: &str)
 }
 
 /// If `line` declares one of the `local_deps`, rewrite its inline `version =
-/// "..."` value. Returns `None` if the line doesn't match or can't be handled
-/// safely (never corrupts).
+/// "..."` value. Returns `Some((new_line, dep_name))` on success, `None` if
+/// the line doesn't match or can't be handled safely (never corrupts).
 fn try_rewrite_dep_line(
     line: &str,
     local_deps: &std::collections::HashSet<String>,
     new_version: &str,
-) -> Option<String> {
+) -> Option<(String, String)> {
     let trimmed = line.trim();
 
     // Line must look like:  dep-name = { ... }
@@ -195,7 +210,10 @@ fn try_rewrite_dep_line(
     // Reconstruct the line preserving leading whitespace.
     let leading = &line[..line.len() - line.trim_start().len()];
     let key_part = &trimmed[..eq_pos + 1]; // "dep-name ="
-    Some(format!("{leading}{key_part} {new_value}"))
+    Some((
+        format!("{leading}{key_part} {new_value}"),
+        dep_name.to_string(),
+    ))
 }
 
 /// Replace `version = "..."` inside an inline TOML table string.
