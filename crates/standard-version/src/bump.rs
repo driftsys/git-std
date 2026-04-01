@@ -357,43 +357,64 @@ mod tests {
     #[test]
     fn pre1_breaking_bumps_minor() {
         let v = semver::Version::new(0, 10, 2);
-        assert_eq!(apply_bump(&v, BumpLevel::Major), semver::Version::new(0, 11, 0));
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Major),
+            semver::Version::new(0, 11, 0)
+        );
     }
 
     #[test]
     fn pre1_feat_bumps_patch() {
         let v = semver::Version::new(0, 10, 2);
-        assert_eq!(apply_bump(&v, BumpLevel::Minor), semver::Version::new(0, 10, 3));
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Minor),
+            semver::Version::new(0, 10, 3)
+        );
     }
 
     #[test]
     fn pre1_fix_bumps_patch() {
         let v = semver::Version::new(0, 10, 2);
-        assert_eq!(apply_bump(&v, BumpLevel::Patch), semver::Version::new(0, 10, 3));
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Patch),
+            semver::Version::new(0, 10, 3)
+        );
     }
 
     #[test]
     fn pre1_zero_minor_breaking_bumps_minor() {
         let v = semver::Version::new(0, 0, 5);
-        assert_eq!(apply_bump(&v, BumpLevel::Major), semver::Version::new(0, 1, 0));
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Major),
+            semver::Version::new(0, 1, 0)
+        );
     }
 
     #[test]
     fn pre1_zero_minor_feat_bumps_patch() {
         let v = semver::Version::new(0, 0, 5);
-        assert_eq!(apply_bump(&v, BumpLevel::Minor), semver::Version::new(0, 0, 6));
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Minor),
+            semver::Version::new(0, 0, 6)
+        );
     }
 
     #[test]
     fn post1_major_unchanged() {
         let v = semver::Version::new(1, 2, 3);
-        assert_eq!(apply_bump(&v, BumpLevel::Major), semver::Version::new(2, 0, 0));
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Major),
+            semver::Version::new(2, 0, 0)
+        );
     }
 
     #[test]
     fn pre1_clears_prerelease_metadata() {
         let v = semver::Version::parse("0.3.0-rc.2").unwrap();
-        assert_eq!(apply_bump(&v, BumpLevel::Major), semver::Version::new(0, 4, 0));
+        assert_eq!(
+            apply_bump(&v, BumpLevel::Major),
+            semver::Version::new(0, 4, 0)
+        );
     }
 
     #[test]
