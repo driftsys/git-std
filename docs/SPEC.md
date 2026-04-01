@@ -606,21 +606,22 @@ using `standard-changelog`.
 2. Parse commits in the requested range as conventional commits.
 3. Group commits by type → changelog section. Hidden types excluded.
 4. Render as CommonMark with reference-style links.
-5. Write to the output file (prepend by default) or stdout.
+5. Print to stdout (default) or write to file when `-w` is given.
 
 **Flags:**
 
-| Flag              | Description                                            |
-| ----------------- | ------------------------------------------------------ |
-| `--full`          | Regenerate the entire changelog from the first commit  |
-| `--range <range>` | Generate changelog for a tag range (e.g. `v1.0..v2.0`) |
-| `--stdout`        | Print to stdout instead of file                        |
-| `--output <file>` | Write to file (default: `CHANGELOG.md`)                |
+| Flag                   | Description                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `--full`               | Regenerate the entire changelog from the first commit  |
+| `--range <range>`      | Generate changelog for a tag range (e.g. `v1.0..v2.0`) |
+| `-w`, `--write [path]` | Write to file (default: `CHANGELOG.md`)                |
 
-Without `--full` or `--range`, generates an incremental
-changelog (unreleased commits since the last tag) and
-prepends to the output file. `--range` and `--full` are
-mutually exclusive.
+Output goes to stdout by default. Pass `-w` / `--write` to
+write to `CHANGELOG.md`, or `-w <path>` to write to a
+custom file. Without `--full` or `--range`, generates an
+incremental changelog (unreleased commits since the last
+tag) and prepends to the output file. `--range` and `--full`
+are mutually exclusive.
 
 ### 2.5 `git std hook`
 

@@ -128,13 +128,14 @@ Generate or update the changelog from git history.
 
 **Flags:**
 
-| Flag              | Description                              |
-| ----------------- | ---------------------------------------- |
-| `--full`          | Regenerate entire changelog              |
-| `--range <range>` | Generate for a tag range (e.g. `v1..v2`) |
-| `--stdout`        | Print to stdout instead of file          |
-| `--output <file>` | Write to file (default: CHANGELOG.md)    |
+| Flag                   | Description                              |
+| ---------------------- | ---------------------------------------- |
+| `--full`               | Regenerate entire changelog              |
+| `--range <range>`      | Generate for a tag range (e.g. `v1..v2`) |
+| `-w`, `--write [path]` | Write to file (default: CHANGELOG.md)    |
 
+Output goes to stdout by default. Pass `-w` / `--write` to
+write to `CHANGELOG.md`, or `-w <path>` for a custom path.
 `--full` and `--range` are mutually exclusive. Without
 either, generates an incremental changelog from unreleased
 commits since the last tag.

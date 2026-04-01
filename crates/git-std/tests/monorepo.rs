@@ -424,7 +424,7 @@ fn monorepo_changelog_package_flag() {
 
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["changelog", "-p", "core", "--stdout"])
+        .args(["changelog", "-p", "core"])
         .current_dir(dir.path())
         .assert()
         .success()

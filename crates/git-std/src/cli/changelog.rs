@@ -9,10 +9,8 @@ use crate::ui;
 pub struct ChangelogOptions {
     /// Regenerate the entire changelog from the first commit.
     pub full: bool,
-    /// Print to stdout instead of writing to a file.
-    pub stdout: bool,
-    /// Output file path.
-    pub output: String,
+    /// Write to file. `None` = stdout, `Some(path)` = write to file.
+    pub write: Option<String>,
     /// Optional git revision range (e.g. `v1.0.0..v2.0.0`).
     pub range: Option<String>,
     /// Generate changelog for a specific package (monorepo only).
@@ -100,28 +98,32 @@ fn run_incremental(
         }
     };
 
-    if opts.stdout {
+    if opts.write.is_none() {
         let section = standard_changelog::render_version(&release, config, host);
         println!("# {}\n", config.title);
         print!("{section}");
         return 0;
     }
 
-    let existing = std::fs::read_to_string(&opts.output).unwrap_or_default();
+    let path = opts.write.as_deref().unwrap();
+    let existing = std::fs::read_to_string(path).unwrap_or_default();
     let output = standard_changelog::prepend_release(&existing, &release, config, host);
     write_output(&output, opts)
 }
 
 /// Write output to stdout or file.
 fn write_output(content: &str, opts: &ChangelogOptions) -> i32 {
-    if opts.stdout {
-        print!("{content}");
-    } else {
-        if let Err(e) = std::fs::write(&opts.output, content) {
-            ui::error(&format!("cannot write {}: {e}", opts.output));
-            return 1;
+    match &opts.write {
+        None => {
+            print!("{content}");
         }
-        ui::info(&format!("wrote {}", opts.output));
+        Some(path) => {
+            if let Err(e) = std::fs::write(path, content) {
+                ui::error(&format!("cannot write {path}: {e}"));
+                return 1;
+            }
+            ui::info(&format!("wrote {path}"));
+        }
     }
     0
 }
@@ -239,13 +241,14 @@ fn run_range(
         }
     };
 
-    if opts.stdout {
+    if opts.write.is_none() {
         let section = standard_changelog::render_version(&release, config, host);
         print!("{section}");
         return 0;
     }
 
-    let existing = std::fs::read_to_string(&opts.output).unwrap_or_default();
+    let path = opts.write.as_deref().unwrap();
+    let existing = std::fs::read_to_string(path).unwrap_or_default();
     let output = standard_changelog::prepend_release(&existing, &release, config, host);
     write_output(&output, opts)
 }
@@ -378,13 +381,14 @@ fn run_package_changelog(
         }
     };
 
-    if opts.stdout {
+    if opts.write.is_none() {
         let section = standard_changelog::render_version(&release, config, host);
         print!("{section}");
         return 0;
     }
 
-    let output_path = workdir.join(&pkg.path).join(&opts.output);
+    let filename = opts.write.as_deref().unwrap();
+    let output_path = workdir.join(&pkg.path).join(filename);
     let existing = std::fs::read_to_string(&output_path).unwrap_or_default();
     let output = standard_changelog::prepend_release(&existing, &release, config, host);
 
@@ -420,18 +424,15 @@ fn run_full_monorepo(
 
     let packages = project_config.resolved_packages(&workdir);
     for pkg in &packages {
-        let mut pkg_opts = ChangelogOptions {
+        let pkg_opts = ChangelogOptions {
             full: false,
-            stdout: opts.stdout,
-            output: opts.output.clone(),
+            write: opts.write.as_ref().map(|_| "CHANGELOG.md".to_string()),
             range: None,
             package: Some(pkg.name.clone()),
             monorepo: true,
             tag_template: opts.tag_template.clone(),
             tag_prefix: opts.tag_prefix.clone(),
         };
-        // Use package-relative output path.
-        pkg_opts.output = "CHANGELOG.md".to_string();
         let code = run_package_changelog(dir, project_config, config, host, &pkg_opts, &pkg.name);
         if code != 0 {
             return code;

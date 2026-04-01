@@ -84,8 +84,7 @@ fn main() {
         }
         Command::Changelog {
             full,
-            stdout,
-            output,
+            write,
             range,
             package,
         } => {
@@ -93,8 +92,7 @@ fn main() {
             let changelog_config = project_config.to_changelog_config();
             let opts = cli::changelog::ChangelogOptions {
                 full,
-                stdout,
-                output,
+                write,
                 range,
                 package,
                 monorepo: project_config.monorepo,
