@@ -1,5 +1,70 @@
 # Changelog
 
+## [0.11.0] (2026-04-01)
+
+### Features
+
+- **doctor:** redesign doctor with three-section output, absorb config ([#403])
+  ([6fec151])
+- **bump:** add --push flag to push commit and tags after release ([#405])
+  ([13fb1ed])
+- **bump:** add pre-bump, post-version, post-changelog, post-bump lifecycle
+  hooks ([#404]) ([9be2497])
+- **git-std:** add git std version command ([#402]) ([0c527e0])
+- **cli:** add git std init command ([#400]) ([ea6f9a3])
+- **cli:** move completions to --completions global flag ([#401]) ([#416])
+  ([2919b37])
+- **commit:** add --footer and --signoff flags ([#407]) ([#414]) ([9b0ec2e])
+- **changelog:** default to stdout and add -w/--write flag ([#411]) ([1c658a2])
+- **version:** apply pre-1.0 semver convention for breaking changes ([#413])
+  ([cc190f2])
+- **cli:** rename check to lint and hooks to hook ([#415]) ([22a88e2])
+
+### Bug Fixes
+
+- **ecosystem:** use ecosystem layer in dry-run path ([#352]) ([#410])
+  ([c2c202b])
+- **changelog:** split reversed-range warning and add same-commit test ([#391],
+  [#392]) ([#409]) ([d900479])
+
+### Refactoring
+
+- split files exceeding size limits ([#212]) ([#412]) ([8f6a960])
+
+[0.11.0]: https://github.com/driftsys/git-std/compare/v0.10.2...v0.11.0
+[6fec151]: https://github.com/driftsys/git-std/commit/6fec151
+[#403]: https://github.com/driftsys/git-std/issues/403
+[13fb1ed]: https://github.com/driftsys/git-std/commit/13fb1ed
+[#405]: https://github.com/driftsys/git-std/issues/405
+[9be2497]: https://github.com/driftsys/git-std/commit/9be2497
+[#404]: https://github.com/driftsys/git-std/issues/404
+[0c527e0]: https://github.com/driftsys/git-std/commit/0c527e0
+[#402]: https://github.com/driftsys/git-std/issues/402
+[ea6f9a3]: https://github.com/driftsys/git-std/commit/ea6f9a3
+[#400]: https://github.com/driftsys/git-std/issues/400
+[2919b37]: https://github.com/driftsys/git-std/commit/2919b37
+[#401]: https://github.com/driftsys/git-std/issues/401
+[#416]: https://github.com/driftsys/git-std/issues/416
+[9b0ec2e]: https://github.com/driftsys/git-std/commit/9b0ec2e
+[#407]: https://github.com/driftsys/git-std/issues/407
+[#414]: https://github.com/driftsys/git-std/issues/414
+[1c658a2]: https://github.com/driftsys/git-std/commit/1c658a2
+[#411]: https://github.com/driftsys/git-std/issues/411
+[cc190f2]: https://github.com/driftsys/git-std/commit/cc190f2
+[#413]: https://github.com/driftsys/git-std/issues/413
+[22a88e2]: https://github.com/driftsys/git-std/commit/22a88e2
+[#415]: https://github.com/driftsys/git-std/issues/415
+[c2c202b]: https://github.com/driftsys/git-std/commit/c2c202b
+[#352]: https://github.com/driftsys/git-std/issues/352
+[#410]: https://github.com/driftsys/git-std/issues/410
+[d900479]: https://github.com/driftsys/git-std/commit/d900479
+[#391]: https://github.com/driftsys/git-std/issues/391
+[#392]: https://github.com/driftsys/git-std/issues/392
+[#409]: https://github.com/driftsys/git-std/issues/409
+[8f6a960]: https://github.com/driftsys/git-std/commit/8f6a960
+[#212]: https://github.com/driftsys/git-std/issues/212
+[#412]: https://github.com/driftsys/git-std/issues/412
+
 ## [0.10.2] (2026-03-31)
 
 ### Bug Fixes
