@@ -7,11 +7,31 @@ Commands:
   lint       Validate commit messages
   bump       Version bump, changelog, commit, and tag
   changelog  Generate a changelog (incremental by default, --full to regenerate)
-  init       Scaffold hooks, bootstrap script, and README section in one step
   bootstrap  Post-clone environment setup
+  init       Scaffold hooks, bootstrap script, and README section in one step
   hook       Git hooks management
   config     Inspect effective git-std configuration
   doctor     Run health checks on the local git-std setup
   help       Print this message or the help of the given subcommand(s)
-...
 
+Options:
+      --color <COLOR>
+          When to use coloured output
+
+          Possible values:
+          - auto:   Colour if stdout is a TTY
+          - always: Always use colour
+          - never:  Never use colour
+          
+          [default: auto]
+
+      --completions <SHELL>
+          Generate shell completion scripts and print to stdout
+          
+          [possible values: bash, elvish, fish, powershell, zsh]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version

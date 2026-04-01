@@ -205,8 +205,14 @@ fn init_enables_selected_hooks() {
         .success();
 
     let hooks_dir = dir.path().join(".githooks");
-    assert!(hooks_dir.join("pre-commit").exists(), "pre-commit shim active");
-    assert!(hooks_dir.join("commit-msg").exists(), "commit-msg shim active");
+    assert!(
+        hooks_dir.join("pre-commit").exists(),
+        "pre-commit shim active"
+    );
+    assert!(
+        hooks_dir.join("commit-msg").exists(),
+        "commit-msg shim active"
+    );
     assert!(!hooks_dir.join("pre-commit.off").exists());
     assert!(hooks_dir.join("pre-push.off").exists(), "pre-push disabled");
 }
@@ -235,7 +241,9 @@ fn init_non_tty_without_env_fails() {
         .current_dir(dir.path())
         .assert()
         .failure()
-        .stderr(predicate::str::contains("interactive prompt requires a TTY"))
+        .stderr(predicate::str::contains(
+            "interactive prompt requires a TTY",
+        ))
         .stderr(predicate::str::contains("GIT_STD_HOOKS_ENABLE"));
 }
 
@@ -303,11 +311,7 @@ fn init_force_overwrites_existing_files() {
     // Pre-create files with old content
     std::fs::write(dir.path().join("bootstrap"), "old content\n").unwrap();
     std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
-    std::fs::write(
-        dir.path().join(".githooks/bootstrap.hooks"),
-        "old hooks\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join(".githooks/bootstrap.hooks"), "old hooks\n").unwrap();
 
     run_init(dir.path(), &["--force"]).success();
 
