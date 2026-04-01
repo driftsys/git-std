@@ -98,6 +98,7 @@ update version files, generate changelog, commit, and tag.
 | `--minor`            | Use minor bump (instead of major) when advancing main after stable |
 | `--format <fmt>`     | Output format: `text` (default) or `json`                          |
 | `--package <name>`   | Filter bump to specific package(s) (monorepo only, repeatable)     |
+| `--push [remote]`    | Push commit and tags after release (default remote: `origin`)      |
 
 **Exit codes:** `0` = success, `1` = error.
 

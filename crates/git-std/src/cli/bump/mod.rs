@@ -38,6 +38,10 @@ pub struct BumpOptions {
     pub format: OutputFormat,
     /// Filter bump to specific package(s) (monorepo only).
     pub packages: Vec<String>,
+    /// Push commit and tags to the given remote after tagging.
+    ///
+    /// `None` = flag not used, `Some(name)` = push to the named remote.
+    pub push: Option<String>,
 }
 
 /// Context passed from the version-computation phase to the shared finalize logic.
