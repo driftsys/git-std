@@ -256,6 +256,33 @@ git std doctor --format json  # machine-readable JSON on stdout
 **Exit codes:** `0` = all checks pass, `1` = one or more checks failed,
 `2` = not a git repository.
 
+## `git std version`
+
+Lightweight, scriptable version queries.
+
+```bash
+git std version                  # 0.10.2
+git std version --describe       # 0.10.2-dev.7+g3a2b1c.dirty
+git std version --next           # 0.11.0
+git std version --label          # minor
+git std version --code           # 10299
+git std version --format json    # all fields as JSON
+```
+
+Output goes to stdout. No `v` prefix.
+
+**Flags:**
+
+| Flag             | Description                                                           |
+| ---------------- | --------------------------------------------------------------------- |
+| `--describe`     | Cargo-style describe: `-dev.N` pre-release + `+hash[.dirty]` metadata |
+| `--next`         | Next version from conventional commits since the last tag             |
+| `--label`        | Bump label (`major`/`minor`/`patch`/`none`), accounting for pre-1.0   |
+| `--code`         | Integer version code                                                  |
+| `--format <fmt>` | Output format: `text` (default), `json`                               |
+
+**Exit codes:** `0` = success, `1` = error.
+
 ## `--completions <shell>`
 
 Generate shell completion scripts to stdout. The output includes wrappers

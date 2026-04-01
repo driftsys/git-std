@@ -12,6 +12,7 @@ Commands:
   hook       Git hooks management
   config     Inspect effective git-std configuration
   doctor     Run health checks on the local git-std setup
+  version    Query the current project version
   help       Print this message or the help of the given subcommand(s)
 
 Options:
