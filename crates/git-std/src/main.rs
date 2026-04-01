@@ -12,6 +12,12 @@ pub mod ui;
 use app::*;
 
 fn main() {
+    // Handle hidden background update-check mode before clap parsing.
+    if std::env::args().any(|a| a == "--update-check-bg") {
+        cli::update_check::run_background_check();
+        return;
+    }
+
     let cli = Cli::parse();
 
     // Configure yansi colour output based on --color flag.
@@ -44,7 +50,9 @@ fn main() {
         }
     };
 
-    match command {
+    cli::update_check::maybe_spawn_background_check();
+
+    let code = match command {
         Command::Lint {
             message,
             file,
@@ -62,7 +70,7 @@ fn main() {
                 None
             };
 
-            let code = if let Some(path) = file {
+            if let Some(path) = file {
                 cli::lint::run_file(&path, lint_ref, format)
             } else if let Some(range) = range {
                 cli::lint::run_range(&range, lint_ref, format)
@@ -74,8 +82,7 @@ fn main() {
                 ui::info("       git std lint --file <path>");
                 ui::info("       git std lint --range <from..to>");
                 2
-            };
-            std::process::exit(code);
+            }
         }
         Command::Commit {
             commit_type,
@@ -102,8 +109,7 @@ fn main() {
                 footer,
                 signoff,
             };
-            let code = cli::commit::run_interactive(&project_config, &opts);
-            std::process::exit(code);
+            cli::commit::run_interactive(&project_config, &opts)
         }
         Command::Changelog {
             full,
@@ -122,8 +128,7 @@ fn main() {
                 tag_template: project_config.versioning.tag_template.clone(),
                 tag_prefix: project_config.versioning.tag_prefix.clone(),
             };
-            let code = cli::changelog::run(&project_config, &changelog_config, &opts);
-            std::process::exit(code);
+            cli::changelog::run(&project_config, &changelog_config, &opts)
         }
         Command::Bump {
             dry_run,
@@ -159,28 +164,19 @@ fn main() {
                 packages,
                 push,
             };
-            let code = cli::bump::run(&project_config, &opts);
-            std::process::exit(code);
+            cli::bump::run(&project_config, &opts)
         }
-        Command::Init { force } => {
-            std::process::exit(cli::init::run(force));
-        }
-        Command::Bootstrap { dry_run } => {
-            let code = cli::bootstrap::run(dry_run);
-            std::process::exit(code);
-        }
-        Command::Hook { subcommand } => {
-            let code = match subcommand {
-                HookCommand::Run { hook, args, format } => cli::hook::run(&hook, &args, format),
-                HookCommand::List { format } => cli::hook::list(format),
-                HookCommand::Enable { hook } => cli::hook::enable(&hook),
-                HookCommand::Disable { hook } => cli::hook::disable(&hook),
-            };
-            std::process::exit(code);
-        }
+        Command::Init { force } => cli::init::run(force),
+        Command::Bootstrap { dry_run } => cli::bootstrap::run(dry_run),
+        Command::Hook { subcommand } => match subcommand {
+            HookCommand::Run { hook, args, format } => cli::hook::run(&hook, &args, format),
+            HookCommand::List { format } => cli::hook::list(format),
+            HookCommand::Enable { hook } => cli::hook::enable(&hook),
+            HookCommand::Disable { hook } => cli::hook::disable(&hook),
+        },
         Command::Doctor { format } => {
             let cwd = std::env::current_dir().unwrap_or_default();
-            std::process::exit(cli::doctor::run(&cwd, format));
+            cli::doctor::run(&cwd, format)
         }
         Command::Version {
             describe,
@@ -197,7 +193,10 @@ fn main() {
                 code,
                 format,
             };
-            std::process::exit(cli::version::run(&project_config, &opts));
+            cli::version::run(&project_config, &opts)
         }
-    }
+    };
+
+    cli::update_check::print_update_hint();
+    std::process::exit(code);
 }

@@ -1000,7 +1000,32 @@ The stage range ensures every pre-release build is numerically less than the
 final stable release while remaining monotonically increasing within each
 pre-release track.
 
-### 2.9 Global Flags
+### 2.9 Update Check
+
+git-std periodically checks whether a newer release is available and
+prints a one-line hint after command output.
+
+**Behaviour (gh-style background check):**
+
+1. On every invocation, read the cache file
+   (`~/.config/git-std/update-check.json`, respects `$XDG_CONFIG_HOME`).
+2. If the cache is missing or stale (>24 h), spawn a detached background
+   process that queries the GitHub releases API and writes the cache.
+   No hint is printed on this run.
+3. On the next invocation (cache fresh, newer version exists), print a
+   hint after command output.
+4. The update command adapts to the detected install method
+   (`cargo install`, `install.sh`, `nix profile upgrade`, or a link to
+   the releases page).
+
+**Properties:**
+
+- Never blocks CLI startup — background subprocess is fire-and-forget.
+- 24 h throttle — at most one network request per day.
+- Stale or missing cache = silence.
+- Opt-out: set `GIT_STD_NO_UPDATE_CHECK=1`.
+
+### 2.10 Global Flags
 
 | Flag                    | Description                          |
 | ----------------------- | ------------------------------------ |

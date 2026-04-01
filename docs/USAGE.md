@@ -389,4 +389,14 @@ $ git std config list
   ...
 ```
 
+## Update Check
+
+git-std periodically checks for newer releases in the background and
+prints a hint after command output when an update is available.
+
+- Non-blocking — a detached background process fetches the latest
+  release once every 24 hours.
+- Adapts to install method (cargo, install.sh, nix).
+- Opt-out: `GIT_STD_NO_UPDATE_CHECK=1`.
+
 [conv-commits]: https://www.conventionalcommits.org/en/v1.0.0/
