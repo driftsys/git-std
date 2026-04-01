@@ -65,15 +65,15 @@ dependencies.
 
 git-std covers six concerns:
 
-| Concern                      | Subcommand                                        |
-| ---------------------------- | ------------------------------------------------- |
-| Conventional commit creation | `git std commit`                                  |
-| Commit message validation    | `git std lint`                                    |
-| Version bump + changelog     | `git std bump`, `git std changelog`               |
-| Maintainer setup             | `git std init`                                    |
-| Git hooks management         | `git std hook run`, `git std hook list`           |
-| Post-clone bootstrap         | `git std bootstrap`                               |
-| Shell completions            | `git std --completions <shell>`                   |
+| Concern                      | Subcommand                              |
+| ---------------------------- | --------------------------------------- |
+| Conventional commit creation | `git std commit`                        |
+| Commit message validation    | `git std lint`                          |
+| Version bump + changelog     | `git std bump`, `git std changelog`     |
+| Maintainer setup             | `git std init`                          |
+| Git hooks management         | `git std hook run`, `git std hook list` |
+| Post-clone bootstrap         | `git std bootstrap`                     |
+| Shell completions            | `git std --completions <shell>`         |
 
 **Out of scope:** repo scaffolding, directory structure
 compliance, formatting, linting, CI pipeline generation,
@@ -860,7 +860,6 @@ eval "$(git-std --completions zsh)"
 # Fish (~/.config/fish/config.fish)
 git-std --completions fish | source
 ```
-
 
 ---
 

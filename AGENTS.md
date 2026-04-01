@@ -45,15 +45,15 @@ updates.
 
 **Eight subcommands**, each a separate concern:
 
-| Subcommand          | Purpose                                                |
-| ------------------- | ------------------------------------------------------ |
-| `git std commit`    | Interactive conventional commit builder                |
-| `git std lint`      | Commit message validation                              |
-| `git std bump`      | Version bump + changelog + commit + tag                |
-| `git std changelog` | Changelog generation (incremental or full)             |
-| `git std init`      | Maintainer setup (hooks + bootstrap scaffold)          |
-| `git std bootstrap` | Post-clone environment setup                           |
-| `git std hook`      | Git hooks management (run/list/enable/disable)         |
+| Subcommand          | Purpose                                        |
+| ------------------- | ---------------------------------------------- |
+| `git std commit`    | Interactive conventional commit builder        |
+| `git std lint`      | Commit message validation                      |
+| `git std bump`      | Version bump + changelog + commit + tag        |
+| `git std changelog` | Changelog generation (incremental or full)     |
+| `git std init`      | Maintainer setup (hooks + bootstrap scaffold)  |
+| `git std bootstrap` | Post-clone environment setup                   |
+| `git std hook`      | Git hooks management (run/list/enable/disable) |
 
 **Global flag** (no subcommand required):
 
