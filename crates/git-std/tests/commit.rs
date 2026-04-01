@@ -543,7 +543,7 @@ fn check_validates_commit_with_trailers() {
         "feat: add login\n\nCo-authored-by: Alice <a@b.com>\nSigned-off-by: Test <test@test.com>";
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["check", msg])
+        .args(["lint", msg])
         .assert()
         .success();
 }
