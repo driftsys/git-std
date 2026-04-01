@@ -95,6 +95,7 @@ fn bump_help_shows_flags() {
         "--force",
         "--stable",
         "--minor",
+        "--push",
     ] {
         assert!(stdout.contains(flag), "bump help should list '{flag}' flag");
     }
@@ -1022,6 +1023,149 @@ fn bump_lifecycle_dry_run_skips_all_hooks() {
         .current_dir(dir.path())
         .assert()
         .success();
+}
+
+/// Helper: initialise a bare repo and add it as a remote to `local_dir`.
+fn init_remote(local_dir: &Path, remote_dir: &Path, remote_name: &str) {
+    // Init bare remote.
+    std::process::Command::new("git")
+        .args(["init", "--bare"])
+        .arg(remote_dir)
+        .output()
+        .unwrap();
+    // Add as a named remote.
+    git(
+        local_dir,
+        &[
+            "remote",
+            "add",
+            remote_name,
+            &remote_dir.display().to_string(),
+        ],
+    );
+}
+
+/// Helper: check whether a tag exists in a bare remote repo.
+fn remote_tag_exists(remote_dir: &Path, tag: &str) -> bool {
+    std::process::Command::new("git")
+        .current_dir(remote_dir)
+        .args(["rev-parse", "--verify", &format!("refs/tags/{tag}")])
+        .output()
+        .unwrap()
+        .status
+        .success()
+}
+
+// ── --push flag ────────────────────────────────────────────────
+
+/// --push pushes the commit and tag to the default remote (origin).
+#[test]
+fn bump_push_default_remote() {
+    let local = tempfile::tempdir().unwrap();
+    let remote = tempfile::tempdir().unwrap();
+    init_bump_repo(local.path());
+    create_tag(local.path(), "v1.0.0");
+    add_commit(local.path(), "a.txt", "fix: a fix");
+    init_remote(local.path(), remote.path(), "origin");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--push"])
+        .current_dir(local.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Pushed to origin"));
+
+    // Tag should be present in the remote.
+    assert!(
+        remote_tag_exists(remote.path(), "v1.0.1"),
+        "tag v1.0.1 should be pushed to remote"
+    );
+}
+
+/// --push <remote> pushes to the specified remote.
+#[test]
+fn bump_push_named_remote() {
+    let local = tempfile::tempdir().unwrap();
+    let remote = tempfile::tempdir().unwrap();
+    init_bump_repo(local.path());
+    create_tag(local.path(), "v1.0.0");
+    add_commit(local.path(), "a.txt", "fix: a fix");
+    init_remote(local.path(), remote.path(), "upstream");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--push", "upstream"])
+        .current_dir(local.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Pushed to upstream"));
+
+    assert!(
+        remote_tag_exists(remote.path(), "v1.0.1"),
+        "tag v1.0.1 should be pushed to upstream remote"
+    );
+}
+
+/// --dry-run --push reports "Would push to <remote>" without actually pushing.
+#[test]
+fn bump_dry_run_push_reports_would_push() {
+    let local = tempfile::tempdir().unwrap();
+    let remote = tempfile::tempdir().unwrap();
+    init_bump_repo(local.path());
+    create_tag(local.path(), "v1.0.0");
+    add_commit(local.path(), "a.txt", "fix: a fix");
+    init_remote(local.path(), remote.path(), "origin");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run", "--push"])
+        .current_dir(local.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Would push to origin"));
+
+    // Nothing pushed to remote.
+    assert!(
+        !remote_tag_exists(remote.path(), "v1.0.1"),
+        "dry-run should not push anything"
+    );
+}
+
+/// --dry-run --push <remote> reports "Would push to <remote>".
+#[test]
+fn bump_dry_run_push_named_remote() {
+    let local = tempfile::tempdir().unwrap();
+    let remote = tempfile::tempdir().unwrap();
+    init_bump_repo(local.path());
+    create_tag(local.path(), "v1.0.0");
+    add_commit(local.path(), "a.txt", "fix: a fix");
+    init_remote(local.path(), remote.path(), "upstream");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run", "--push", "upstream"])
+        .current_dir(local.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Would push to upstream"));
+}
+
+/// --push to a non-existent remote fails with a non-zero exit code.
+#[test]
+fn bump_push_failure_exits_nonzero() {
+    let local = tempfile::tempdir().unwrap();
+    init_bump_repo(local.path());
+    create_tag(local.path(), "v1.0.0");
+    add_commit(local.path(), "a.txt", "fix: a fix");
+    // No remote configured — push should fail.
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--push", "nonexistent-remote"])
+        .current_dir(local.path())
+        .assert()
+        .failure();
 }
 
 /// Cargo.lock is synced when `cargo` is available and Cargo.toml was updated.

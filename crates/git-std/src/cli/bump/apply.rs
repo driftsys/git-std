@@ -156,6 +156,10 @@ pub(super) fn finalize_bump(
             ui::info(&format!("Would tag:    {tag_prefix}{new_version}"));
         }
 
+        if let Some(remote) = &opts.push {
+            ui::info(&format!("Would push to {remote}"));
+        }
+
         ui::blank();
         return 0;
     }
@@ -293,7 +297,18 @@ pub(super) fn finalize_bump(
         }
     }
 
-    // post-bump hook: runs after commit+tag are created.
+    // Push commit and tags to remote.
+    if let Some(remote) = &opts.push {
+        if let Err(e) = git::push_follow_tags(dir, remote) {
+            ui::error(&format!("cannot push to {remote}: {e}"));
+            return 1;
+        }
+        if opts.format != OutputFormat::Json {
+            ui::info(&format!("Pushed to {remote}"));
+        }
+    }
+
+    // post-bump hook: runs after commit+tag are created (and after push if --push).
     // Skipped when --no-commit is set (nothing was committed or tagged).
     if !opts.no_commit
         && let Err(code) = run_lifecycle_hook("post-bump", &[])
@@ -337,7 +352,9 @@ pub(super) fn finalize_bump(
         println!("{}", serde_json::to_string(&result).unwrap());
     } else {
         ui::blank();
-        ui::info("Push with: git push --follow-tags");
+        if opts.push.is_none() {
+            ui::info("Push with: git push --follow-tags");
+        }
         ui::blank();
     }
 

@@ -139,6 +139,7 @@ fn main() {
             minor,
             format,
             packages,
+            push,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
             let stable = stable.map(|s| if s.is_empty() { None } else { Some(s) });
@@ -156,6 +157,7 @@ fn main() {
                 minor,
                 format,
                 packages,
+                push,
             };
             let code = cli::bump::run(&project_config, &opts);
             std::process::exit(code);

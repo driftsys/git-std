@@ -86,3 +86,8 @@ pub fn branch_exists(dir: &Path, name: &str) -> Result<bool, GitError> {
 pub fn checkout_branch(dir: &Path, name: &str) -> Result<(), GitError> {
     git_ok(dir, &["checkout", name])
 }
+
+/// Push the current branch and all tags to the given remote using `--follow-tags`.
+pub fn push_follow_tags(dir: &Path, remote: &str) -> Result<(), GitError> {
+    git_ok(dir, &["push", "--follow-tags", remote, "HEAD"])
+}

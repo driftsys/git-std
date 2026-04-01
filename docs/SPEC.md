@@ -626,17 +626,18 @@ format and sigils as git hooks (see §2.6).
 7. Stage files
 8. Create commit
 9. Create tag
-                      ← post-bump              (publish, notify — code is committed and tagged)
+10. Push (if `--push`)
+                      ← post-bump              (publish, notify — code is pushed)
 ```
 
 **Hook summary:**
 
-| Hook             | Argument    | Use case                                   |
-| ---------------- | ----------- | ------------------------------------------ |
-| `pre-bump`       | —           | Tests pass, clean tree, correct branch     |
-| `post-version`   | `{version}` | Build with new version, stamp binaries     |
-| `post-changelog` | —           | Lint/reformat `CHANGELOG.md`, rewrite URLs |
-| `post-bump`      | —           | `cargo publish`, deploy, notify            |
+| Hook             | Argument    | Use case                                     |
+| ---------------- | ----------- | -------------------------------------------- |
+| `pre-bump`       | —           | Tests pass, clean tree, correct branch       |
+| `post-version`   | `{version}` | Build with new version, stamp binaries       |
+| `post-changelog` | —           | Lint/reformat `CHANGELOG.md`, rewrite URLs   |
+| `post-bump`      | —           | `cargo publish`, deploy, notify (after push) |
 
 **Rules:**
 

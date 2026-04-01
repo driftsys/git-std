@@ -11,7 +11,7 @@ mod tag;
 pub use mutate::{
     amend_commit, branch_exists, checkout_branch, create_annotated_tag, create_branch,
     create_commit, create_signed_commit, create_signed_commit_amend, create_signed_tag,
-    is_working_tree_dirty, stage_files, stage_tracked_modified, workdir,
+    is_working_tree_dirty, push_follow_tags, stage_files, stage_tracked_modified, workdir,
 };
 pub use query::{
     commit_date, config_value, current_branch, detect_host, head_oid, resolve_rev, walk_commits,
