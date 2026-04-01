@@ -29,8 +29,12 @@ pub struct Cli {
     #[arg(long, global = true, default_value = "auto")]
     pub color: ColorWhen,
 
+    /// Generate shell completion scripts and print to stdout.
+    #[arg(long, value_name = "SHELL")]
+    pub completions: Option<Shell>,
+
     #[command(subcommand)]
-    pub command: Command,
+    pub command: Option<Command>,
 }
 
 /// Available subcommands.
@@ -166,11 +170,6 @@ pub enum Command {
         /// Output format.
         #[arg(long, default_value = "text")]
         format: OutputFormat,
-    },
-    /// Generate shell completion scripts.
-    Completions {
-        /// Target shell.
-        shell: Shell,
     },
 }
 

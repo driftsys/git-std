@@ -45,15 +45,20 @@ updates.
 
 **Seven subcommands**, each a separate concern:
 
-| Subcommand            | Purpose                                                |
-| --------------------- | ------------------------------------------------------ |
-| `git std commit`      | Interactive conventional commit builder                |
-| `git std lint`        | Commit message validation                              |
-| `git std bump`        | Version bump + changelog + commit + tag                |
-| `git std changelog`   | Changelog generation (incremental or full)             |
-| `git std bootstrap`   | Post-clone environment setup                           |
-| `git std hook`        | Git hooks management (install/run/list/enable/disable) |
-| `git std completions` | Generate shell completion scripts                      |
+| Subcommand          | Purpose                                                |
+| ------------------- | ------------------------------------------------------ |
+| `git std commit`    | Interactive conventional commit builder                |
+| `git std lint`      | Commit message validation                              |
+| `git std bump`      | Version bump + changelog + commit + tag                |
+| `git std changelog` | Changelog generation (incremental or full)             |
+| `git std bootstrap` | Post-clone environment setup                           |
+| `git std hook`      | Git hooks management (install/run/list/enable/disable) |
+
+**Global flag** (no subcommand required):
+
+| Flag                    | Purpose                           |
+| ----------------------- | --------------------------------- |
+| `--completions <shell>` | Generate shell completion scripts |
 
 **Key design decisions:**
 

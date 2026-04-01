@@ -25,7 +25,26 @@ fn main() {
         }
     }
 
-    match cli.command {
+    // Handle --completions before subcommand dispatch so it works without a subcommand.
+    if let Some(shell) = cli.completions {
+        let mut cmd = Cli::command();
+        clap_complete::generate(shell, &mut cmd, "git-std", &mut std::io::stdout());
+        print!("{}", cli::completions::git_subcommand_wrapper(shell));
+        return;
+    }
+
+    let command = match cli.command {
+        Some(cmd) => cmd,
+        None => {
+            // No subcommand and no --completions: print help.
+            let mut cmd = Cli::command();
+            cmd.print_help().ok();
+            println!();
+            std::process::exit(2);
+        }
+    };
+
+    match command {
         Command::Lint {
             message,
             file,
@@ -180,11 +199,6 @@ fn main() {
         Command::Doctor { format } => {
             let cwd = std::env::current_dir().unwrap_or_default();
             std::process::exit(cli::doctor::run(&cwd, format));
-        }
-        Command::Completions { shell } => {
-            let mut cmd = Cli::command();
-            clap_complete::generate(shell, &mut cmd, "git-std", &mut std::io::stdout());
-            print!("{}", cli::completions::git_subcommand_wrapper(shell));
         }
     }
 }

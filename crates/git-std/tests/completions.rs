@@ -4,7 +4,7 @@ use assert_cmd::Command;
 fn completions_bash_outputs_script() {
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["completions", "bash"])
+        .args(["--completions", "bash"])
         .assert()
         .success()
         .stdout(predicates::str::contains("complete"));
@@ -14,7 +14,7 @@ fn completions_bash_outputs_script() {
 fn completions_bash_includes_git_subcommand_wrapper() {
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["completions", "bash"])
+        .args(["--completions", "bash"])
         .assert()
         .success()
         .stdout(predicates::str::contains("_git_std"));
@@ -24,7 +24,7 @@ fn completions_bash_includes_git_subcommand_wrapper() {
 fn completions_zsh_outputs_script() {
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["completions", "zsh"])
+        .args(["--completions", "zsh"])
         .assert()
         .success()
         .stdout(predicates::str::contains("_git-std"));
@@ -34,7 +34,7 @@ fn completions_zsh_outputs_script() {
 fn completions_zsh_includes_git_subcommand_wrapper() {
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["completions", "zsh"])
+        .args(["--completions", "zsh"])
         .assert()
         .success()
         .stdout(predicates::str::contains("user-commands std:"));
@@ -44,7 +44,7 @@ fn completions_zsh_includes_git_subcommand_wrapper() {
 fn completions_fish_outputs_script() {
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["completions", "fish"])
+        .args(["--completions", "fish"])
         .assert()
         .success()
         .stdout(predicates::str::contains("complete"));
@@ -54,7 +54,7 @@ fn completions_fish_outputs_script() {
 fn completions_fish_includes_git_subcommand_wrapper() {
     Command::cargo_bin("git-std")
         .unwrap()
-        .args(["completions", "fish"])
+        .args(["--completions", "fish"])
         .assert()
         .success()
         .stdout(predicates::str::contains("complete -f -c git"));
