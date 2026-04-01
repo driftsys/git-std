@@ -13,8 +13,9 @@ pub struct Rust;
 ///
 /// Handles both:
 /// - Single-crate manifests: updates `[package] version`.
-/// - Workspace manifests: updates `[workspace.package] version` (if present)
-///   and each member crate that carries a pinned (non-inherited) version.
+/// - Workspace manifests: updates `[workspace.package] version` (if present),
+///   each member crate that carries a pinned (non-inherited) version, and
+///   `[workspace.dependencies]` entries that are local path deps.
 ///
 /// Members that use `version.workspace = true` are silently skipped — their
 /// version is inherited from `[workspace.package]` and must not be
@@ -72,11 +73,146 @@ fn workspace_native_write(root: &Path, new_version: &str) -> WriteOutcome {
         }
     }
 
+    // Update [workspace.dependencies] entries that are local path deps.
+    // Re-read root content after the [workspace.package] rewrite above.
+    let root_content_after = std::fs::read_to_string(&root_cargo).unwrap_or(root_content);
+    if let Some(updated) = update_workspace_deps(&root_content_after, &parsed, new_version) {
+        if std::fs::write(&root_cargo, &updated).is_err() {
+            ui::warning(&format!("{}: failed to write", root_cargo.display()));
+        } else if results.is_empty() {
+            // Ensure the root manifest path is tracked even when
+            // [workspace.package] has no version field.
+            results.push(UpdateResult {
+                path: root_cargo,
+                name: CargoVersionFile.name().to_string(),
+                old_version: String::new(),
+                new_version: new_version.to_string(),
+                extra: None,
+            });
+        }
+    }
+
     if results.is_empty() {
         WriteOutcome::NotDetected
     } else {
         WriteOutcome::Fallback { results }
     }
+}
+
+/// Rewrite `version = "..."` values inside `[workspace.dependencies]` for
+/// entries that declare a local `path`.
+///
+/// Returns `Some(updated_content)` if any line was changed, `None` otherwise.
+/// Lines that cannot be handled (e.g. multi-line inline tables) are silently
+/// skipped — they are never corrupted.
+fn update_workspace_deps(content: &str, parsed: &toml::Value, new_version: &str) -> Option<String> {
+    // Collect names of local path deps from the parsed value.
+    let local_deps: std::collections::HashSet<String> = parsed
+        .get("workspace")
+        .and_then(|w| w.get("dependencies"))
+        .and_then(|d| d.as_table())
+        .map(|t| {
+            t.iter()
+                .filter(|(_, v)| v.get("path").is_some())
+                .map(|(k, _)| k.clone())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if local_deps.is_empty() {
+        return None;
+    }
+
+    let mut result = String::with_capacity(content.len());
+    let mut changed = false;
+    let mut in_section = false;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+
+        // Track section boundaries.
+        if trimmed == "[workspace.dependencies]" {
+            in_section = true;
+            result.push_str(line);
+            result.push('\n');
+            continue;
+        } else if trimmed.starts_with('[') {
+            in_section = false;
+        }
+
+        if in_section {
+            // Check if this line starts with a known local dep name.
+            if let Some(new_line) = try_rewrite_dep_line(line, &local_deps, new_version) {
+                result.push_str(&new_line);
+                result.push('\n');
+                changed = true;
+                continue;
+            }
+        }
+
+        result.push_str(line);
+        result.push('\n');
+    }
+
+    // Preserve original trailing-newline behaviour.
+    if !content.ends_with('\n') && result.ends_with('\n') {
+        result.pop();
+    }
+
+    changed.then_some(result)
+}
+
+/// If `line` declares one of the `local_deps`, rewrite its inline `version =
+/// "..."` value. Returns `None` if the line doesn't match or can't be handled
+/// safely (never corrupts).
+fn try_rewrite_dep_line(
+    line: &str,
+    local_deps: &std::collections::HashSet<String>,
+    new_version: &str,
+) -> Option<String> {
+    let trimmed = line.trim();
+
+    // Line must look like:  dep-name = { ... }
+    // Find the dep name (everything before the first `=`).
+    let eq_pos = trimmed.find('=')?;
+    let dep_name = trimmed[..eq_pos].trim().trim_matches('"');
+
+    if !local_deps.contains(dep_name) {
+        return None;
+    }
+
+    // Only handle single-line inline tables: `dep = { version = "x", path = "y" }`.
+    // If the value doesn't start with `{` or doesn't close on this line, skip.
+    let value_part = trimmed[eq_pos + 1..].trim();
+    if !value_part.starts_with('{') || !value_part.contains('}') {
+        return None;
+    }
+
+    // Surgically replace `version = "old"` with `version = "new"` inside the
+    // inline table using a simple quoted-value replacement.
+    let new_value = replace_inline_version(value_part, new_version)?;
+
+    // Reconstruct the line preserving leading whitespace.
+    let leading = &line[..line.len() - line.trim_start().len()];
+    let key_part = &trimmed[..eq_pos + 1]; // "dep-name ="
+    Some(format!("{leading}{key_part} {new_value}"))
+}
+
+/// Replace `version = "..."` inside an inline TOML table string.
+/// Returns `None` if the pattern is not found (nothing to do).
+fn replace_inline_version(inline: &str, new_version: &str) -> Option<String> {
+    // Find `version = "` followed by any chars up to the closing `"`.
+    let marker = "version = \"";
+    let start = inline.find(marker)?;
+    let after_open = start + marker.len();
+    let end_quote = inline[after_open..].find('"')?;
+    let after_close = after_open + end_quote + 1; // position after closing `"`
+
+    Some(format!(
+        "{}version = \"{new_version}\"{}",
+        &inline[..start],
+        &inline[after_close..]
+    ))
 }
 
 /// Try to update a single member crate's `Cargo.toml`.

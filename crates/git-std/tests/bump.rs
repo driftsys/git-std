@@ -1400,3 +1400,82 @@ fn bump_workspace_pinned_members() {
         "beta/Cargo.toml must be staged"
     );
 }
+
+/// Workspace with [workspace.dependencies] local path deps — version
+/// constraints in [workspace.dependencies] must be updated to match the bump.
+#[test]
+fn bump_workspace_deps_version_updated() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // Root manifest with [workspace.package] version and two local path deps.
+    let workspace_toml = r#"[workspace]
+members = ["alpha", "beta"]
+resolver = "2"
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+
+[workspace.dependencies]
+alpha = { version = "1.0.0", path = "alpha" }
+beta = { version = "1.0.0", path = "beta" }
+serde = "1"
+"#;
+    std::fs::write(dir.path().join("Cargo.toml"), workspace_toml).unwrap();
+
+    for name in ["alpha", "beta"] {
+        std::fs::create_dir_all(dir.path().join(name).join("src")).unwrap();
+        std::fs::write(dir.path().join(name).join("src/lib.rs"), "").unwrap();
+        std::fs::write(
+            dir.path().join(name).join("Cargo.toml"),
+            format!(
+                "[package]\nname = \"{name}\"\nversion.workspace = true\nedition.workspace = true\n"
+            ),
+        )
+        .unwrap();
+    }
+
+    git(dir.path(), &["init"]);
+    git(dir.path(), &["config", "user.email", "test@example.com"]);
+    git(dir.path(), &["config", "user.name", "Test"]);
+    std::process::Command::new("cargo")
+        .args(["generate-lockfile"])
+        .current_dir(dir.path())
+        .status()
+        .expect("cargo must be available");
+    git(dir.path(), &["add", "."]);
+    git(dir.path(), &["commit", "-m", "chore: initial"]);
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "x.txt", "fix: a bug");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let root = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+
+    // [workspace.package] version updated.
+    assert!(
+        root.contains("version = \"1.0.1\""),
+        "[workspace.package] version should be 1.0.1"
+    );
+
+    // Local path dep constraints updated.
+    assert!(
+        root.contains("alpha = { version = \"1.0.1\", path = \"alpha\" }"),
+        "alpha workspace dep version should be 1.0.1, got:\n{root}"
+    );
+    assert!(
+        root.contains("beta = { version = \"1.0.1\", path = \"beta\" }"),
+        "beta workspace dep version should be 1.0.1, got:\n{root}"
+    );
+
+    // Non-path dep must be untouched.
+    assert!(
+        root.contains("serde = \"1\""),
+        "serde (non-path dep) must not be modified"
+    );
+}
