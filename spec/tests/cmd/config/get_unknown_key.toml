@@ -1,3 +1,0 @@
-bin.name = "git-std"
-args = ["config", "get", "unknown.key"]
-status = "failed"

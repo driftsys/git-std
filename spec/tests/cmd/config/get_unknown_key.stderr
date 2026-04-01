@@ -1,6 +1,0 @@
-error: unknown config key: "unknown.key"
-  supported keys: scheme, strict, monorepo, types, scopes,
-    versioning.tag_prefix, versioning.prerelease_tag,
-    versioning.calver_format, versioning.tag_template,
-    changelog.title, changelog.hidden, changelog.sections,
-    changelog.bug_url

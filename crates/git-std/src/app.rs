@@ -167,11 +167,6 @@ pub enum Command {
         #[command(subcommand)]
         subcommand: HookCommand,
     },
-    /// Inspect effective git-std configuration.
-    Config {
-        #[command(subcommand)]
-        subcommand: ConfigCommand,
-    },
     /// Run health checks on the local git-std setup.
     Doctor {
         /// Output format.
@@ -192,25 +187,6 @@ pub enum Command {
         /// Print the version code integer.
         #[arg(long)]
         code: bool,
-        /// Output format.
-        #[arg(long, default_value = "text")]
-        format: OutputFormat,
-    },
-}
-
-/// Config subcommands.
-#[derive(Subcommand)]
-pub enum ConfigCommand {
-    /// List all effective configuration values with their sources.
-    List {
-        /// Output format.
-        #[arg(long, default_value = "text")]
-        format: OutputFormat,
-    },
-    /// Get a single configuration value.
-    Get {
-        /// Dot-separated key (e.g. versioning.tag_prefix).
-        key: String,
         /// Output format.
         #[arg(long, default_value = "text")]
         format: OutputFormat,

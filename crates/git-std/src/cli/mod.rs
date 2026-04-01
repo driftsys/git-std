@@ -3,7 +3,6 @@ pub mod bump;
 pub mod changelog;
 pub mod commit;
 pub mod completions;
-pub mod config;
 pub mod doctor;
 pub mod hook;
 pub mod init;

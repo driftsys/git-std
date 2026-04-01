@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 /// config, commits, and tags.
 pub struct TestRepo {
     dir: tempfile::TempDir,
+    // Incremented by add_commit — used only in test binaries that call it.
+    #[allow(dead_code)]
     file_counter: usize,
 }
 
@@ -71,6 +73,8 @@ impl TestRepo {
     }
 
     /// Create a file, stage it, and commit with the given message.
+    // Used by: spec/tests/hooks.rs (not referenced in every test binary)
+    #[allow(dead_code)]
     pub fn add_commit(&mut self, message: &str) -> &mut Self {
         self.file_counter += 1;
         let filename = format!("file-{}.txt", self.file_counter);

@@ -239,14 +239,48 @@ After built-in checks, runs `.githooks/bootstrap.hooks` if present.
 
 ## `git std doctor`
 
-Run health checks on the local git-std setup.
+Show everything about your local git-std setup in one command.
+Three sections: **Status**, **Hooks**, **Configuration**.
+Problems appear as hints at the bottom.
 
 ```bash
-git std doctor              # check all sections, exit 0 (pass) or 1 (fail)
+git std doctor              # show all sections, exit 0 (no problems) or 1
 git std doctor --format json  # machine-readable JSON on stdout
 ```
 
-**Sections:** `hook`, `bootstrap`, `config`.
+**Sections:**
+
+| Section         | Contents                                                                                                    |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| `Status`        | Tool versions: `git`, `git-lfs` (if `.gitattributes` needs it), `git-std` with update notice if available   |
+| `Hooks`         | All `.githooks/*.hooks` files with commands and sigils (`!` required, `?` advisory), enabled/disabled state |
+| `Configuration` | All `.git-std.toml` keys; explicit values in bold, defaults plain/dim                                       |
+
+**Example output:**
+
+```text
+  Status
+    git 2.43.0
+    git-lfs 3.4.1
+    git-std 0.10.2 (update available: 0.11.0)
+
+  Hooks
+    commit-msg
+      !  git std lint -f
+    pre-commit
+      !  cargo fmt --check
+      !  cargo clippy
+    pre-push (disabled)
+      !  just verify
+
+  Configuration
+    scheme           semver
+    strict           true
+    ...
+
+  hint: git-lfs not found — required by .gitattributes
+  hint: .git-std.toml invalid: expected `=` at line 3
+```
 
 **Flags:**
 
@@ -254,7 +288,7 @@ git std doctor --format json  # machine-readable JSON on stdout
 | ---------------- | --------------------------------------- |
 | `--format <fmt>` | Output format: `text` (default), `json` |
 
-**Exit codes:** `0` = all checks pass, `1` = one or more checks failed,
+**Exit codes:** `0` = no problems, `1` = one or more hints surfaced,
 `2` = not a git repository.
 
 ## `git std version`
