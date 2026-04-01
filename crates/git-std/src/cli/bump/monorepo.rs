@@ -799,7 +799,7 @@ fn commit_and_tag(
         paths_to_stage.push(lock.clone());
     }
     let stage_refs: Vec<&str> = paths_to_stage.iter().map(|s| s.as_str()).collect();
-    if let Err(e) = git::stage_files(dir, &stage_refs) {
+    if let Err(e) = git::stage_files(workdir, &stage_refs) {
         ui::error(&format!("cannot stage files: {e}"));
         return Err(1);
     }

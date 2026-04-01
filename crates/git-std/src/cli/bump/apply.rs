@@ -254,7 +254,7 @@ pub(super) fn finalize_bump(
             paths_to_stage.push(lock.as_str());
         }
 
-        if let Err(e) = git::stage_files(dir, &paths_to_stage) {
+        if let Err(e) = git::stage_files(workdir, &paths_to_stage) {
             ui::error(&format!("cannot stage files: {e}"));
             return 1;
         }
