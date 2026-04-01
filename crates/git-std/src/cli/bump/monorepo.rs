@@ -13,6 +13,7 @@ use crate::git;
 use crate::ui;
 
 use super::BumpOptions;
+use super::plan::parse_release_level;
 
 /// A per-package bump plan entry.
 pub(crate) struct PackageBumpPlan {
@@ -155,6 +156,7 @@ fn plan_package(
     tag_template: &str,
     tags: &[(String, String)],
     config: &ProjectConfig,
+    release_as: Option<&str>,
 ) -> Option<PackageBumpPlan> {
     let scheme = resolve_scheme(pkg, &config.scheme);
     if scheme == Scheme::Calver {
@@ -181,7 +183,12 @@ fn plan_package(
         .filter_map(|(_, msg)| standard_commit::parse(msg).ok())
         .collect();
 
-    let bump_level = standard_version::determine_bump(&parsed)?;
+    let commit_bump_level = standard_version::determine_bump(&parsed)?;
+
+    // Override bump level with level name from --release-as, if provided.
+    let bump_level = release_as
+        .and_then(parse_release_level)
+        .unwrap_or(commit_bump_level);
 
     let cur_ver = latest_tag
         .as_ref()
@@ -328,8 +335,15 @@ pub(super) fn plan_monorepo_bump(
     // Plan per-package bumps.
     let mut package_plans: Vec<PackageBumpPlan> = Vec::new();
     for pkg in &packages {
-        if let Some(plan) = plan_package(&workdir, pkg, &head_oid, tag_template, &all_tags, config)
-        {
+        if let Some(plan) = plan_package(
+            &workdir,
+            pkg,
+            &head_oid,
+            tag_template,
+            &all_tags,
+            config,
+            opts.release_as.as_deref(),
+        ) {
             package_plans.push(plan);
         }
     }

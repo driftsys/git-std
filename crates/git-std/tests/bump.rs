@@ -1479,3 +1479,137 @@ serde = "1"
         "serde (non-path dep) must not be modified"
     );
 }
+
+// ── --release-as with level names ─────────────────────────────
+
+/// `--release-as patch` forces a patch bump from the current version.
+#[test]
+fn release_as_patch_forces_patch_bump() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.2.3");
+
+    // Add a feat commit (would normally be a minor bump).
+    add_commit(dir.path(), "a.txt", "feat: new feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run", "--release-as", "patch"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.2.3 → 1.2.4"));
+}
+
+/// `--release-as minor` forces a minor bump from the current version.
+#[test]
+fn release_as_minor_forces_minor_bump() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.2.3");
+
+    // Add a fix commit (would normally be a patch bump).
+    add_commit(dir.path(), "b.txt", "fix: small fix");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run", "--release-as", "minor"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.2.3 → 1.3.0"));
+}
+
+/// `--release-as major` forces a major bump from the current version.
+#[test]
+fn release_as_major_forces_major_bump() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.2.3");
+
+    // Add a fix commit (would normally be a patch bump).
+    add_commit(dir.path(), "c.txt", "fix: a fix");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run", "--release-as", "major"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.2.3 → 2.0.0"));
+}
+
+/// `--dry-run` with `--release-as minor` shows version but makes no changes.
+#[test]
+fn release_as_level_respects_dry_run() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+
+    add_commit(dir.path(), "d.txt", "fix: a fix");
+
+    let before = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run", "--release-as", "minor"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.0.0 → 1.1.0"))
+        .stderr(predicate::str::contains("Would commit"))
+        .stderr(predicate::str::contains("Would tag"));
+
+    // No files changed.
+    let after = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+    assert_eq!(before, after);
+    assert!(!dir.path().join("CHANGELOG.md").exists());
+}
+
+/// `--release-as minor` is rejected on the patch-only scheme.
+#[test]
+fn release_as_minor_rejected_on_patch_scheme() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+
+    std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"patch\"\n").unwrap();
+    git(dir.path(), &["add", ".git-std.toml"]);
+    git(dir.path(), &["commit", "-m", "chore: add config"]);
+
+    add_commit(dir.path(), "e.txt", "fix: a fix");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run", "--release-as", "minor"])
+        .current_dir(dir.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "patch-only scheme does not support --release-as minor or --release-as major",
+        ));
+}
+
+/// `--release-as major` is rejected on the patch-only scheme.
+#[test]
+fn release_as_major_rejected_on_patch_scheme() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+
+    std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"patch\"\n").unwrap();
+    git(dir.path(), &["add", ".git-std.toml"]);
+    git(dir.path(), &["commit", "-m", "chore: add config"]);
+
+    add_commit(dir.path(), "f.txt", "fix: a fix");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run", "--release-as", "major"])
+        .current_dir(dir.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "patch-only scheme does not support --release-as minor or --release-as major",
+        ));
+}
