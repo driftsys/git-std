@@ -67,6 +67,8 @@ fn main() {
             amend,
             sign,
             all,
+            footer,
+            signoff,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
             let opts = cli::commit::CommitOptions {
@@ -78,6 +80,8 @@ fn main() {
                 amend,
                 sign,
                 all,
+                footer,
+                signoff,
             };
             let code = cli::commit::run_interactive(&project_config, &opts);
             std::process::exit(code);

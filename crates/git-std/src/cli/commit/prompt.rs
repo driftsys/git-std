@@ -132,3 +132,17 @@ pub(super) fn prompt_refs() -> Result<Vec<String>> {
     }
     Ok(refs)
 }
+
+pub(super) fn prompt_footers() -> Result<Vec<String>> {
+    let mut footers: Vec<String> = Vec::new();
+    loop {
+        let input = Text::new("footer:")
+            .with_help_message("optional, e.g. Co-authored-by: Name <email>")
+            .prompt()?;
+        if input.is_empty() {
+            break;
+        }
+        footers.push(input);
+    }
+    Ok(footers)
+}

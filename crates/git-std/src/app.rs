@@ -62,6 +62,12 @@ pub enum Command {
         /// Stage all tracked modified files before committing.
         #[arg(short = 'a', long)]
         all: bool,
+        /// Add a trailer footer to the commit message (repeatable).
+        #[arg(long)]
+        footer: Vec<String>,
+        /// Add a `Signed-off-by` trailer using git user.name and user.email.
+        #[arg(short = 's', long)]
+        signoff: bool,
     },
     /// Validate commit messages.
     Lint {
