@@ -7,6 +7,9 @@
 use crate::version_file::VersionFileError;
 
 /// Check whether `content` has a `version = "..."` field inside `[section]`.
+///
+/// Only matches the exact `version` key — dotted keys such as
+/// `version.workspace = true` are intentionally ignored.
 pub fn detect_version_in_section(content: &str, section: &str) -> bool {
     let mut in_section = false;
     for line in content.lines() {
@@ -16,11 +19,18 @@ pub fn detect_version_in_section(content: &str, section: &str) -> bool {
         } else if trimmed.starts_with('[') {
             in_section = false;
         }
-        if in_section && trimmed.starts_with("version") && trimmed.contains('=') {
+        if in_section && is_version_key(trimmed) {
             return true;
         }
     }
     false
+}
+
+/// Return `true` if `trimmed` is a `version = ...` key (not a dotted key like
+/// `version.workspace = true`).
+fn is_version_key(trimmed: &str) -> bool {
+    // "version".len() == 7
+    trimmed.starts_with("version") && trimmed[7..].trim_start().starts_with('=')
 }
 
 /// Extract the version string from a `version = "..."` field inside
@@ -35,7 +45,7 @@ pub fn read_version_in_section(content: &str, section: &str) -> Option<String> {
             in_section = false;
         }
         if in_section
-            && trimmed.starts_with("version")
+            && is_version_key(trimmed)
             && let Some(eq_pos) = trimmed.find('=')
         {
             let value = trimmed[eq_pos + 1..].trim();
@@ -67,7 +77,7 @@ pub fn write_version_in_section(
 
         if in_section
             && !replaced
-            && trimmed.starts_with("version")
+            && is_version_key(trimmed)
             && let Some(eq_pos) = line.find('=')
         {
             let prefix = &line[..=eq_pos];
@@ -153,5 +163,38 @@ description = "A test package"
         let content = "[package]\nname = \"x\"\n";
         let err = write_version_in_section(content, "[package]", "1.0.0");
         assert!(err.is_err());
+    }
+
+    // --- workspace inheritance (version.workspace = true) ---
+
+    const MEMBER_INHERITS: &str = r#"[package]
+name = "my-lib"
+version.workspace = true
+edition.workspace = true
+"#;
+
+    #[test]
+    fn detect_does_not_match_workspace_inherit() {
+        // version.workspace = true must NOT be treated as a pinned version field.
+        assert!(!detect_version_in_section(MEMBER_INHERITS, "[package]"));
+    }
+
+    #[test]
+    fn read_does_not_return_workspace_inherit() {
+        assert_eq!(read_version_in_section(MEMBER_INHERITS, "[package]"), None);
+    }
+
+    #[test]
+    fn write_does_not_corrupt_workspace_inherit() {
+        // write should fail with NoVersionField, not silently corrupt the line.
+        let err = write_version_in_section(MEMBER_INHERITS, "[package]", "1.0.0");
+        assert!(err.is_err());
+        // Also verify the line would not have been rewritten.
+        if let Ok(result) = write_version_in_section(MEMBER_INHERITS, "[package]", "1.0.0") {
+            assert!(
+                result.contains("version.workspace = true"),
+                "workspace inherit line must not be rewritten"
+            );
+        }
     }
 }
