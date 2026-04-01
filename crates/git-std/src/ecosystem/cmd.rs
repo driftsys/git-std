@@ -8,6 +8,14 @@ use std::process::{Command, ExitStatus};
 /// Returns `Err` if the binary is not found on PATH (spawn failure).
 /// Returns `Ok(status)` otherwise — the caller decides how to interpret
 /// the exit code.
+///
+/// stdout and stderr are captured and suppressed — tool output must not
+/// bleed into git-std's own output.
 pub fn run_tool(root: &Path, tool: &str, args: &[&str]) -> std::io::Result<ExitStatus> {
-    Command::new(tool).args(args).current_dir(root).status()
+    Command::new(tool)
+        .args(args)
+        .current_dir(root)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
 }
