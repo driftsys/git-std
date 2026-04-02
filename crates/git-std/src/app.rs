@@ -163,6 +163,57 @@ pub enum Command {
         force: bool,
     },
     /// Git hooks management.
+    ///
+    /// Git hooks (triggered by git):
+    ///
+    ///   pre-commit          runs before a commit is created
+    ///   commit-msg          validates the commit message ($1 = message file)
+    ///   pre-push            runs before pushing to a remote
+    ///   post-commit         runs after a commit is created (informational)
+    ///   prepare-commit-msg  runs before the commit message editor opens
+    ///   post-merge          runs after a successful merge or pull
+    ///
+    /// Bootstrap hook (triggered by `git std bootstrap`):
+    ///
+    ///   bootstrap           runs after built-in post-clone checks
+    ///
+    /// Bump lifecycle hooks (triggered by `git std bump`):
+    ///
+    ///   pre-bump            gate before version detection — abort to cancel
+    ///   post-version        runs after version files are updated ($1 = new version)
+    ///   post-changelog      runs after CHANGELOG.md is written
+    ///   post-bump           runs after commit + tag (use for publish, notify)
+    ///
+    /// Hook commands are defined in `.githooks/<hook>.hooks` — one command per
+    /// line. Each line may start with an optional sigil:
+    ///
+    ///   !  required   — run the command; abort the hook on non-zero exit
+    ///   ~  fix        — stash unstaged changes, run, re-stage result, restore
+    ///   ?  advisory   — run the command; warn on failure, never abort
+    ///
+    /// Lines without a sigil use the hook's default mode (fail-fast for most
+    /// git hooks, advisory for bootstrap).
+    ///
+    /// A glob pattern at the end of a line restricts the command to matching
+    /// files only (populated as $@ when the hook is invoked by git):
+    ///
+    ///   ~ cargo fmt -- $@   *.rs
+    ///   ! cargo clippy
+    ///
+    /// Examples (.githooks/pre-commit.hooks):
+    ///
+    ///   ~ cargo fmt -- $@
+    ///   ~ npx prettier --write $@   *.{js,ts,json}
+    ///   ! cargo clippy --workspace -- -D warnings
+    ///
+    /// Examples (.githooks/pre-push.hooks):
+    ///
+    ///   ! cargo test --workspace
+    ///   ! npx markdownlint "**/*.md"
+    ///
+    /// Examples (.githooks/commit-msg.hooks):
+    ///
+    ///   ! git std lint -f $1
     Hook {
         #[command(subcommand)]
         subcommand: HookCommand,

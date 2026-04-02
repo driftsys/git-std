@@ -1,1 +1,15 @@
-! just lint
+# git-std hooks — pre-commit.hooks
+#
+# Commands run during the pre-commit hook. $@ contains staged files.
+# Prefix controls behavior:
+#
+#   ~  fix        stash unstaged changes, run, re-stage result, restore
+#   !  required   abort commit on failure
+#   ?  advisory   warn on failure, never abort
+#
+# Examples:
+#   ~ cargo fmt -- $@                        # format staged Rust files
+#   ~ npx prettier --write $@   *.{js,ts}   # format staged JS/TS files
+#   ! cargo clippy --workspace -- -D warnings
+#
+~ just fmt

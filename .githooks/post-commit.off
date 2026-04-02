@@ -1,0 +1,4 @@
+#!/bin/bash
+# Managed by git-std — do not edit.
+# Configure commands in .githooks/post-commit.hooks
+exec git std hook run post-commit -- "$@"

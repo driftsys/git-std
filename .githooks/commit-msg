@@ -1,2 +1,4 @@
 #!/bin/bash
+# Managed by git-std — do not edit.
+# Configure commands in .githooks/commit-msg.hooks
 exec git std hook run commit-msg -- "$@"

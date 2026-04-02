@@ -1,0 +1,4 @@
+#!/bin/bash
+# Managed by git-std — do not edit.
+# Configure commands in .githooks/pre-push.hooks
+exec git std hook run pre-push -- "$@"

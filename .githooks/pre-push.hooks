@@ -1,0 +1,13 @@
+# git-std hooks — pre-push.hooks
+#
+# Commands run during the pre-push hook before pushing to remote.
+# Prefix controls behavior:
+#
+#   !  required   abort push on failure
+#   ?  advisory   warn on failure, never abort
+#
+# Examples:
+#   ! cargo test --workspace
+#   ! npx markdownlint "**/*.md"
+#
+! just lint
