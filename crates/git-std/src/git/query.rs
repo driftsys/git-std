@@ -32,6 +32,20 @@ pub fn detect_host(dir: &Path) -> standard_changelog::RepoHost {
     }
 }
 
+/// Return the staged diff (`git diff --staged`).
+///
+/// Returns an empty string when there is nothing staged.
+pub fn staged_diff(dir: &Path) -> Result<String, GitError> {
+    git(dir, &["diff", "--staged"])
+}
+
+/// Return `git status --short` output.
+///
+/// Returns an empty string when the working tree is clean.
+pub fn short_status(dir: &Path) -> Result<String, GitError> {
+    git(dir, &["status", "--short"])
+}
+
 /// Walk commits from `from` (inclusive) back to `until` (exclusive).
 ///
 /// Returns `(full_sha, commit_message)` pairs in topological order.

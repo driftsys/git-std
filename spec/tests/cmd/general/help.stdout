@@ -30,6 +30,16 @@ Options:
           
           [possible values: bash, elvish, fish, powershell, zsh]
 
+      --context
+          
+
+      --format <FORMAT>
+          Possible values:
+          - text: Human-readable text (default)
+          - json: Machine-readable JSON
+          
+          [default: text]
+
   -h, --help
           Print help (see a summary with '-h')
 
