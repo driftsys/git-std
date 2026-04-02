@@ -256,3 +256,85 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
         .stderr(predicate::str::contains("Cargo.toml"))
         .stderr(predicate::str::contains("Would update"));
 }
+
+// --- Ecosystem fallback (Plain) conflict resolution tests ---
+
+#[test]
+fn bump_plain_version_skipped_when_specific_ecosystem_present() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path()); // creates Cargo.toml with version = "0.0.0"
+    create_tag(dir.path(), "v1.0.0");
+
+    // Patch the Cargo.toml version to match the tag.
+    std::fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"test-pkg\"\nversion = \"1.0.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+
+    // Add a plain VERSION file alongside Cargo.toml.
+    std::fs::write(dir.path().join("VERSION"), "1.0.0\n").unwrap();
+
+    git(dir.path(), &["add", "."]);
+    git(
+        dir.path(),
+        &["commit", "-m", "chore: set version files to 1.0.0"],
+    );
+
+    add_commit(dir.path(), "a.txt", "feat: add feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--skip-changelog"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // Cargo.toml should be updated.
+    let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+    assert!(
+        cargo.contains("version = \"1.1.0\""),
+        "Cargo.toml should be updated to 1.1.0"
+    );
+
+    // VERSION should NOT be updated — Plain is skipped when Rust matched.
+    let version_file = std::fs::read_to_string(dir.path().join("VERSION")).unwrap();
+    assert_eq!(
+        version_file.trim(),
+        "1.0.0",
+        "VERSION should be unchanged when Rust ecosystem matched"
+    );
+}
+
+#[test]
+fn bump_dry_run_plain_skipped_when_specific_ecosystem_present() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+
+    std::fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"test-pkg\"\nversion = \"1.0.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+
+    std::fs::write(dir.path().join("VERSION"), "1.0.0\n").unwrap();
+
+    git(dir.path(), &["add", "."]);
+    git(
+        dir.path(),
+        &["commit", "-m", "chore: set version files to 1.0.0"],
+    );
+
+    add_commit(dir.path(), "a.txt", "feat: add feature");
+
+    // Dry-run should show Cargo.toml but NOT VERSION.
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Cargo.toml"))
+        .stderr(predicate::str::contains("VERSION").not());
+}

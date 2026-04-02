@@ -59,6 +59,16 @@ pub trait Ecosystem {
     fn version_file_engine(&self) -> Option<Box<dyn VersionFile>> {
         None
     }
+
+    /// Whether this ecosystem is a last-resort fallback.
+    ///
+    /// Fallback ecosystems (e.g. `Plain`) are skipped when any specific
+    /// ecosystem has already matched and written version files. This prevents
+    /// a bare `VERSION` file from being updated in projects that already have
+    /// a dedicated ecosystem (Node, Rust, etc.) managing their version.
+    fn is_fallback(&self) -> bool {
+        false
+    }
 }
 
 /// Outcome of a version-write operation.
@@ -219,13 +229,20 @@ fn all_ecosystems() -> Vec<Box<dyn Ecosystem>> {
 /// 2. Write versions (CLI-first, fallback to string manipulation).
 /// 3. Sync lock files (always delegated to ecosystem tool).
 /// 4. Process custom `[[version_files]]` via regex engine.
+///
+/// Fallback ecosystems (e.g. `Plain`) are skipped when a specific ecosystem
+/// has already matched, preventing duplicate updates in mixed-ecosystem repos.
 pub fn run_bump(root: &Path, new_version: &str, custom_files: &[CustomVersionFile]) -> BumpResult {
     let ecosystems = all_ecosystems();
     let mut update_results: Vec<UpdateResult> = Vec::new();
     let mut modified_paths: Vec<PathBuf> = Vec::new();
     let mut synced_locks: Vec<String> = Vec::new();
+    let mut any_specific_updated = false;
 
     for eco in &ecosystems {
+        if eco.is_fallback() && any_specific_updated {
+            continue;
+        }
         if !eco.detect(root) {
             continue;
         }
@@ -246,6 +263,10 @@ pub fn run_bump(root: &Path, new_version: &str, custom_files: &[CustomVersionFil
             }
             WriteOutcome::NotDetected => false,
         };
+
+        if version_updated && !eco.is_fallback() {
+            any_specific_updated = true;
+        }
 
         // Only sync lock files if version was actually updated.
         if !version_updated {
@@ -354,17 +375,25 @@ pub fn dry_run_lock_sync(root: &Path) {
 /// Uses each ecosystem's `detect()` gate and `version_file_engine()` to
 /// find version files, mirroring the detection that [`run_bump`] would
 /// perform. Custom `[[version_files]]` are appended via the regex engine.
+///
+/// Fallback ecosystems are skipped when a specific ecosystem detected files,
+/// consistent with the write-path behaviour in [`run_bump`].
 pub fn dry_run_version_files(root: &Path, custom_files: &[CustomVersionFile]) -> Vec<DetectedFile> {
     let ecosystems = all_ecosystems();
     let mut results: Vec<DetectedFile> = Vec::new();
+    let mut any_specific_detected = false;
 
     for eco in &ecosystems {
+        if eco.is_fallback() && any_specific_detected {
+            continue;
+        }
         if !eco.detect(root) {
             continue;
         }
         let Some(engine) = eco.version_file_engine() else {
             continue;
         };
+        let before = results.len();
         for filename in engine.filenames() {
             let path = root.join(filename);
             if !path.exists() {
@@ -385,6 +414,9 @@ pub fn dry_run_version_files(root: &Path, custom_files: &[CustomVersionFile]) ->
                 name: engine.name().to_string(),
                 old_version,
             });
+        }
+        if !eco.is_fallback() && results.len() > before {
+            any_specific_detected = true;
         }
     }
 
