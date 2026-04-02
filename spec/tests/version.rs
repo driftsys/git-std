@@ -16,7 +16,7 @@ fn version_prints_current() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_matches("1.2.3\n");
+        .stdout_eq("1.2.3\n");
 }
 
 /// When no tags exist, `git std version` exits with a non-zero code.
@@ -45,7 +45,7 @@ fn version_next_semver() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_matches("1.1.0\n");
+        .stdout_eq("1.1.0\n");
 }
 
 /// `--label` reports the bump level name (minor) for a feat commit.
@@ -61,7 +61,7 @@ fn version_label_minor() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_matches("minor\n");
+        .stdout_eq("minor\n");
 }
 
 /// `--code` returns the numeric version code for the current tag.
@@ -76,7 +76,7 @@ fn version_code_semver() {
         .current_dir(repo.path())
         .assert()
         .success()
-        .stdout_matches("10020399\n");
+        .stdout_eq("10020399\n");
 }
 
 /// `--format json` output contains the expected top-level fields.

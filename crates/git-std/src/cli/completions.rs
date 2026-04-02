@@ -54,9 +54,10 @@ complete -f -c git -n __fish_git_needs_command -a std -d 'Conventional commit st
 complete -f -c git -n '__fish_git_using_command std' -a commit -d 'Interactive conventional commit builder'
 complete -f -c git -n '__fish_git_using_command std' -a lint -d 'Validate commit messages'
 complete -f -c git -n '__fish_git_using_command std' -a bump -d 'Version bump, changelog, commit, and tag'
+complete -f -c git -n '__fish_git_using_command std' -a version -d 'Query the current project version'
 complete -f -c git -n '__fish_git_using_command std' -a changelog -d 'Generate a changelog'
+complete -f -c git -n '__fish_git_using_command std' -a init -d 'Scaffold hooks, bootstrap script, and README section'
 complete -f -c git -n '__fish_git_using_command std' -a bootstrap -d 'Post-clone environment setup'
 complete -f -c git -n '__fish_git_using_command std' -a hook -d 'Git hooks management'
-complete -f -c git -n '__fish_git_using_command std' -a config -d 'Inspect git-std configuration'
 complete -f -c git -n '__fish_git_using_command std' -a doctor -d 'Run health checks'
 "#;
