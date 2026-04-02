@@ -88,11 +88,12 @@ fn doctor_scheme_wrong_type_falls_back_to_default() {
     // scheme expects a string; provide an integer.
     std::fs::write(dir.path().join(".git-std.toml"), "scheme = 123\n").unwrap();
 
+    // No .githooks/ → exit 1, but config section still rendered.
     git_std()
         .args(["doctor"])
         .current_dir(dir.path())
         .assert()
-        .success()
+        .code(1)
         .stderr(predicate::str::contains("semver"));
 }
 
@@ -103,11 +104,12 @@ fn doctor_strict_wrong_type_falls_back_to_default() {
     // strict expects a boolean; provide a string.
     std::fs::write(dir.path().join(".git-std.toml"), "strict = \"yes\"\n").unwrap();
 
+    // No .githooks/ → exit 1, but config section still rendered.
     git_std()
         .args(["doctor"])
         .current_dir(dir.path())
         .assert()
-        .success()
+        .code(1)
         .stderr(predicate::str::contains("false"));
 }
 
@@ -123,11 +125,10 @@ fn doctor_invalid_calver_format_still_shows_defaults() {
     )
     .unwrap();
 
-    // Should succeed — calver_format validation happens in config/load.rs,
-    // but doctor shows what's configured.
+    // No .githooks/ → exit 1; calver_format warning is a stderr warning, not a hint.
     git_std()
         .args(["doctor"])
         .current_dir(dir.path())
         .assert()
-        .success();
+        .code(1);
 }

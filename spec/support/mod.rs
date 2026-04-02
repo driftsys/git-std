@@ -26,6 +26,17 @@ impl TestRepo {
         }
     }
 
+    /// Create `.githooks/` and set `core.hooksPath = .githooks`.
+    /// Required for `doctor` to exit 0 (no hints about missing hooks setup).
+    // Used by: spec/tests/doctor.rs
+    #[allow(dead_code)]
+    pub fn with_hooks_setup(self) -> Self {
+        let hooks_dir = self.dir.path().join(".githooks");
+        std::fs::create_dir_all(&hooks_dir).expect("failed to create .githooks dir");
+        git(self.dir.path(), &["config", "core.hooksPath", ".githooks"]);
+        self
+    }
+
     /// Write a `.githooks/<name>.hooks` file with the given content.
     // Used by: spec/tests/hooks.rs (not referenced in every test binary)
     #[allow(dead_code)]

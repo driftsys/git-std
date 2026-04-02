@@ -20,6 +20,14 @@ fn init_repo(dir: &std::path::Path) {
     git(dir, &["config", "user.email", "test@test.com"]);
 }
 
+/// Fully-configured repo: git init + .githooks/ dir + core.hooksPath set.
+/// Doctor exits 0 (no hints) from this baseline.
+fn init_full_repo(dir: &std::path::Path) {
+    init_repo(dir);
+    std::fs::create_dir_all(dir.join(".githooks")).unwrap();
+    git(dir, &["config", "core.hooksPath", ".githooks"]);
+}
+
 // ===========================================================================
 // Basic smoke tests
 // ===========================================================================
@@ -46,7 +54,7 @@ fn doctor_exits_2_outside_git_repo() {
 #[test]
 fn doctor_exits_0_in_basic_git_repo() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
     git_std()
         .args(["doctor"])
         .current_dir(dir.path())
@@ -61,7 +69,7 @@ fn doctor_exits_0_in_basic_git_repo() {
 #[test]
 fn doctor_status_section_shows_git_and_git_std() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
     git_std()
         .args(["doctor"])
         .current_dir(dir.path())
@@ -131,9 +139,8 @@ fn doctor_hooks_section_hidden_when_no_hooks() {
 #[test]
 fn doctor_hooks_section_shows_configured_hooks() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
     let hooks_dir = dir.path().join(".githooks");
-    std::fs::create_dir_all(&hooks_dir).unwrap();
     std::fs::write(hooks_dir.join("pre-commit.hooks"), "! cargo fmt --check\n").unwrap();
 
     git_std()
@@ -149,9 +156,8 @@ fn doctor_hooks_section_shows_configured_hooks() {
 #[test]
 fn doctor_hooks_shows_disabled_label() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
     let hooks_dir = dir.path().join(".githooks");
-    std::fs::create_dir_all(&hooks_dir).unwrap();
     std::fs::write(hooks_dir.join("pre-commit.hooks"), "! cargo fmt\n").unwrap();
     // No shim file → hook is disabled
 
@@ -166,9 +172,8 @@ fn doctor_hooks_shows_disabled_label() {
 #[test]
 fn doctor_hooks_shows_fail_fast_sigil() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
     let hooks_dir = dir.path().join(".githooks");
-    std::fs::create_dir_all(&hooks_dir).unwrap();
     std::fs::write(hooks_dir.join("pre-commit.hooks"), "! cargo clippy\n").unwrap();
 
     git_std()
@@ -182,9 +187,8 @@ fn doctor_hooks_shows_fail_fast_sigil() {
 #[test]
 fn doctor_hooks_shows_advisory_sigil() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
     let hooks_dir = dir.path().join(".githooks");
-    std::fs::create_dir_all(&hooks_dir).unwrap();
     std::fs::write(hooks_dir.join("pre-commit.hooks"), "? git lfs install\n").unwrap();
 
     git_std()
@@ -202,7 +206,7 @@ fn doctor_hooks_shows_advisory_sigil() {
 #[test]
 fn doctor_config_section_always_shown() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
     git_std()
         .args(["doctor"])
         .current_dir(dir.path())
@@ -215,7 +219,7 @@ fn doctor_config_section_always_shown() {
 #[test]
 fn doctor_config_shows_default_values() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
     git_std()
         .args(["doctor"])
         .current_dir(dir.path())
@@ -227,7 +231,7 @@ fn doctor_config_shows_default_values() {
 #[test]
 fn doctor_config_shows_file_values() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
     std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"calver\"\n").unwrap();
     git_std()
         .args(["doctor"])
@@ -258,7 +262,7 @@ fn doctor_config_hint_for_invalid_toml() {
 #[test]
 fn doctor_no_hints_when_all_ok() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
     let output = git_std()
         .args(["doctor"])
         .current_dir(dir.path())
@@ -278,7 +282,7 @@ fn doctor_no_hints_when_all_ok() {
 #[test]
 fn doctor_json_outputs_to_stdout() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
 
     let output = git_std()
         .args(["doctor", "--format", "json"])
@@ -308,7 +312,7 @@ fn doctor_json_outputs_to_stdout() {
 #[test]
 fn doctor_json_has_pass_status_when_no_problems() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
 
     let output = git_std()
         .args(["doctor", "--format", "json"])
@@ -422,7 +426,7 @@ fn doctor_json_configuration_source_file_when_explicit() {
 #[test]
 fn doctor_from_subdirectory() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo(dir.path());
+    init_full_repo(dir.path());
     std::fs::write(
         dir.path().join(".git-std.toml"),
         "[versioning]\ntag_prefix = \"v\"\n",

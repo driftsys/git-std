@@ -4,10 +4,10 @@ mod support;
 use snapbox::cmd::Command;
 use support::TestRepo;
 
-/// `doctor` exits 0 in a basic git repo (no problems).
+/// `doctor` exits 0 in a fully-configured git repo (no problems).
 #[test]
 fn doctor_exits_0_in_basic_repo() {
-    let repo = TestRepo::new();
+    let repo = TestRepo::new().with_hooks_setup();
 
     Command::new(TestRepo::bin_path())
         .args(["doctor"])
@@ -127,7 +127,7 @@ fn doctor_shows_hint_for_invalid_toml() {
 /// `doctor --format json` outputs to stdout and stderr is empty.
 #[test]
 fn doctor_json_format() {
-    let repo = TestRepo::new();
+    let repo = TestRepo::new().with_hooks_setup();
 
     let output = Command::new(TestRepo::bin_path())
         .args(["doctor", "--format", "json"])

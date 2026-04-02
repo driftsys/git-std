@@ -47,11 +47,12 @@ fn doctor_shows_configuration_section() {
         .unwrap();
     assert!(status.success());
 
+    // Repo has no .githooks/ — doctor exits 1 (hint), but still shows all sections.
     git_std()
         .args(["doctor"])
         .current_dir(dir.path())
         .assert()
-        .success()
+        .code(1)
         .stderr(contains("Configuration"))
         .stderr(contains("scheme"))
         .stderr(contains("semver"));
@@ -68,11 +69,12 @@ fn doctor_shows_explicit_config_values() {
     assert!(status.success());
     std::fs::write(dir.path().join(".git-std.toml"), "scheme = \"calver\"\n").unwrap();
 
+    // Repo has no .githooks/ — doctor exits 1 (hint), but still shows all sections.
     git_std()
         .args(["doctor"])
         .current_dir(dir.path())
         .assert()
-        .success()
+        .code(1)
         .stderr(contains("calver"));
 }
 
@@ -86,11 +88,12 @@ fn doctor_json_has_configuration_section() {
         .unwrap();
     assert!(status.success());
 
+    // Repo has no .githooks/ — doctor exits 1 (hint), but still emits valid JSON.
     let output = git_std()
         .args(["doctor", "--format", "json"])
         .current_dir(dir.path())
         .assert()
-        .success()
+        .code(1)
         .get_output()
         .clone();
 
