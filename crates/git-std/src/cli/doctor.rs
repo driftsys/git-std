@@ -18,6 +18,9 @@ use crate::ui;
 
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Bump lifecycle hooks invoked directly by `git std bump` (not by git).
+const LIFECYCLE_HOOKS: &[&str] = &["pre-bump", "post-version", "post-changelog", "post-bump"];
+
 // ── Data model ───────────────────────────────────────────────────────────────
 
 /// A collected hint to print after all sections.
@@ -148,10 +151,59 @@ struct HookEntry {
     commands: Vec<HookCommand>,
 }
 
-fn build_hooks_section(root: &Path) -> Vec<HookEntry> {
+fn build_hooks_section(root: &Path) -> (Vec<HookEntry>, Vec<Hint>) {
     let hooks_dir = root.join(".githooks");
+    let mut hints = Vec::new();
 
-    KNOWN_HOOKS
+    // Health checks — only emit hints when something is wrong.
+    if !hooks_dir.exists() {
+        hints.push(Hint(".githooks/ not found — run 'git std init'".to_owned()));
+    } else {
+        // Check core.hooksPath is set to .githooks/
+        let hooks_path = std::process::Command::new("git")
+            .current_dir(root)
+            .args(["config", "core.hooksPath"])
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    Some(String::from_utf8_lossy(&o.stdout).trim().to_owned())
+                } else {
+                    None
+                }
+            });
+        match hooks_path.as_deref() {
+            Some(".githooks") => {}
+            Some(other) => hints.push(Hint(format!(
+                "core.hooksPath is '{other}', expected '.githooks' — run 'git std init'"
+            ))),
+            None => hints.push(Hint(
+                "core.hooksPath not configured — run 'git std init'".to_owned(),
+            )),
+        }
+
+        // Check shim executability for enabled hooks.
+        for hook_name in KNOWN_HOOKS {
+            let shim = hooks_dir.join(hook_name);
+            if shim.exists() {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(meta) = std::fs::metadata(&shim)
+                    && meta.permissions().mode() & 0o111 == 0
+                {
+                    hints.push(Hint(format!("{hook_name} shim is not executable")));
+                }
+            }
+        }
+    }
+
+    // Build hook entries from all known git hooks + lifecycle hooks.
+    let all_hooks: Vec<&str> = KNOWN_HOOKS
+        .iter()
+        .copied()
+        .chain(LIFECYCLE_HOOKS.iter().copied())
+        .collect();
+
+    let entries = all_hooks
         .iter()
         .filter_map(|hook_name| {
             let template = hooks_dir.join(format!("{hook_name}.hooks"));
@@ -160,14 +212,18 @@ fn build_hooks_section(root: &Path) -> Vec<HookEntry> {
             }
             let content = std::fs::read_to_string(&template).unwrap_or_default();
             let commands = standard_githooks::parse(&content);
-            let enabled = hooks_dir.join(hook_name).exists();
+            // Lifecycle hooks have no shim — always show as n/a (not enabled/disabled).
+            let is_lifecycle = LIFECYCLE_HOOKS.contains(hook_name);
+            let enabled = !is_lifecycle && hooks_dir.join(hook_name).exists();
             Some(HookEntry {
                 name: hook_name,
                 enabled,
                 commands,
             })
         })
-        .collect()
+        .collect();
+
+    (entries, hints)
 }
 
 // ── Configuration section ─────────────────────────────────────────────────────
@@ -182,6 +238,30 @@ struct ConfigRow {
 
 fn build_config_section(root: &Path) -> (Vec<ConfigRow>, Vec<Hint>) {
     let mut hints = Vec::new();
+
+    // Bootstrap health check: .git-blame-ignore-revs present but blame.ignoreRevsFile not set.
+    let ignore_revs = root.join(".git-blame-ignore-revs");
+    if ignore_revs.exists() {
+        let configured = std::process::Command::new("git")
+            .current_dir(root)
+            .args(["config", "blame.ignoreRevsFile"])
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    Some(String::from_utf8_lossy(&o.stdout).trim().to_owned())
+                } else {
+                    None
+                }
+            });
+        if configured.as_deref() != Some(".git-blame-ignore-revs") {
+            hints.push(Hint(
+                ".git-blame-ignore-revs found but blame.ignoreRevsFile not configured \
+                 — run 'git std bootstrap'"
+                    .to_owned(),
+            ));
+        }
+    }
 
     // Try to load config file to get both effective config and raw table.
     // We need to detect parse errors to show as hints.
@@ -309,12 +389,13 @@ pub fn run(cwd: &Path, format: OutputFormat) -> i32 {
     let repo_root = root.clone();
 
     let (status_tools, status_hints) = build_status_section(&repo_root);
-    let hooks = build_hooks_section(&repo_root);
+    let (hooks, hooks_hints) = build_hooks_section(&repo_root);
     let (config_rows, config_hints) = build_config_section(&repo_root);
 
     // Collect all hints
     let mut all_hints: Vec<Hint> = Vec::new();
     all_hints.extend(status_hints);
+    all_hints.extend(hooks_hints);
     all_hints.extend(config_hints);
 
     if format == OutputFormat::Json {
@@ -533,7 +614,7 @@ mod tests {
         std::fs::create_dir_all(&hooks_dir).unwrap();
         std::fs::write(hooks_dir.join("pre-commit.hooks"), "! cargo fmt --check\n").unwrap();
 
-        let entries = build_hooks_section(dir.path());
+        let (entries, _hints) = build_hooks_section(dir.path());
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].name, "pre-commit");
         assert_eq!(entries[0].commands.len(), 1);
@@ -547,7 +628,7 @@ mod tests {
         std::fs::write(hooks_dir.join("pre-commit.hooks"), "! cargo fmt\n").unwrap();
         // No shim file → disabled
 
-        let entries = build_hooks_section(dir.path());
+        let (entries, _hints) = build_hooks_section(dir.path());
         assert!(!entries[0].enabled);
     }
 
@@ -559,7 +640,7 @@ mod tests {
         std::fs::write(hooks_dir.join("pre-commit.hooks"), "! cargo fmt\n").unwrap();
         std::fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\n").unwrap();
 
-        let entries = build_hooks_section(dir.path());
+        let (entries, _hints) = build_hooks_section(dir.path());
         assert!(entries[0].enabled);
     }
 
