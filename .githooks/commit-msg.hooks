@@ -1,1 +1,13 @@
+# git-std hooks — commit-msg.hooks
+#
+# Commands run during the commit-msg hook. $1 is the path to the
+# file containing the commit message.
+# Prefix controls behavior:
+#
+#   !  required   abort commit on failure
+#   ?  advisory   warn on failure, never abort
+#
+# Examples:
+#   ! git std lint -f $1   # validate conventional commit format
+#
 ! git std lint --file {msg}

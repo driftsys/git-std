@@ -1,0 +1,12 @@
+# git-std hooks — post-merge.hooks
+#
+# Commands run after a successful merge (e.g. after git pull).
+# Prefix controls behavior:
+#
+#   !  required   report failure
+#   ?  advisory   warn on failure, always continues
+#
+# Examples:
+#   ? npm install      # reinstall if package.json changed
+#   ? cargo build      # rebuild after dependency updates
+#

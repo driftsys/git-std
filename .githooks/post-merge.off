@@ -1,0 +1,4 @@
+#!/bin/bash
+# Managed by git-std — do not edit.
+# Configure commands in .githooks/post-merge.hooks
+exec git std hook run post-merge -- "$@"

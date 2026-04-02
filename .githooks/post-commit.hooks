@@ -1,0 +1,13 @@
+# git-std hooks — post-commit.hooks
+#
+# Commands run after a successful commit (informational only —
+# cannot abort the commit).
+# Prefix controls behavior:
+#
+#   !  required   report failure
+#   ?  advisory   warn on failure, always continues
+#
+# Examples:
+#   ? echo "committed — remember to push"
+#   ? npx semantic-release --dry-run
+#

@@ -1,0 +1,13 @@
+# git-std hooks — prepare-commit-msg.hooks
+#
+# Commands run before the commit message editor opens. $1 is the
+# path to the message file, $2 is the commit source (message,
+# template, merge, squash, commit).
+# Prefix controls behavior:
+#
+#   !  required   abort commit on failure
+#   ?  advisory   warn on failure, never abort
+#
+# Examples:
+#   ? git std --context >> $1   # prepend project context as a comment
+#
