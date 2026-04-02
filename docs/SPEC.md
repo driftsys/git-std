@@ -373,6 +373,7 @@ changelog, commit, and tag.
 | `--skip-changelog`       | Bump version files without changelog generation                                           |
 | `--force`                | Allow breaking changes in patch-only scheme                                               |
 | `--stable [branch]`      | Create a stable branch for patch-only releases (optional custom branch name)              |
+| `--push [remote]`        | Push commit and tags after release. Without a remote, pushes to `origin`                  |
 | `--minor`                | Use minor bump (instead of major) when advancing main after `--stable`                    |
 
 **Exit codes:** `0` = success (or no bump needed), `1` = error.

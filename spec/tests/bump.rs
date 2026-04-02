@@ -357,3 +357,104 @@ fn bump_skip_changelog_no_file() {
         "CHANGELOG.md should not be created when --skip-changelog is used"
     );
 }
+
+/// `--push --dry-run` prints "Would push to origin" without actually pushing.
+#[test]
+fn bump_push_dry_run_shows_would_push() {
+    let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: add feature");
+
+    let output = std::process::Command::new(TestRepo::bin_path())
+        .args(["bump", "--push", "--dry-run"])
+        .current_dir(repo.path())
+        .output()
+        .expect("failed to run");
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Would push to origin"),
+        "stderr was: {stderr}"
+    );
+}
+
+/// `--push upstream --dry-run` prints "Would push to upstream".
+#[test]
+fn bump_push_dry_run_named_remote() {
+    let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: add feature");
+
+    let output = std::process::Command::new(TestRepo::bin_path())
+        .args(["bump", "--push", "upstream", "--dry-run"])
+        .current_dir(repo.path())
+        .output()
+        .expect("failed to run");
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Would push to upstream"),
+        "stderr was: {stderr}"
+    );
+}
+
+/// `--push` actually pushes commits and tags to a local bare remote.
+#[test]
+fn bump_push_to_local_remote() {
+    let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: add feature");
+
+    let remote_dir = tempfile::tempdir().expect("failed to create remote dir");
+    std::process::Command::new("git")
+        .args(["init", "--bare"])
+        .current_dir(remote_dir.path())
+        .status()
+        .expect("git init --bare failed");
+
+    std::process::Command::new("git")
+        .args([
+            "remote",
+            "add",
+            "origin",
+            remote_dir.path().to_str().unwrap(),
+        ])
+        .current_dir(repo.path())
+        .status()
+        .expect("git remote add failed");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--push", "--skip-changelog"])
+        .current_dir(repo.path())
+        .assert()
+        .success();
+
+    let tag_output = std::process::Command::new("git")
+        .args(["tag", "-l"])
+        .current_dir(remote_dir.path())
+        .output()
+        .expect("git tag -l failed");
+    let tags = String::from_utf8_lossy(&tag_output.stdout);
+    assert!(
+        tags.contains("v1.1.0"),
+        "expected tag v1.1.0 in remote, found: {tags}"
+    );
+}
+
+/// `--push` with a nonexistent remote exits non-zero.
+#[test]
+fn bump_push_failure_exits_nonzero() {
+    let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: add feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--push", "nonexistent-remote", "--skip-changelog"])
+        .current_dir(repo.path())
+        .assert()
+        .failure();
+}
