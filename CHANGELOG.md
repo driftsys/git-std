@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.11.2] (2026-04-02)
+
+### Features
+
+- **git-std:** extend --release-as to accept patch/minor/major level names
+  ([2b2a860]), closes 437.
+
+### Bug Fixes
+
+- **git-std:** include merged branch commits in walk_commits_for_path
+  ([3294f6c])
+
+[0.11.2]: https://github.com/driftsys/git-std/compare/v0.11.1...v0.11.2
+[2b2a860]: https://github.com/driftsys/git-std/commit/2b2a860
+[3294f6c]: https://github.com/driftsys/git-std/commit/3294f6c
+
 ## [0.11.1] (2026-04-01)
 
 ### Features
