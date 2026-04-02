@@ -9,6 +9,19 @@ use super::detect::today_calver_date;
 use super::lifecycle::run_lifecycle_hook;
 use super::{BumpOptions, FinalizeContext};
 
+/// Parse a `--release-as` value as a semver bump level.
+///
+/// Returns `Some(level)` for `"patch"`, `"minor"`, `"major"` (case-insensitive).
+/// Returns `None` for anything else (treated as an exact version string).
+pub(super) fn parse_release_level(s: &str) -> Option<standard_version::BumpLevel> {
+    match s.to_ascii_lowercase().as_str() {
+        "patch" => Some(standard_version::BumpLevel::Patch),
+        "minor" => Some(standard_version::BumpLevel::Minor),
+        "major" => Some(standard_version::BumpLevel::Major),
+        _ => None,
+    }
+}
+
 /// Run the bump subcommand in patch-only mode.
 pub(super) fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let dir = std::path::Path::new(".");
@@ -48,6 +61,13 @@ pub(super) fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     if has_breaking && !opts.force {
         ui::error("breaking change not allowed on patch-only branch (use --force to override)");
+        return 1;
+    }
+
+    if let Some(ref forced) = opts.release_as
+        && parse_release_level(forced).is_some_and(|l| l != standard_version::BumpLevel::Patch)
+    {
+        ui::error("patch-only scheme does not support --release-as minor or --release-as major");
         return 1;
     }
 
@@ -92,6 +112,13 @@ pub(super) fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     if opts.prerelease.is_some() {
         ui::error("--prerelease is not supported with scheme = \"calver\"");
+        return 1;
+    }
+
+    if let Some(ref forced) = opts.release_as
+        && parse_release_level(forced).is_some()
+    {
+        ui::error("--release-as patch/minor/major is not supported with scheme = \"calver\"");
         return 1;
     }
 
@@ -216,11 +243,15 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     // Step 4: Determine new version.
     let new_version = if let Some(ref forced) = opts.release_as {
-        match semver::Version::parse(forced) {
-            Ok(v) => v,
-            Err(e) => {
-                ui::error(&format!("invalid --release-as version '{forced}': {e}"));
-                return 1;
+        if let Some(level) = parse_release_level(forced) {
+            standard_version::apply_bump(&cur_ver, level)
+        } else {
+            match semver::Version::parse(forced) {
+                Ok(v) => v,
+                Err(e) => {
+                    ui::error(&format!("invalid --release-as version '{forced}': {e}"));
+                    return 1;
+                }
             }
         }
     } else if opts.first_release {
@@ -263,7 +294,16 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let bump_reason = if opts.first_release {
         "first release".to_string()
     } else if let Some(ref forced) = opts.release_as {
-        format!("forced as {forced}")
+        if let Some(level) = parse_release_level(forced) {
+            let level_name = match level {
+                standard_version::BumpLevel::Patch => "patch",
+                standard_version::BumpLevel::Minor => "minor",
+                standard_version::BumpLevel::Major => "major",
+            };
+            format!("forced {level_name}")
+        } else {
+            format!("forced as {forced}")
+        }
     } else {
         let level = standard_version::determine_bump(&parsed).unwrap();
         let is_pre1 = cur_ver.major == 0;
@@ -335,4 +375,47 @@ pub(super) fn dispatch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         return run_patch(config, opts);
     }
     run_semver(config, opts)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_release_level_recognises_all_levels() {
+        assert_eq!(
+            parse_release_level("patch"),
+            Some(standard_version::BumpLevel::Patch)
+        );
+        assert_eq!(
+            parse_release_level("minor"),
+            Some(standard_version::BumpLevel::Minor)
+        );
+        assert_eq!(
+            parse_release_level("major"),
+            Some(standard_version::BumpLevel::Major)
+        );
+        // Case-insensitive.
+        assert_eq!(
+            parse_release_level("PATCH"),
+            Some(standard_version::BumpLevel::Patch)
+        );
+        assert_eq!(
+            parse_release_level("Minor"),
+            Some(standard_version::BumpLevel::Minor)
+        );
+        assert_eq!(
+            parse_release_level("MAJOR"),
+            Some(standard_version::BumpLevel::Major)
+        );
+    }
+
+    #[test]
+    fn parse_release_level_returns_none_for_version_string() {
+        assert_eq!(parse_release_level("1.2.3"), None);
+        assert_eq!(parse_release_level("2.0.0"), None);
+        assert_eq!(parse_release_level("0.1.0-rc.1"), None);
+        assert_eq!(parse_release_level(""), None);
+        assert_eq!(parse_release_level("minorr"), None);
+    }
 }
