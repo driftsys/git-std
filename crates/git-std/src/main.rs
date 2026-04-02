@@ -39,6 +39,13 @@ fn main() {
         return;
     }
 
+    // Handle --context before subcommand dispatch so it works without a subcommand.
+    if cli.context {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let code = cli::context::run(&cwd, cli.format);
+        std::process::exit(code);
+    }
+
     let command = match cli.command {
         Some(cmd) => cmd,
         None => {
@@ -145,6 +152,7 @@ fn main() {
             format,
             packages,
             push,
+            yes,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
             let stable = stable.map(|s| if s.is_empty() { None } else { Some(s) });
@@ -163,6 +171,7 @@ fn main() {
                 format,
                 packages,
                 push,
+                yes,
             };
             cli::bump::run(&project_config, &opts)
         }

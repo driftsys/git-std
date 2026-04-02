@@ -32,6 +32,7 @@ pub fn load(dir: &Path) -> ProjectConfig {
             version_files: Vec::new(),
             monorepo: false,
             packages: Vec::new(),
+            release_branch: None,
         },
     }
 }
@@ -79,6 +80,7 @@ fn default_config() -> ProjectConfig {
         version_files: Vec::new(),
         monorepo: false,
         packages: Vec::new(),
+        release_branch: None,
     }
 }
 
@@ -133,6 +135,10 @@ fn build_config(table: &toml::Table) -> ProjectConfig {
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     let packages = parse_packages(table);
+    let release_branch = table
+        .get("release_branch")
+        .and_then(|v| v.as_str())
+        .map(String::from);
 
     // Validate calver_format when scheme is calver.
     let versioning = if scheme == Scheme::Calver {
@@ -162,6 +168,7 @@ fn build_config(table: &toml::Table) -> ProjectConfig {
         version_files,
         monorepo,
         packages,
+        release_branch,
     }
 }
 

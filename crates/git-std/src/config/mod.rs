@@ -150,6 +150,12 @@ pub struct ProjectConfig {
     pub monorepo: bool,
     /// Explicit package definitions (auto-discovered when empty and `monorepo = true`).
     pub packages: Vec<PackageConfig>,
+    /// Branch that `git std bump` is expected to run on.
+    ///
+    /// When set, bumping on a different branch triggers a confirmation prompt
+    /// (or an error in non-interactive mode unless `--yes` / `GIT_STD_YES=1`
+    /// is supplied). Defaults to `None`, which accepts both `main` and `master`.
+    pub release_branch: Option<String>,
 }
 
 impl ProjectConfig {
