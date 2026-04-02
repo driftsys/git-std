@@ -321,6 +321,7 @@ fn context_status_not_bootstrapped_when_hooks_not_configured() {
         .args(["--context"])
         .current_dir(dir.path())
         .assert()
+        .code(1)
         .stdout(contains("Not bootstrapped"));
 }
 
@@ -455,6 +456,10 @@ fn context_json_outputs_to_stdout() {
     assert!(
         parsed.get("commit_config").is_some(),
         "should have commit_config key"
+    );
+    assert!(
+        parsed["status"].is_string(),
+        "status field must always be a non-null string"
     );
     assert!(
         output.stderr.is_empty(),

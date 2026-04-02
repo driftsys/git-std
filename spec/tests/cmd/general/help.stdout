@@ -31,9 +31,11 @@ Options:
           [possible values: bash, elvish, fish, powershell, zsh]
 
       --context
-          
+          Dump project context as Markdown for agent consumption
 
       --format <FORMAT>
+          Output format for --context
+
           Possible values:
           - text: Human-readable text (default)
           - json: Machine-readable JSON

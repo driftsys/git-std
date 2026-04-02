@@ -136,7 +136,7 @@ fn build_workspace_groups(root: &Path, cfg: &ProjectConfig) -> Vec<WorkspaceGrou
     groups
 }
 
-fn build_commit_config(_root: &Path, cfg: &ProjectConfig) -> CommitConfig {
+fn build_commit_config(cfg: &ProjectConfig) -> CommitConfig {
     let types = cfg.types.clone();
 
     let scopes_line = match &cfg.scopes {
@@ -171,20 +171,10 @@ fn is_bootstrapped(root: &Path) -> bool {
         return true;
     }
 
-    let hooks_path = std::process::Command::new("git")
-        .current_dir(root)
-        .args(["config", "core.hooksPath"])
-        .output()
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                Some(String::from_utf8_lossy(&o.stdout).trim().to_owned())
-            } else {
-                None
-            }
-        });
-
-    matches!(hooks_path.as_deref(), Some(".githooks"))
+    matches!(
+        git::config_value(root, "core.hooksPath").as_deref(),
+        Ok(".githooks")
+    )
 }
 
 /// Parse `git status --short` and return lines with working-tree changes or untracked files.
@@ -235,7 +225,7 @@ pub fn run(cwd: &Path, format: OutputFormat) -> i32 {
     let cfg = config::load(&root);
     let project = build_project_info(&root, &cfg);
     let workspace = build_workspace_groups(&root, &cfg);
-    let commit_cfg = build_commit_config(&root, &cfg);
+    let commit_cfg = build_commit_config(&cfg);
 
     let state = match gather_git_state(&root) {
         Ok(s) => s,
@@ -287,6 +277,7 @@ fn render_text(
         GitState::NotBootstrapped => {
             println!();
             println!("⚠ Not bootstrapped — run `git std bootstrap`");
+            return 1;
         }
         GitState::Clean => {
             println!();
@@ -302,16 +293,16 @@ fn render_text(
         GitState::Staged { diff } => {
             println!();
             println!("## Staged diff");
-            println!("```");
+            println!("````diff");
             println!("{diff}");
-            println!("```");
+            println!("````");
         }
         GitState::StagedAndUnstaged { diff, unstaged } => {
             println!();
             println!("## Staged diff");
-            println!("```");
+            println!("````diff");
             println!("{diff}");
-            println!("```");
+            println!("````");
             println!();
             println!("## Unstaged files");
             render_unstaged(unstaged);
@@ -344,18 +335,17 @@ fn render_json(
         .map(|g| serde_json::json!({ "label": g.label, "packages": g.names }))
         .collect();
 
-    let (staged_diff, unstaged_files, status_msg) = match state {
+    let (exit_code, status_str, staged_diff, unstaged_files) = match state {
         GitState::NotBootstrapped => (
+            1,
+            "not_bootstrapped",
             serde_json::Value::Null,
             serde_json::Value::Null,
-            serde_json::json!("Not bootstrapped — run `git std bootstrap`"),
         ),
-        GitState::Clean => (
-            serde_json::Value::Null,
-            serde_json::Value::Null,
-            serde_json::json!("Nothing to commit — working tree clean"),
-        ),
+        GitState::Clean => (0, "clean", serde_json::Value::Null, serde_json::Value::Null),
         GitState::NothingStaged { unstaged } => (
+            0,
+            "nothing_staged",
             serde_json::Value::Null,
             serde_json::Value::Array(
                 unstaged
@@ -363,14 +353,16 @@ fn render_json(
                     .map(|s| serde_json::Value::String(s.clone()))
                     .collect(),
             ),
-            serde_json::json!("Nothing staged — run `git add` first"),
         ),
         GitState::Staged { diff } => (
+            0,
+            "staged",
             serde_json::Value::String(diff.clone()),
-            serde_json::Value::Null,
             serde_json::Value::Null,
         ),
         GitState::StagedAndUnstaged { diff, unstaged } => (
+            0,
+            "staged_and_unstaged",
             serde_json::Value::String(diff.clone()),
             serde_json::Value::Array(
                 unstaged
@@ -378,7 +370,6 @@ fn render_json(
                     .map(|s| serde_json::Value::String(s.clone()))
                     .collect(),
             ),
-            serde_json::Value::Null,
         ),
     };
 
@@ -396,11 +387,11 @@ fn render_json(
         },
         "staged_diff": staged_diff,
         "unstaged_files": unstaged_files,
-        "status": status_msg,
+        "status": status_str,
     });
 
     println!("{output}");
-    0
+    exit_code
 }
 
 // ── Unit tests ────────────────────────────────────────────────────────────────
@@ -460,7 +451,7 @@ mod tests {
     #[test]
     fn scopes_line_none_when_no_scopes() {
         let cfg = config::ProjectConfig::default();
-        let cc = build_commit_config(std::path::Path::new("."), &cfg);
+        let cc = build_commit_config(&cfg);
         assert!(cc.scopes_line.is_none());
     }
 
@@ -471,7 +462,7 @@ mod tests {
             strict: true,
             ..Default::default()
         };
-        let cc = build_commit_config(std::path::Path::new("."), &cfg);
+        let cc = build_commit_config(&cfg);
         assert_eq!(
             cc.scopes_line.as_deref(),
             Some("from workspace (required, strict)")
@@ -485,7 +476,7 @@ mod tests {
             strict: false,
             ..Default::default()
         };
-        let cc = build_commit_config(std::path::Path::new("."), &cfg);
+        let cc = build_commit_config(&cfg);
         assert_eq!(cc.scopes_line.as_deref(), Some("api, cli (optional)"));
     }
 

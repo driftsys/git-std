@@ -33,9 +33,11 @@ pub struct Cli {
     #[arg(long, value_name = "SHELL")]
     pub completions: Option<Shell>,
 
+    /// Dump project context as Markdown for agent consumption.
     #[arg(long)]
     pub context: bool,
 
+    /// Output format for --context.
     #[arg(long, default_value = "text")]
     pub format: OutputFormat,
 
