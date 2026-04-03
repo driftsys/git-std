@@ -92,6 +92,42 @@ impl TestRepo {
         self
     }
 
+    /// Write a minimal `project.toml` with the given version.
+    // Used by: spec/tests/bump.rs (not referenced in every test binary)
+    #[allow(dead_code)]
+    pub fn with_project_toml(self, version: &str) -> Self {
+        std::fs::write(
+            self.dir.path().join("project.toml"),
+            format!("name = \"io.driftsys.test\"\nversion = \"{version}\"\nlicense = \"MIT\"\n"),
+        )
+        .expect("failed to write project.toml");
+        self
+    }
+
+    /// Write a minimal `project.json` with the given version.
+    // Used by: spec/tests/bump.rs (not referenced in every test binary)
+    #[allow(dead_code)]
+    pub fn with_project_json(self, version: &str) -> Self {
+        std::fs::write(
+            self.dir.path().join("project.json"),
+            format!("{{\n  \"name\": \"io.driftsys.test\",\n  \"version\": \"{version}\"\n}}\n"),
+        )
+        .expect("failed to write project.json");
+        self
+    }
+
+    /// Write a minimal `project.yaml` with the given version.
+    // Used by: spec/tests/bump.rs (not referenced in every test binary)
+    #[allow(dead_code)]
+    pub fn with_project_yaml(self, version: &str) -> Self {
+        std::fs::write(
+            self.dir.path().join("project.yaml"),
+            format!("name: io.driftsys.test\nversion: \"{version}\"\nlicense: MIT\n"),
+        )
+        .expect("failed to write project.yaml");
+        self
+    }
+
     /// Create a file, stage it, and commit with the given message.
     // Used by: spec/tests/hooks.rs (not referenced in every test binary)
     #[allow(dead_code)]

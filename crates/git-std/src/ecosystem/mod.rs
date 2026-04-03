@@ -10,6 +10,7 @@ mod flutter;
 mod gradle;
 mod node;
 mod plain;
+mod project;
 mod python;
 mod rust;
 
@@ -215,6 +216,7 @@ fn all_ecosystems() -> Vec<Box<dyn Ecosystem>> {
         Box::new(python::Python),
         Box::new(flutter::Flutter),
         Box::new(gradle::Gradle),
+        Box::new(project::Project),
         Box::new(plain::Plain),
     ]
 }
