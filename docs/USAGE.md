@@ -163,8 +163,9 @@ git std init --force    # overwrite existing files
 4. Prompts which hooks to enable, writes shims.
 5. Generates `./bootstrap` script.
 6. Generates `.githooks/bootstrap.hooks`.
-7. Appends post-clone section to `README.md` and `AGENTS.md` (if found).
-8. Stages all created files.
+7. Creates `.git-std.toml` with taplo schema directive (if absent).
+8. Appends post-clone section to `README.md` and `AGENTS.md` (if found).
+9. Stages all created files.
 
 **Flags:**
 

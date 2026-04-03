@@ -872,9 +872,12 @@ command that project maintainers run once and commit.
 5. Generates `./bootstrap` script that installs
    git-std and delegates to `git std bootstrap`.
 6. Generates `.githooks/bootstrap.hooks` template.
-7. Appends a post-clone reminder to `AGENTS.md` and
+7. Creates `.git-std.toml` with a taplo `#:schema`
+   directive and commented-out common fields (skipped
+   silently if the file already exists).
+8. Appends a post-clone reminder to `AGENTS.md` and
    `README.md` (idempotent, HTML comment marker).
-8. Stages all created/modified files.
+9. Stages all created/modified files.
 
 **Two personas:**
 
