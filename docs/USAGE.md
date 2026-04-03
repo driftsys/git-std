@@ -263,7 +263,7 @@ git std doctor --format json  # machine-readable JSON on stdout
   Status
     git 2.43.0
     git-lfs 3.4.1
-    git-std 0.10.2 (update available: 0.11.0)
+    git-std 0.11.3 (update available: 0.12.0)
 
   Hooks
     commit-msg
@@ -297,9 +297,9 @@ git std doctor --format json  # machine-readable JSON on stdout
 Lightweight, scriptable version queries.
 
 ```bash
-git std version                  # 0.10.2
-git std version --describe       # 0.10.2-dev.7+g3a2b1c.dirty
-git std version --next           # 0.11.0
+git std version                  # 0.11.3
+git std version --describe       # 0.11.3-dev.7+g3a2b1c.dirty
+git std version --next           # 0.12.0
 git std version --label          # minor
 git std version --code           # 10299
 git std version --format json    # all fields as JSON

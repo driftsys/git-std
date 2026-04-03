@@ -6,21 +6,21 @@ file is absent or a field is omitted.
 
 ## Editor schema
 
-A [JSON Schema](schema/v1/git-std.toml.json) is available
+A [JSON Schema](../schemas/v1/git-std.schema.json) is available
 for validation and autocomplete in any JSON Schema-aware
 TOML editor.
 
 Add the `$schema` key to your `.git-std.toml`:
 
 ```toml
-"$schema" = "https://driftsys.github.io/git-std/schema/v1/git-std.toml.json"
+"$schema" = "https://driftsys.github.io/git-std/schemas/v1/git-std.schema.json"
 ```
 
 Or use a [taplo](https://taplo.tamasfe.dev) inline directive
 (does not modify the file):
 
 ```toml
-#:schema https://driftsys.github.io/git-std/schema/v1/git-std.toml.json
+#:schema https://driftsys.github.io/git-std/schemas/v1/git-std.schema.json
 ```
 
 ## Full schema
