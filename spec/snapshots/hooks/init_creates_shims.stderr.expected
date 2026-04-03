@@ -8,3 +8,4 @@
   ✓  post-merge             disabled
   ✓  bootstrap created
   ✓  .githooks/bootstrap.hooks created
+  ✓  .git-std.toml created

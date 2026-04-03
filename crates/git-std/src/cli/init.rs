@@ -8,8 +8,9 @@
 //! 4. Prompt which hooks to enable, write shims.
 //! 5. Generate `./bootstrap` script.
 //! 6. Generate `.githooks/bootstrap.hooks`.
-//! 7. Append post-clone section to README/AGENTS (if found).
-//! 8. Stage everything.
+//! 7. Create `.git-std.toml` with taplo schema directive (if absent).
+//! 8. Append post-clone section to README/AGENTS (if found).
+//! 9. Stage everything.
 
 use std::io::IsTerminal;
 use std::path::Path;
@@ -28,6 +29,7 @@ use crate::ui;
 
 const BOOTSTRAP_HOOKS_FILE: &str = ".githooks/bootstrap.hooks";
 const BOOTSTRAP_SCRIPT: &str = "bootstrap";
+const CONFIG_FILE: &str = ".git-std.toml";
 const MARKER: &str = "<!-- git-std:bootstrap -->";
 
 const LIFECYCLE_HOOKS: &[&str] = &["pre-bump", "post-version", "post-changelog", "post-bump"];
@@ -216,7 +218,22 @@ pub fn run(force: bool) -> i32 {
         FileResult::Error => return 1,
     }
 
-    // ── Step 7: append post-clone section to README/AGENTS ───────────────────
+    // ── Step 7: create .git-std.toml with taplo schema directive ────────────
+    match write_config_file(&root, force) {
+        FileResult::Created => {
+            staged.push(CONFIG_FILE);
+            ui::info(&format!("{}  {CONFIG_FILE} created", ui::pass()));
+        }
+        FileResult::Skipped => {
+            ui::info(&format!(
+                "{}  {CONFIG_FILE} already exists (use --force to overwrite)",
+                ui::warn()
+            ));
+        }
+        FileResult::Error => return 1,
+    }
+
+    // ── Step 8: append post-clone section to README/AGENTS ───────────────────
     for doc in &["AGENTS.md", "README.md"] {
         let doc_path = root.join(doc);
         if doc_path.exists() {
@@ -228,7 +245,7 @@ pub fn run(force: bool) -> i32 {
         }
     }
 
-    // ── Step 8: stage all created/modified files ─────────────────────────────
+    // ── Step 9: stage all created/modified files ─────────────────────────────
     // Always stage .githooks/ (shims + templates) plus any other created files.
     let mut cmd = Command::new("git");
     cmd.current_dir(&root).arg("add").arg("--").arg(".githooks");
@@ -304,6 +321,22 @@ fn write_bootstrap_hooks(root: &Path, force: bool) -> FileResult {
     FileResult::Created
 }
 
+/// Write `.git-std.toml` starter config with taplo schema directive.
+fn write_config_file(root: &Path, force: bool) -> FileResult {
+    let path = root.join(CONFIG_FILE);
+    if path.exists() && !force {
+        return FileResult::Skipped;
+    }
+
+    let template = generate_config_template();
+    if let Err(e) = std::fs::write(&path, &template) {
+        ui::error(&format!("cannot write {CONFIG_FILE}: {e}"));
+        return FileResult::Error;
+    }
+
+    FileResult::Created
+}
+
 /// Append a post-clone reminder to a documentation file, idempotently.
 fn append_bootstrap_marker(path: &Path) -> std::io::Result<()> {
     let content = std::fs::read_to_string(path).unwrap_or_default();
@@ -325,6 +358,20 @@ fn append_bootstrap_marker(path: &Path) -> std::io::Result<()> {
 // ---------------------------------------------------------------------------
 // Generated content
 // ---------------------------------------------------------------------------
+
+/// Generate the `.git-std.toml` starter config content.
+fn generate_config_template() -> String {
+    "\
+#:schema https://driftsys.github.io/git-std/schemas/v1/git-std.schema.json
+
+# scheme = \"semver\"          # semver | calver | patch
+# strict = false             # enforce types/scopes without --strict flag
+# types = [\"feat\", \"fix\", \"docs\", \"style\", \"refactor\",
+#           \"perf\", \"test\", \"chore\", \"ci\", \"build\", \"revert\"]
+# scopes = \"auto\"            # \"auto\" | [\"scope1\", \"scope2\"] | omit
+"
+    .to_string()
+}
 
 /// Generate a bump lifecycle hook template for the given hook name.
 fn generate_lifecycle_hook_template(hook_name: &str) -> String {
@@ -581,6 +628,22 @@ mod tests {
     fn bootstrap_hooks_template_no_lfs_when_absent() {
         let t = generate_bootstrap_hooks_template(false);
         assert!(!t.contains("LFS detected"));
+    }
+
+    #[test]
+    fn config_template_has_schema_directive() {
+        let t = generate_config_template();
+        assert!(t.starts_with("#:schema "));
+        assert!(t.contains("git-std.schema.json"));
+    }
+
+    #[test]
+    fn config_template_has_commented_fields() {
+        let t = generate_config_template();
+        assert!(t.contains("# scheme"));
+        assert!(t.contains("# strict"));
+        assert!(t.contains("# types"));
+        assert!(t.contains("# scopes"));
     }
 
     #[test]
