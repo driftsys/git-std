@@ -20,12 +20,18 @@ fn init_repo(dir: &std::path::Path) {
     git(dir, &["config", "user.email", "test@test.com"]);
 }
 
-/// Fully-configured repo: git init + .githooks/ dir + core.hooksPath set.
+/// Fully-configured repo: all doctor health checks satisfied.
 /// Doctor exits 0 (no hints) from this baseline.
 fn init_full_repo(dir: &std::path::Path) {
     init_repo(dir);
     std::fs::create_dir_all(dir.join(".githooks")).unwrap();
     git(dir, &["config", "core.hooksPath", ".githooks"]);
+    std::fs::write(dir.join(".git-std.toml"), "").unwrap();
+    std::fs::write(dir.join(".git-blame-ignore-revs"), "").unwrap();
+    git(
+        dir,
+        &["config", "blame.ignoreRevsFile", ".git-blame-ignore-revs"],
+    );
 }
 
 // ===========================================================================
@@ -276,6 +282,95 @@ fn doctor_no_hints_when_all_ok() {
 }
 
 // ===========================================================================
+// Hooks hints (ACs 1-3)
+// ===========================================================================
+
+#[test]
+fn doctor_hint_when_githooks_dir_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    init_full_repo(dir.path());
+    std::fs::remove_dir(dir.path().join(".githooks")).unwrap();
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains(".githooks/ not found"));
+}
+
+#[test]
+fn doctor_hint_when_hooks_path_misconfigured() {
+    let dir = tempfile::tempdir().unwrap();
+    init_full_repo(dir.path());
+    git(dir.path(), &["config", "core.hooksPath", ".git/hooks"]);
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("core.hooksPath is '.git/hooks'"));
+}
+
+#[test]
+fn doctor_hint_when_shim_not_executable() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    init_full_repo(dir.path());
+    let shim = dir.path().join(".githooks/pre-commit");
+    std::fs::write(&shim, "#!/bin/sh\n").unwrap();
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o644)).unwrap();
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("pre-commit shim is not executable"));
+}
+
+// ===========================================================================
+// Config hints (ACs 5-7)
+// ===========================================================================
+
+#[test]
+fn doctor_hint_when_git_std_toml_absent() {
+    let dir = tempfile::tempdir().unwrap();
+    init_full_repo(dir.path());
+    std::fs::remove_file(dir.path().join(".git-std.toml")).unwrap();
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains(".git-std.toml not found"));
+}
+
+#[test]
+fn doctor_hint_when_blame_ignore_revs_absent() {
+    let dir = tempfile::tempdir().unwrap();
+    init_full_repo(dir.path());
+    std::fs::remove_file(dir.path().join(".git-blame-ignore-revs")).unwrap();
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains(".git-blame-ignore-revs not found"));
+}
+
+#[test]
+fn doctor_hint_when_blame_ignore_revs_not_configured() {
+    let dir = tempfile::tempdir().unwrap();
+    init_full_repo(dir.path());
+    git(dir.path(), &["config", "--unset", "blame.ignoreRevsFile"]);
+    git_std()
+        .args(["doctor"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(contains("blame.ignoreRevsFile not set"));
+}
+
+// ===========================================================================
 // --format json
 // ===========================================================================
 
@@ -493,10 +588,15 @@ fn doctor_from_git_worktree() {
         "[versioning]\ntag_prefix = \"v\"\n",
     )
     .unwrap();
+    std::fs::write(dir.path().join(".git-blame-ignore-revs"), "").unwrap();
     git(dir.path(), &["add", "."]);
     git(dir.path(), &["commit", "-m", "initial commit"]);
 
     git(dir.path(), &["config", "core.hooksPath", ".githooks"]);
+    git(
+        dir.path(),
+        &["config", "blame.ignoreRevsFile", ".git-blame-ignore-revs"],
+    );
 
     // Create a real git worktree.
     let wt_parent = tempfile::tempdir().unwrap();
