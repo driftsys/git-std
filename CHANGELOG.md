@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.11.4] (2026-04-03)
+
+### Documentation
+
+- migrate schema path, fix docs accuracy ([3692fe9])
+
+### Features
+
+- **git-std:** add std-commit and std-bump agent skills ([486dbdc]), closes
+  [#442], [#460], [#461]
+- **ecosystem:** wire project manifest ecosystem for bump ([432634b]), closes
+  [#430]
+- **git-std:** scaffold .git-std.toml on init with taplo schema directive
+  ([0740d3a]), closes [#456]
+- **git-std:** add missing health hints for [#321] (ACs from [#445]) ([287d745])
+
+### Bug Fixes
+
+- **doctor:** guard unix PermissionsExt behind #[cfg(unix)] ([9690b16])
+- **git-std:** improve std-bump branch guard and sync check ([7ba5585]), closes
+  [#461]
+- **bump:** fix push guard, lifecycle output, JSON field, init templates
+  ([75a3b33]), closes 426 — remove (hook-name) suffix from lifecycle hook
+  output lines, 423 — guard --push against --no-commit/--no-tag (warn and
+  skip), 424 — add pushed_to field to bump --format json output, 443 — git
+  std init creates bump lifecycle hook templates
+- **doctor:** address [#321] debt ([#339] [#345] [#347]) ([0df261a])
+
+[0.11.4]: https://github.com/driftsys/git-std/compare/v0.11.3...v0.11.4
+[3692fe9]: https://github.com/driftsys/git-std/commit/3692fe9
+[486dbdc]: https://github.com/driftsys/git-std/commit/486dbdc
+[#442]: https://github.com/driftsys/git-std/issues/442
+[#460]: https://github.com/driftsys/git-std/issues/460
+[#461]: https://github.com/driftsys/git-std/issues/461
+[432634b]: https://github.com/driftsys/git-std/commit/432634b
+[#430]: https://github.com/driftsys/git-std/issues/430
+[0740d3a]: https://github.com/driftsys/git-std/commit/0740d3a
+[#456]: https://github.com/driftsys/git-std/issues/456
+[287d745]: https://github.com/driftsys/git-std/commit/287d745
+[#321]: https://github.com/driftsys/git-std/issues/321
+[#445]: https://github.com/driftsys/git-std/issues/445
+[9690b16]: https://github.com/driftsys/git-std/commit/9690b16
+[7ba5585]: https://github.com/driftsys/git-std/commit/7ba5585
+[75a3b33]: https://github.com/driftsys/git-std/commit/75a3b33
+[0df261a]: https://github.com/driftsys/git-std/commit/0df261a
+[#339]: https://github.com/driftsys/git-std/issues/339
+[#345]: https://github.com/driftsys/git-std/issues/345
+[#347]: https://github.com/driftsys/git-std/issues/347
+
 ## [0.11.3] (2026-04-03)
 
 ### Documentation
