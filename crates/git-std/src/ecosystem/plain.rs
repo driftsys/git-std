@@ -35,4 +35,8 @@ impl Ecosystem for Plain {
     fn version_file_engine(&self) -> Option<Box<dyn VersionFile>> {
         Some(Box::new(PlainVersionFile))
     }
+
+    fn is_fallback(&self) -> bool {
+        true
+    }
 }
