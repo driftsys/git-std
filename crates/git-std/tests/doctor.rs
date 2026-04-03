@@ -324,6 +324,41 @@ fn doctor_json_has_pass_status_when_no_problems() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(parsed["status"], "pass");
+    // hints must be an empty array (not absent, not null) when clean
+    let hints = parsed["hints"].as_array().expect("hints must be an array");
+    assert!(hints.is_empty(), "hints must be empty when no problems");
+    assert!(
+        output.stderr.is_empty(),
+        "stderr should be empty in JSON mode"
+    );
+}
+
+#[test]
+fn doctor_json_status_tools_have_version_string() {
+    let dir = tempfile::tempdir().unwrap();
+    init_full_repo(dir.path());
+
+    let output = git_std()
+        .args(["doctor", "--format", "json"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let tools = parsed["sections"]["status"].as_array().unwrap();
+    for tool in tools {
+        assert!(
+            tool["name"].is_string(),
+            "every status tool must have a name string"
+        );
+        // version is present and is a string for tools that are found
+        assert!(
+            tool["version"].is_string(),
+            "tool '{}' must have a version string",
+            tool["name"]
+        );
+    }
 }
 
 #[test]

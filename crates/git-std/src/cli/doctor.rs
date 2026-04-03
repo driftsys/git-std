@@ -379,8 +379,8 @@ fn build_config_section(root: &Path) -> (Vec<ConfigRow>, Vec<Hint>) {
 pub fn run(cwd: &Path, format: OutputFormat) -> i32 {
     let root = match workdir(cwd) {
         Ok(p) => p,
-        Err(_) => {
-            ui::error("not a git repository");
+        Err(e) => {
+            ui::error(&format!("not a git repository: {e}"));
             return 2;
         }
     };

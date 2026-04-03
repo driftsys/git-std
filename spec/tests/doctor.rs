@@ -4,6 +4,11 @@ mod support;
 use snapbox::cmd::Command;
 use support::TestRepo;
 
+#[test]
+fn trycmd_doctor() {
+    trycmd::TestCases::new().case("tests/cmd/doctor/*.toml");
+}
+
 /// `doctor` exits 0 in a fully-configured git repo (no problems).
 #[test]
 fn doctor_exits_0_in_basic_repo() {
