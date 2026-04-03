@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.11.3] (2026-04-03)
+
+### Documentation
+
+- **git-std:** improve hook help and add missing hook templates ([6b4c7c6])
+
+### Features
+
+- **git-std:** add --context global flag for agent project awareness
+  ([9d0f398]), closes [#440]
+- **bump:** require confirmation when bumping on a non-release branch
+  ([6835dbf]), fixes 435.
+- **doctor:** add hooks health checks and lifecycle hooks ([#445]) ([76858c2])
+- **git-std:** fix fish completions and document --push flag ([7f27df8])
+
+### Bug Fixes
+
+- **git-std:** address --context review findings (K0/K1) ([ecdcfa8])
+- **ecosystem:** skip Plain fallback when specific ecosystem matched
+  ([c7722eb]), fixes 354.
+- **doctor:** collapse nested if to satisfy clippy::collapsible_if ([2c84871])
+
+[0.11.3]: https://github.com/driftsys/git-std/compare/v0.11.2...v0.11.3
+[6b4c7c6]: https://github.com/driftsys/git-std/commit/6b4c7c6
+[9d0f398]: https://github.com/driftsys/git-std/commit/9d0f398
+[#440]: https://github.com/driftsys/git-std/issues/440
+[6835dbf]: https://github.com/driftsys/git-std/commit/6835dbf
+[76858c2]: https://github.com/driftsys/git-std/commit/76858c2
+[#445]: https://github.com/driftsys/git-std/issues/445
+[7f27df8]: https://github.com/driftsys/git-std/commit/7f27df8
+[ecdcfa8]: https://github.com/driftsys/git-std/commit/ecdcfa8
+[c7722eb]: https://github.com/driftsys/git-std/commit/c7722eb
+[2c84871]: https://github.com/driftsys/git-std/commit/2c84871
+
 ## [0.11.2] (2026-04-02)
 
 ### Features
