@@ -33,6 +33,14 @@ pub struct Cli {
     #[arg(long, value_name = "SHELL")]
     pub completions: Option<Shell>,
 
+    /// Dump project context as Markdown for agent consumption.
+    #[arg(long)]
+    pub context: bool,
+
+    /// Output format for --context.
+    #[arg(long, default_value = "text")]
+    pub format: OutputFormat,
+
     #[command(subcommand)]
     pub command: Option<Command>,
 }
@@ -134,6 +142,9 @@ pub enum Command {
         /// Push commit and tags to remote after release. Optionally specify a remote name (default: origin).
         #[arg(long, num_args = 0..=1, default_missing_value = "origin", value_name = "REMOTE")]
         push: Option<String>,
+        /// Skip branch confirmation prompt (also: GIT_STD_YES=1).
+        #[arg(short = 'y', long)]
+        yes: bool,
     },
     /// Generate a changelog (incremental by default, --full to regenerate).
     Changelog {

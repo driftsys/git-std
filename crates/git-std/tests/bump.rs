@@ -1613,3 +1613,135 @@ fn release_as_major_rejected_on_patch_scheme() {
             "patch-only scheme does not support --release-as minor or --release-as major",
         ));
 }
+
+// --- Branch guard tests ---
+
+/// Helper: init a repo on a named branch (not main).
+fn init_bump_repo_on_branch(dir: &std::path::Path, branch: &str) {
+    git(dir, &["init", "--initial-branch", branch]);
+    git(dir, &["config", "user.name", "Test"]);
+    git(dir, &["config", "user.email", "test@test.com"]);
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"test-pkg\"\nversion = \"1.0.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    git(dir, &["add", "Cargo.toml"]);
+    git(dir, &["commit", "-m", "chore: init"]);
+}
+
+#[test]
+fn bump_on_non_main_branch_rejected_in_non_tty() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo_on_branch(dir.path(), "feat/my-feature");
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: add feature");
+
+    // Non-TTY stdin → error without prompt.
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--skip-changelog"])
+        .current_dir(dir.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("feat/my-feature"))
+        .stderr(predicate::str::contains("main"));
+}
+
+#[test]
+fn bump_on_non_main_branch_bypassed_with_yes_flag() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo_on_branch(dir.path(), "feat/my-feature");
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: add feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--skip-changelog", "--yes"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn bump_on_non_main_branch_bypassed_with_env_var() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo_on_branch(dir.path(), "feat/my-feature");
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: add feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--skip-changelog"])
+        .env("GIT_STD_YES", "1")
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn bump_dry_run_skips_branch_guard() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo_on_branch(dir.path(), "feat/my-feature");
+    create_tag(dir.path(), "v1.0.0");
+    add_commit(dir.path(), "a.txt", "feat: add feature");
+
+    // --dry-run must NOT trigger the branch guard.
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--dry-run"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn bump_on_main_branch_no_prompt() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path()); // uses main branch by default
+    create_tag(dir.path(), "v1.0.0");
+
+    // Patch Cargo.toml to match tag version.
+    std::fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"test-pkg\"\nversion = \"1.0.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    git(dir.path(), &["add", "Cargo.toml"]);
+    git(dir.path(), &["commit", "-m", "chore: set version"]);
+
+    add_commit(dir.path(), "a.txt", "feat: add feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--skip-changelog"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn bump_release_branch_config_respected() {
+    let dir = tempfile::tempdir().unwrap();
+    // Use "release" as the branch name.
+    init_bump_repo_on_branch(dir.path(), "release");
+    create_tag(dir.path(), "v1.0.0");
+
+    // Config declares "release" as the release branch.
+    std::fs::write(
+        dir.path().join(".git-std.toml"),
+        "release_branch = \"release\"\n",
+    )
+    .unwrap();
+    git(dir.path(), &["add", ".git-std.toml"]);
+    git(dir.path(), &["commit", "-m", "chore: config"]);
+
+    add_commit(dir.path(), "a.txt", "feat: add feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--skip-changelog"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+}
