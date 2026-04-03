@@ -140,6 +140,7 @@ pub enum Command {
         #[arg(short = 'p', long = "package")]
         packages: Vec<String>,
         /// Push commit and tags to remote after release. Optionally specify a remote name (default: origin).
+        /// Skipped (with a warning) when --no-commit or --no-tag is set.
         #[arg(long, num_args = 0..=1, default_missing_value = "origin", value_name = "REMOTE")]
         push: Option<String>,
         /// Skip branch confirmation prompt (also: GIT_STD_YES=1).

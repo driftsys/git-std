@@ -389,3 +389,85 @@ fn init_not_in_git_repo_fails() {
         .failure()
         .stderr(predicate::str::contains("not inside a git repository"));
 }
+
+// ===========================================================================
+// lifecycle hook templates (#443)
+// ===========================================================================
+
+#[test]
+fn init_creates_lifecycle_hook_templates() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+
+    run_init(dir.path(), &[]).success();
+
+    for hook in &["pre-bump", "post-version", "post-changelog", "post-bump"] {
+        let path = dir.path().join(format!(".githooks/{hook}.hooks"));
+        assert!(path.exists(), "{hook}.hooks should be created by init");
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            content.contains(&format!("# git-std hooks — {hook}.hooks")),
+            "{hook}.hooks should have a header comment"
+        );
+    }
+}
+
+#[test]
+fn init_lifecycle_hooks_not_added_to_shims() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+
+    run_init(dir.path(), &[]).success();
+
+    // Lifecycle hook files must not have corresponding shims
+    for hook in &["pre-bump", "post-version", "post-changelog", "post-bump"] {
+        assert!(
+            !dir.path().join(format!(".githooks/{hook}")).exists(),
+            "no shim should exist for lifecycle hook {hook}"
+        );
+        assert!(
+            !dir.path().join(format!(".githooks/{hook}.off")).exists(),
+            "no .off shim should exist for lifecycle hook {hook}"
+        );
+    }
+}
+
+#[test]
+fn init_skips_existing_lifecycle_hooks_without_force() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    std::fs::write(
+        dir.path().join(".githooks/pre-bump.hooks"),
+        "# custom content\n",
+    )
+    .unwrap();
+
+    run_init(dir.path(), &[]).success();
+
+    let content = std::fs::read_to_string(dir.path().join(".githooks/pre-bump.hooks")).unwrap();
+    assert_eq!(
+        content, "# custom content\n",
+        "existing file should not be overwritten"
+    );
+}
+
+#[test]
+fn init_force_overwrites_lifecycle_hooks() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::create_dir_all(dir.path().join(".githooks")).unwrap();
+    std::fs::write(
+        dir.path().join(".githooks/pre-bump.hooks"),
+        "# old content\n",
+    )
+    .unwrap();
+
+    run_init(dir.path(), &["--force"]).success();
+
+    let content = std::fs::read_to_string(dir.path().join(".githooks/pre-bump.hooks")).unwrap();
+    assert!(
+        content.contains("git-std hooks — pre-bump.hooks"),
+        "pre-bump.hooks should have template content after --force"
+    );
+}

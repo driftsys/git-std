@@ -30,6 +30,8 @@ const BOOTSTRAP_HOOKS_FILE: &str = ".githooks/bootstrap.hooks";
 const BOOTSTRAP_SCRIPT: &str = "bootstrap";
 const MARKER: &str = "<!-- git-std:bootstrap -->";
 
+const LIFECYCLE_HOOKS: &[&str] = &["pre-bump", "post-version", "post-changelog", "post-bump"];
+
 // ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
@@ -74,6 +76,18 @@ pub fn run(force: bool) -> i32 {
         let template_path = hooks_dir.join(format!("{hook_name}.hooks"));
         if !template_path.exists() || force {
             let content = generate_hooks_template(hook_name);
+            if let Err(e) = std::fs::write(&template_path, &content) {
+                ui::error(&format!("cannot write {}: {e}", template_path.display()));
+                return 1;
+            }
+        }
+    }
+
+    // ── Step 3b: write lifecycle hook templates ──────────────────────────────
+    for hook_name in LIFECYCLE_HOOKS {
+        let template_path = hooks_dir.join(format!("{hook_name}.hooks"));
+        if !template_path.exists() || force {
+            let content = generate_lifecycle_hook_template(hook_name);
             if let Err(e) = std::fs::write(&template_path, &content) {
                 ui::error(&format!("cannot write {}: {e}", template_path.display()));
                 return 1;
@@ -312,6 +326,72 @@ fn append_bootstrap_marker(path: &Path) -> std::io::Result<()> {
 // Generated content
 // ---------------------------------------------------------------------------
 
+/// Generate a bump lifecycle hook template for the given hook name.
+fn generate_lifecycle_hook_template(hook_name: &str) -> String {
+    match hook_name {
+        "pre-bump" => "\
+# git-std hooks — pre-bump.hooks
+#
+# Runs before version detection. Non-zero exit aborts the bump.
+# Use for: guard checks (clean tree, correct branch, tests pass).
+#
+#   !  required   abort bump on failure
+#   ?  advisory   warn on failure, never abort
+#
+# Examples:
+#   ! cargo test --workspace
+#   ! git diff --exit-code   # abort if working tree is dirty
+#
+"
+        .to_string(),
+        "post-version" => "\
+# git-std hooks — post-version.hooks
+#
+# Runs after version files are updated. $1 is the new version string.
+# Use for: building artifacts, stamping binaries, generating manifests.
+#
+#   !  required   abort bump on failure
+#   ?  advisory   warn on failure, never abort
+#
+# Examples:
+#   ! cargo build --release
+#   ? cp target/release/mybin dist/
+#
+"
+        .to_string(),
+        "post-changelog" => "\
+# git-std hooks — post-changelog.hooks
+#
+# Runs after CHANGELOG.md is written, before staging and commit.
+# Use for: linting or reformatting the changelog.
+#
+#   !  required   abort bump on failure
+#   ?  advisory   warn on failure, never abort
+#
+# Examples:
+#   ? npx markdownlint CHANGELOG.md
+#
+"
+        .to_string(),
+        "post-bump" => "\
+# git-std hooks — post-bump.hooks
+#
+# Runs after commit and tag are created (and after push if --push).
+# Use for: publishing, deployment, notifications.
+#
+#   !  required   report failure
+#   ?  advisory   warn on failure, always continues
+#
+# Examples:
+#   ! cargo publish
+#   ? curl -X POST https://hooks.slack.com/...
+#
+"
+        .to_string(),
+        _ => format!("# git-std hooks — {hook_name}.hooks\n"),
+    }
+}
+
 /// Generate the `./bootstrap` bash script content.
 fn generate_bootstrap_script() -> String {
     let version = env!("CARGO_PKG_VERSION");
@@ -507,5 +587,49 @@ mod tests {
     fn marker_is_html_comment() {
         assert!(MARKER.starts_with("<!--"));
         assert!(MARKER.ends_with("-->"));
+    }
+
+    #[test]
+    fn lifecycle_hook_templates_have_headers() {
+        for hook in LIFECYCLE_HOOKS {
+            let t = generate_lifecycle_hook_template(hook);
+            assert!(
+                t.contains(&format!("# git-std hooks — {hook}.hooks")),
+                "{hook}.hooks template should have header"
+            );
+            assert!(
+                t.contains("!  required"),
+                "{hook}.hooks should document ! sigil"
+            );
+            assert!(
+                t.contains("?  advisory"),
+                "{hook}.hooks should document ? sigil"
+            );
+        }
+    }
+
+    #[test]
+    fn pre_bump_template_mentions_when_it_runs() {
+        let t = generate_lifecycle_hook_template("pre-bump");
+        assert!(t.contains("before version detection"));
+        assert!(t.contains("abort bump on failure"));
+    }
+
+    #[test]
+    fn post_version_template_mentions_version_arg() {
+        let t = generate_lifecycle_hook_template("post-version");
+        assert!(t.contains("$1 is the new version string"));
+    }
+
+    #[test]
+    fn post_changelog_template_mentions_when_it_runs() {
+        let t = generate_lifecycle_hook_template("post-changelog");
+        assert!(t.contains("after CHANGELOG.md is written"));
+    }
+
+    #[test]
+    fn post_bump_template_mentions_when_it_runs() {
+        let t = generate_lifecycle_hook_template("post-bump");
+        assert!(t.contains("after commit and tag are created"));
     }
 }
