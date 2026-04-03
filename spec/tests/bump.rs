@@ -444,6 +444,90 @@ fn bump_push_to_local_remote() {
     );
 }
 
+/// `project.toml` version field is updated during bump.
+#[test]
+fn bump_project_toml() {
+    let mut repo = TestRepo::new().with_project_toml("1.0.0");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: new feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--skip-changelog"])
+        .current_dir(repo.path())
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(repo.path().join("project.toml")).unwrap();
+    assert!(
+        content.contains("version = \"1.1.0\""),
+        "expected version 1.1.0 in project.toml, got: {content}"
+    );
+}
+
+/// `project.json` version field is updated during bump.
+#[test]
+fn bump_project_json() {
+    let mut repo = TestRepo::new().with_project_json("1.0.0");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: new feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--skip-changelog"])
+        .current_dir(repo.path())
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(repo.path().join("project.json")).unwrap();
+    assert!(
+        content.contains("\"version\": \"1.1.0\""),
+        "expected version 1.1.0 in project.json, got: {content}"
+    );
+}
+
+/// `project.yaml` version field is updated during bump.
+#[test]
+fn bump_project_yaml() {
+    let mut repo = TestRepo::new().with_project_yaml("1.0.0");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: new feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--skip-changelog"])
+        .current_dir(repo.path())
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(repo.path().join("project.yaml")).unwrap();
+    assert!(
+        content.contains("version: \"1.1.0\""),
+        "expected version 1.1.0 in project.yaml, got: {content}"
+    );
+}
+
+/// `--dry-run` lists `project.toml` under "Would update:".
+#[test]
+fn bump_project_toml_dry_run() {
+    let mut repo = TestRepo::new().with_project_toml("1.0.0");
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: new feature");
+
+    let output = std::process::Command::new(TestRepo::bin_path())
+        .args(["bump", "--dry-run"])
+        .current_dir(repo.path())
+        .output()
+        .expect("failed to run");
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("project.toml"),
+        "expected project.toml in dry-run output, stderr was: {stderr}"
+    );
+}
+
 /// `--push` with a nonexistent remote exits non-zero.
 #[test]
 fn bump_push_failure_exits_nonzero() {
