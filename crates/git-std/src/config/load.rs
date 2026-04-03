@@ -33,6 +33,7 @@ pub fn load(dir: &Path) -> ProjectConfig {
             monorepo: false,
             packages: Vec::new(),
             release_branch: None,
+            refs_required: Vec::new(),
         },
     }
 }
@@ -81,6 +82,7 @@ fn default_config() -> ProjectConfig {
         monorepo: false,
         packages: Vec::new(),
         release_branch: None,
+        refs_required: Vec::new(),
     }
 }
 
@@ -139,6 +141,13 @@ fn build_config(table: &toml::Table) -> ProjectConfig {
         .get("release_branch")
         .and_then(|v| v.as_str())
         .map(String::from);
+    let refs_required = match table.get("refs_required").and_then(|v| v.as_array()) {
+        Some(arr) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect(),
+        None => Vec::new(),
+    };
 
     // Validate calver_format when scheme is calver.
     let versioning = if scheme == Scheme::Calver {
@@ -169,6 +178,7 @@ fn build_config(table: &toml::Table) -> ProjectConfig {
         monorepo,
         packages,
         release_branch,
+        refs_required,
     }
 }
 

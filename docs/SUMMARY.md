@@ -5,5 +5,6 @@
 - [Commands](USAGE.md)
 - [Recipes](recipes.md)
 - [Configuration](CONFIG.md)
+- [Skills](skills.md)
 - [Specification](SPEC.md)
 - [API Reference](REFERENCE.md)
