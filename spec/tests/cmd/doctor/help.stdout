@@ -1,0 +1,26 @@
+Run health checks on the local git-std setup
+
+Usage: git-std doctor [OPTIONS]
+
+Options:
+      --color <COLOR>
+          When to use coloured output
+
+          Possible values:
+          - auto:   Colour if stdout is a TTY
+          - always: Always use colour
+          - never:  Never use colour
+          
+          [default: auto]
+
+      --format <FORMAT>
+          Output format
+
+          Possible values:
+          - text: Human-readable text (default)
+          - json: Machine-readable JSON
+          
+          [default: text]
+
+  -h, --help
+          Print help (see a summary with '-h')
