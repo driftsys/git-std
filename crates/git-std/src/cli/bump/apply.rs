@@ -163,11 +163,14 @@ pub(super) fn finalize_bump(
             ui::info(&format!("Would tag:    {tag_prefix}{new_version}"));
         }
 
-        if let Some(remote) = &opts.push
-            && !opts.no_commit
-            && !opts.no_tag
-        {
-            ui::info(&format!("Would push to {remote}"));
+        if let Some(remote) = &opts.push {
+            if !opts.no_commit && !opts.no_tag {
+                ui::info(&format!("Would push to {remote}"));
+            } else {
+                ui::warning(&format!(
+                    "Would skip push to {remote}: incompatible with --no-commit or --no-tag"
+                ));
+            }
         }
 
         ui::blank();

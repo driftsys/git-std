@@ -27,6 +27,8 @@ jobs:
         run: cargo install mdbook --no-default-features
       - name: Build book
         run: mdbook build
+      - name: Copy schemas into book
+        run: cp -r schemas target/book/schemas
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:

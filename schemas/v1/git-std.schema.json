@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/git-std/schema/v1/git-std.toml.json",
+  "$id": "https://driftsys.github.io/git-std/schemas/v1/git-std.schema.json",
   "title": "git-std configuration",
   "description": "Schema for .git-std.toml — the configuration file for git-std, a single CLI that replaces commitizen, commitlint, standard-version, husky, and lefthook.",
   "type": "object",

@@ -52,7 +52,7 @@ git push --follow-tags
 **Shell completions:**
 
 ```bash
-eval "$(git-std completions bash)"   # or zsh, fish
+eval "$(git-std --completions bash)"   # or zsh, fish
 ```
 
 See the [user guide](https://driftsys.github.io/git-std/)

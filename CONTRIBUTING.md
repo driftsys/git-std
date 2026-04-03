@@ -55,7 +55,8 @@ git-std/
 **Design principle:** library crates are pure domain logic — strings in, data
 out. They have no dependency on git, the filesystem, or the terminal. The
 `git-std` binary crate is the orchestrator that wires libraries together with
-CLI dispatch, config loading, git operations (via `git2`), and terminal I/O.
+CLI dispatch, config loading, git operations (via git CLI subprocess
+calls), and terminal I/O.
 
 Read [docs/SPEC.md](docs/SPEC.md) for the full specification.
 
@@ -70,8 +71,10 @@ just verify             # Full pre-PR gate (commit lint + build)
 
 ### Test conventions
 
-- **Acceptance tests** go in `crates/git-std/tests/` — these test the CLI
-  binary end-to-end.
+- **Acceptance tests** go in `crates/git-std/spec/` — blackbox e2e snapshot
+  tests driven by the story's acceptance criteria (binary input/output only).
+- **Integration tests** go in `crates/git-std/tests/` — functional coverage
+  of the CLI wiring.
 - **Unit tests** go inline in `#[cfg(test)]` modules alongside the code they
   test.
 - Follow ATDD + TDD: write acceptance tests from the story's acceptance

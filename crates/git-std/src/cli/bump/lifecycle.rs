@@ -65,7 +65,7 @@ pub(super) fn run_lifecycle_hook(hook_name: &str, extra_args: &[&str]) -> Result
                 Some(code) => format!("(advisory, exit {code})"),
                 None => "(advisory, killed)".to_string(),
             };
-            ui::warning(&format!("{} {info}", cmd.command));
+            ui::info(&format!("{} {} {}", ui::warn(), cmd.command, info));
         } else {
             let info = match exit_code {
                 Some(code) => format!("(exit {code})"),

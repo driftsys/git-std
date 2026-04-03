@@ -18,13 +18,13 @@ cargo install git-std
 
 ```bash
 # Bash (~/.bashrc)
-eval "$(git-std completions bash)"
+eval "$(git-std --completions bash)"
 
 # Zsh (~/.zshrc)
-eval "$(git-std completions zsh)"
+eval "$(git-std --completions zsh)"
 
 # Fish (~/.config/fish/config.fish)
-git-std completions fish | source
+git-std --completions fish | source
 ```
 
 ## Set up hooks
