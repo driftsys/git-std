@@ -59,22 +59,19 @@ pub(super) fn run_lifecycle_hook(hook_name: &str, extra_args: &[&str]) -> Result
         let is_advisory = cmd.prefix == Prefix::Advisory;
 
         if success {
-            ui::info(&format!("{} {} ({})", ui::pass(), cmd.command, hook_name));
+            ui::info(&format!("{} {}", ui::pass(), cmd.command));
         } else if is_advisory {
             let info = match exit_code {
                 Some(code) => format!("(advisory, exit {code})"),
                 None => "(advisory, killed)".to_string(),
             };
-            ui::warning(&format!("{} {} {info}", cmd.command, hook_name));
+            ui::info(&format!("{} {} {}", ui::warn(), cmd.command, info));
         } else {
             let info = match exit_code {
                 Some(code) => format!("(exit {code})"),
                 None => "(killed)".to_string(),
             };
-            ui::error(&format!(
-                "hook {} failed: {} {info}",
-                hook_name, cmd.command
-            ));
+            ui::error(&format!("hook command failed: {} {info}", cmd.command));
             ui::hint(&format!(
                 "to disable this command: comment it out in .githooks/{hook_name}.hooks"
             ));
