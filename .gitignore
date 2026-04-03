@@ -23,6 +23,8 @@ target
 
 # Claude Code
 .claude/
+!.claude/skills/
+!.claude/skills/**
 
 # Added by cargo
 

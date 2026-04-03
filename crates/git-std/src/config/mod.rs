@@ -156,6 +156,8 @@ pub struct ProjectConfig {
     /// (or an error in non-interactive mode unless `--yes` / `GIT_STD_YES=1`
     /// is supplied). Defaults to `None`, which accepts both `main` and `master`.
     pub release_branch: Option<String>,
+    /// Commit types that require a footer reference (e.g. `feat`, `fix`).
+    pub refs_required: Vec<String>,
 }
 
 impl ProjectConfig {

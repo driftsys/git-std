@@ -35,6 +35,7 @@ struct CommitConfig {
     types: Vec<String>,
     /// `None` means no scopes configured — omit the Scopes line.
     scopes_line: Option<String>,
+    refs_required: Vec<String>,
 }
 
 enum GitState {
@@ -159,7 +160,13 @@ fn build_commit_config(cfg: &ProjectConfig) -> CommitConfig {
         }
     };
 
-    CommitConfig { types, scopes_line }
+    let refs_required = cfg.refs_required.clone();
+
+    CommitConfig {
+        types,
+        scopes_line,
+        refs_required,
+    }
 }
 
 /// Return `true` when the repo does not need bootstrapping or is already done.
@@ -271,6 +278,9 @@ fn render_text(
     println!("Types: {}", commit_cfg.types.join(", "));
     if let Some(scopes) = &commit_cfg.scopes_line {
         println!("Scopes: {scopes}");
+    }
+    if !commit_cfg.refs_required.is_empty() {
+        println!("Refs: required for {}", commit_cfg.refs_required.join(", "));
     }
 
     match state {
@@ -384,6 +394,7 @@ fn render_json(
         "commit_config": {
             "types": commit_cfg.types,
             "scopes": commit_cfg.scopes_line,
+            "refs_required": commit_cfg.refs_required,
         },
         "staged_diff": staged_diff,
         "unstaged_files": unstaged_files,
@@ -478,6 +489,23 @@ mod tests {
         };
         let cc = build_commit_config(&cfg);
         assert_eq!(cc.scopes_line.as_deref(), Some("api, cli (optional)"));
+    }
+
+    #[test]
+    fn refs_required_empty_when_not_configured() {
+        let cfg = config::ProjectConfig::default();
+        let cc = build_commit_config(&cfg);
+        assert!(cc.refs_required.is_empty());
+    }
+
+    #[test]
+    fn refs_required_populated_from_config() {
+        let cfg = config::ProjectConfig {
+            refs_required: vec!["feat".into(), "fix".into()],
+            ..Default::default()
+        };
+        let cc = build_commit_config(&cfg);
+        assert_eq!(cc.refs_required, vec!["feat", "fix"]);
     }
 
     #[test]
