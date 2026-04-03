@@ -26,14 +26,23 @@ impl TestRepo {
         }
     }
 
-    /// Create `.githooks/` and set `core.hooksPath = .githooks`.
-    /// Required for `doctor` to exit 0 (no hints about missing hooks setup).
+    /// Create `.githooks/`, set `core.hooksPath = .githooks`, create `.git-std.toml`,
+    /// and set up `.git-blame-ignore-revs` with `blame.ignoreRevsFile` configured.
+    /// Required for `doctor` to exit 0 (all health checks satisfied).
     // Used by: spec/tests/doctor.rs
     #[allow(dead_code)]
     pub fn with_hooks_setup(self) -> Self {
         let hooks_dir = self.dir.path().join(".githooks");
         std::fs::create_dir_all(&hooks_dir).expect("failed to create .githooks dir");
         git(self.dir.path(), &["config", "core.hooksPath", ".githooks"]);
+        std::fs::write(self.dir.path().join(".git-std.toml"), "")
+            .expect("failed to write .git-std.toml");
+        std::fs::write(self.dir.path().join(".git-blame-ignore-revs"), "")
+            .expect("failed to write .git-blame-ignore-revs");
+        git(
+            self.dir.path(),
+            &["config", "blame.ignoreRevsFile", ".git-blame-ignore-revs"],
+        );
         self
     }
 

@@ -239,9 +239,13 @@ struct ConfigRow {
 fn build_config_section(root: &Path) -> (Vec<ConfigRow>, Vec<Hint>) {
     let mut hints = Vec::new();
 
-    // Bootstrap health check: .git-blame-ignore-revs present but blame.ignoreRevsFile not set.
+    // Bootstrap health checks: .git-blame-ignore-revs and blame.ignoreRevsFile.
     let ignore_revs = root.join(".git-blame-ignore-revs");
-    if ignore_revs.exists() {
+    if !ignore_revs.exists() {
+        hints.push(Hint(
+            ".git-blame-ignore-revs not found — add to suppress noise in git blame".to_owned(),
+        ));
+    } else {
         let configured = std::process::Command::new("git")
             .current_dir(root)
             .args(["config", "blame.ignoreRevsFile"])
@@ -256,8 +260,8 @@ fn build_config_section(root: &Path) -> (Vec<ConfigRow>, Vec<Hint>) {
             });
         if configured.as_deref() != Some(".git-blame-ignore-revs") {
             hints.push(Hint(
-                ".git-blame-ignore-revs found but blame.ignoreRevsFile not configured \
-                 — run 'git std bootstrap'"
+                "blame.ignoreRevsFile not set \
+                 — run 'git config blame.ignoreRevsFile .git-blame-ignore-revs'"
                     .to_owned(),
             ));
         }
@@ -267,6 +271,9 @@ fn build_config_section(root: &Path) -> (Vec<ConfigRow>, Vec<Hint>) {
     // We need to detect parse errors to show as hints.
     let config_path = root.join(".git-std.toml");
     let has_file = config_path.exists();
+    if !has_file {
+        hints.push(Hint(".git-std.toml not found — using defaults".to_owned()));
+    }
 
     // Check for invalid TOML — if so, add a hint but still display defaults.
     // We parse the file ourselves to avoid load_with_raw emitting an eprintln!
@@ -449,8 +456,7 @@ fn render_text(
                     Prefix::Fix => "~",
                     Prefix::Default => " ",
                 };
-                // 6-space indent for commands within a hook
-                eprintln!("      {}  {}", sigil, cmd.command);
+                ui::check_line(sigil, &cmd.command);
             }
         }
     }
@@ -466,10 +472,10 @@ fn render_text(
         let key_padded = format!("{:<width$}", row.key, width = key_width);
         if row.from_file {
             // Bold for explicit file values
-            eprintln!("    {}   {}", key_padded.bold(), row.value.bold());
+            ui::detail(&format!("{}   {}", key_padded.bold(), row.value.bold()));
         } else {
             // Dim for defaults
-            eprintln!("    {}   {}", key_padded.dim(), row.value.dim());
+            ui::detail(&format!("{}   {}", key_padded.dim(), row.value.dim()));
         }
     }
 
@@ -647,8 +653,9 @@ mod tests {
     #[test]
     fn build_config_section_defaults_have_from_file_false() {
         let dir = tempfile::tempdir().unwrap();
-        let (rows, hints) = build_config_section(dir.path());
-        assert!(hints.is_empty(), "no hints for valid config");
+        std::fs::write(dir.path().join(".git-std.toml"), "").unwrap();
+        std::fs::write(dir.path().join(".git-blame-ignore-revs"), "").unwrap();
+        let (rows, _hints) = build_config_section(dir.path());
         let scheme = rows.iter().find(|r| r.key == "scheme").unwrap();
         assert!(!scheme.from_file, "scheme should be default when no file");
         assert_eq!(scheme.value, "semver");
@@ -672,6 +679,61 @@ mod tests {
         assert!(
             hints.iter().any(|h| h.0.contains(".git-std.toml invalid")),
             "should produce hint for invalid TOML"
+        );
+    }
+
+    #[test]
+    fn build_config_section_hint_when_toml_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".git-blame-ignore-revs"), "").unwrap();
+        let (_, hints) = build_config_section(dir.path());
+        assert!(
+            hints
+                .iter()
+                .any(|h| h.0.contains(".git-std.toml not found")),
+            "should emit hint when .git-std.toml is absent"
+        );
+    }
+
+    #[test]
+    fn build_config_section_no_absent_hint_when_toml_present() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".git-std.toml"), "").unwrap();
+        std::fs::write(dir.path().join(".git-blame-ignore-revs"), "").unwrap();
+        let (_, hints) = build_config_section(dir.path());
+        assert!(
+            hints
+                .iter()
+                .all(|h| !h.0.contains(".git-std.toml not found")),
+            "should not emit absent hint when .git-std.toml exists"
+        );
+    }
+
+    #[test]
+    fn build_config_section_hint_when_blame_ignore_revs_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".git-std.toml"), "").unwrap();
+        let (_, hints) = build_config_section(dir.path());
+        assert!(
+            hints
+                .iter()
+                .any(|h| h.0.contains(".git-blame-ignore-revs not found")),
+            "should emit hint when .git-blame-ignore-revs is absent"
+        );
+    }
+
+    #[test]
+    fn build_config_section_hint_when_blame_config_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".git-std.toml"), "").unwrap();
+        std::fs::write(dir.path().join(".git-blame-ignore-revs"), "").unwrap();
+        // blame.ignoreRevsFile is not configured (no git repo, so git config returns nothing)
+        let (_, hints) = build_config_section(dir.path());
+        assert!(
+            hints
+                .iter()
+                .any(|h| h.0.contains("blame.ignoreRevsFile not set")),
+            "should emit hint when blame.ignoreRevsFile is not configured"
         );
     }
 }
