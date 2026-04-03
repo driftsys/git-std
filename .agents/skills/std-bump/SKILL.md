@@ -14,8 +14,19 @@ Orchestrate a version bump using `git std bump`.
     run `curl -fsSL https://driftsys.github.io/git-std/install.sh | bash`
 - Run `git std --context` to assess project state:
   - If `Not bootstrapped`, stop and print the message.
-  - If not on a stable branch (main/master), suggest `--prerelease` unless
-    the user explicitly asks for a stable release.
+  - If context shows `Stable: true`, we are on the release branch — proceed.
+  - If context shows `Stable: false` and the current branch is not main or master,
+    run `git fetch origin`, then ask: "You're not on main — switch to main and
+    pull origin/main first?"
+    If confirmed, run `git checkout main && git pull origin main`, then re-run
+    `git std --context` to refresh state, and show `git status` and
+    `git log --oneline -5` so the user can review before proceeding.
+    If declined, stop — do not run bump outside the release branch.
+  - If context shows `Stable: false` and already on main or master (prerelease tag
+    on the release branch), run `git fetch origin`, check sync with
+    `git rev-list HEAD..origin/main --count` — if local is behind origin,
+    ask: "⚠ local main is N commits behind origin/main — pull before bumping?"
+    If confirmed, run `git pull origin main`. Then proceed.
   - If context shows no tag yet, use `--first-release`.
 - Run `git std bump --dry-run` and show the output. Ask: "Proceed with this bump?"
   Do not continue without confirmation.
