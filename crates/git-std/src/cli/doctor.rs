@@ -186,11 +186,14 @@ fn build_hooks_section(root: &Path) -> (Vec<HookEntry>, Vec<Hint>) {
         for hook_name in KNOWN_HOOKS {
             let shim = hooks_dir.join(hook_name);
             if shim.exists() {
-                use std::os::unix::fs::PermissionsExt;
-                if let Ok(meta) = std::fs::metadata(&shim)
-                    && meta.permissions().mode() & 0o111 == 0
+                #[cfg(unix)]
                 {
-                    hints.push(Hint(format!("{hook_name} shim is not executable")));
+                    use std::os::unix::fs::PermissionsExt;
+                    if let Ok(meta) = std::fs::metadata(&shim)
+                        && meta.permissions().mode() & 0o111 == 0
+                    {
+                        hints.push(Hint(format!("{hook_name} shim is not executable")));
+                    }
                 }
             }
         }
