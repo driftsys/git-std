@@ -32,6 +32,8 @@ struct BumpResultJson {
     changelog: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     commit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pushed_to: Option<String>,
     dry_run: bool,
 }
 
@@ -120,6 +122,11 @@ pub(super) fn finalize_bump(
                 } else {
                     None
                 },
+                pushed_to: if !opts.no_commit && !opts.no_tag {
+                    opts.push.clone()
+                } else {
+                    None
+                },
                 dry_run: true,
             };
             println!("{}", serde_json::to_string(&result).unwrap());
@@ -156,7 +163,10 @@ pub(super) fn finalize_bump(
             ui::info(&format!("Would tag:    {tag_prefix}{new_version}"));
         }
 
-        if let Some(remote) = &opts.push {
+        if let Some(remote) = &opts.push
+            && !opts.no_commit
+            && !opts.no_tag
+        {
             ui::info(&format!("Would push to {remote}"));
         }
 
@@ -298,12 +308,15 @@ pub(super) fn finalize_bump(
     }
 
     // Push commit and tags to remote.
+    // Skipped (with a warning) when --no-commit or --no-tag is set, because
+    // --follow-tags degenerates to a plain branch push when there is no tag.
     if let Some(remote) = &opts.push {
-        if let Err(e) = git::push_follow_tags(dir, remote) {
+        if opts.no_commit || opts.no_tag {
+            ui::warning("--push skipped: incompatible with --no-commit or --no-tag");
+        } else if let Err(e) = git::push_follow_tags(dir, remote) {
             ui::error(&format!("cannot push to {remote}: {e}"));
             return 1;
-        }
-        if opts.format != OutputFormat::Json {
+        } else if opts.format != OutputFormat::Json {
             ui::info(&format!("Pushed to {remote}"));
         }
     }
@@ -347,6 +360,11 @@ pub(super) fn finalize_bump(
             synced_locks: synced_locks.clone(),
             changelog: !opts.skip_changelog,
             commit: commit_msg,
+            pushed_to: if !opts.no_commit && !opts.no_tag {
+                opts.push.clone()
+            } else {
+                None
+            },
             dry_run: false,
         };
         println!("{}", serde_json::to_string(&result).unwrap());
