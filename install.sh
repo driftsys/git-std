@@ -20,12 +20,12 @@ install_completions() {
   local shell rc_file snippet
   shell="$(detect_shell)"
   case "$shell" in
-    bash) rc_file="$HOME/.bashrc"; snippet="eval \"\$(git-std completions bash)\"" ;;
-    zsh)  rc_file="$HOME/.zshrc";  snippet="eval \"\$(git-std completions zsh)\""  ;;
+    bash) rc_file="$HOME/.bashrc"; snippet="eval \"\$(git-std --completions bash)\"" ;;
+    zsh)  rc_file="$HOME/.zshrc";  snippet="eval \"\$(git-std --completions zsh)\""  ;;
     fish)
       mkdir -p "$HOME/.config/fish/conf.d"
       rc_file="$HOME/.config/fish/conf.d/git-std.fish"
-      snippet='git-std completions fish | source'
+      snippet='git-std --completions fish | source'
       ;;
     *)
       printf 'note: unknown shell %s — add completions manually\n' "${SHELL:-}" >&2
@@ -39,8 +39,12 @@ install_completions() {
     return
   fi
 
-  if grep -q 'git-std completions' "$rc_file" 2>/dev/null; then
+  if grep -q 'git-std --completions' "$rc_file" 2>/dev/null; then
     printf 'completions already configured in %s\n' "$rc_file"
+    return
+  elif grep -q 'git-std completions' "$rc_file" 2>/dev/null; then
+    sed -i.bak 's/git-std completions /git-std --completions /g' "$rc_file" && rm -f "${rc_file}.bak"
+    printf 'completions migrated in %s\n' "$rc_file"
     return
   fi
 

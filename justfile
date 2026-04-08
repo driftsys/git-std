@@ -85,12 +85,12 @@ install:
 
     shell="$(basename "${SHELL:-}")"
     case "$shell" in
-      bash) rc="$HOME/.bashrc"; s="eval \"\$(git-std completions bash)\"" ;;
-      zsh)  rc="$HOME/.zshrc";  s="eval \"\$(git-std completions zsh)\""  ;;
+      bash) rc="$HOME/.bashrc"; s="eval \"\$(git-std --completions bash)\"" ;;
+      zsh)  rc="$HOME/.zshrc";  s="eval \"\$(git-std --completions zsh)\""  ;;
       fish)
         mkdir -p "$HOME/.config/fish/conf.d"
         rc="$HOME/.config/fish/conf.d/git-std.fish"
-        s='git-std completions fish | source'
+        s='git-std --completions fish | source'
         ;;
       *)
         printf 'note: add completions manually for %s\n' "${SHELL:-}" >&2
@@ -101,8 +101,11 @@ install:
       printf 'note: %s not found — add completions manually\n' "$rc" >&2
       exit 0
     fi
-    if grep -q 'git-std completions' "$rc" 2>/dev/null; then
+    if grep -q 'git-std --completions' "$rc" 2>/dev/null; then
       printf 'completions already configured in %s\n' "$rc"
+    elif grep -q 'git-std completions' "$rc" 2>/dev/null; then
+      sed -i.bak 's/git-std completions /git-std --completions /g' "$rc" && rm -f "${rc}.bak"
+      printf 'completions migrated in %s\n' "$rc"
     else
       printf '\n# git-std completions\n%s\n' "$s" >> "$rc"
       printf 'completions installed to %s\n' "$rc"
