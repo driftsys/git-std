@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.11.5] (2026-04-08)
+
+### Bug Fixes
+
+- **git-std:** use --completions flag in install snippets and migrate existing
+  rc entries ([37bdbf8])
+
+### Refactoring
+
+- **git-std:** split init.rs into bootstrap and scaffold submodules ([35dd404]),
+  closes [#418]
+
+[0.11.5]: https://github.com/driftsys/git-std/compare/v0.11.4...v0.11.5
+[37bdbf8]: https://github.com/driftsys/git-std/commit/37bdbf8
+[35dd404]: https://github.com/driftsys/git-std/commit/35dd404
+[#418]: https://github.com/driftsys/git-std/issues/418
+
 ## [0.11.4] (2026-04-03)
 
 ### Documentation
