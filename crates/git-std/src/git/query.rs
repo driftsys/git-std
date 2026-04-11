@@ -46,6 +46,18 @@ pub fn short_status(dir: &Path) -> Result<String, GitError> {
     git(dir, &["status", "--short"])
 }
 
+/// Return the list of staged file paths (`git diff --cached --name-only`).
+///
+/// Returns an empty vector when there is nothing staged.
+pub fn staged_files(dir: &Path) -> Result<Vec<String>, GitError> {
+    let output = git(dir, &["diff", "--cached", "--name-only"])?;
+    Ok(output
+        .lines()
+        .map(str::to_owned)
+        .filter(|s| !s.is_empty())
+        .collect())
+}
+
 /// Walk commits from `from` (inclusive) back to `until` (exclusive).
 ///
 /// Returns `(full_sha, commit_message)` pairs in topological order.
