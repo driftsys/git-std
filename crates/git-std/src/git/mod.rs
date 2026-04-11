@@ -15,6 +15,6 @@ pub use mutate::{
 };
 pub use query::{
     commit_date, config_value, current_branch, detect_host, head_oid, resolve_rev, short_status,
-    staged_diff, walk_commits, walk_commits_for_path, walk_range,
+    staged_diff, staged_files, walk_commits, walk_commits_for_path, walk_range,
 };
 pub use tag::{collect_tags, find_latest_calver_tag, find_latest_version_tag};

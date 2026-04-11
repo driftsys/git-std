@@ -28,7 +28,12 @@ description: Author a conventional commit for staged changes using git std — u
 **Step 3: Determine commit type and scope**
 
 - Use **only** the types and scopes from context — never invent either.
-- Ask user to select from available types
+- **Type selection**:
+  - If context shows `Suggested type`, present it: "Type appears to be
+    [suggestion] — confirm or pick another?"
+  - If `Suggested type` is a shortlist like "feat or fix", ask user to choose
+    by reading the diff
+  - Otherwise ask user to select from available types
 - If scopes are configured, ask user to select or skip
 - For scope: match changed file paths against workspace package names if
   possible
