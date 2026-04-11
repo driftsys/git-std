@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.11.8] (2026-04-11)
+
+### Features
+
+- **git-std:** allow --force flag to bump without commit-worthy changes
+  ([456a416])
+
+[0.11.8]: https://github.com/driftsys/git-std/compare/v0.11.7...v0.11.8
+[456a416]: https://github.com/driftsys/git-std/commit/456a416
+
 ## [0.11.7] (2026-04-11)
 
 ### Documentation
