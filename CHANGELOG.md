@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.11.6] (2026-04-11)
+
+### Features
+
+- **git-std:** add --body flag and commit message guidelines ([a6da27f])
+
+[0.11.6]: https://github.com/driftsys/git-std/compare/v0.11.5...v0.11.6
+[a6da27f]: https://github.com/driftsys/git-std/commit/a6da27f
+
 ## [0.11.5] (2026-04-08)
 
 ### Bug Fixes
