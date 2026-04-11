@@ -11,7 +11,7 @@ lint:
     cargo clippy -- -D warnings
     cargo fmt -- --check
     dprint check
-    npx markdownlint-cli '**/*.md' --ignore node_modules
+    npx markdownlint-cli '**/*.md' --ignore node_modules --ignore skills
 
 # Audit dependencies
 audit:
@@ -32,7 +32,7 @@ verify:
 fmt:
     cargo fmt
     dprint fmt
-    npx markdownlint-cli '**/*.md' --ignore node_modules --fix
+    npx markdownlint-cli '**/*.md' --ignore node_modules --ignore skills --fix
 
 # Generate man pages to target/man/
 man:
