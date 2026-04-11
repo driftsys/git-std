@@ -196,6 +196,7 @@ well-formed conventional commit message and runs
 | `--type <type>`    | Pre-fill type, skip type prompt                                           |
 | `--scope <scope>`  | Pre-fill scope, skip scope prompt                                         |
 | `--message <msg>`  | Non-interactive mode, full message provided. Validated before committing. |
+| `--body <text>`    | Commit body paragraph (extended description), separated by blank line     |
 | `--breaking`       | Add `BREAKING CHANGE` footer (prompts for description)                    |
 | `--footer <text>`  | Add a trailer footer (repeatable, e.g. `Co-authored-by: Name <email>`)    |
 | `--signoff` / `-s` | Add `Signed-off-by` trailer from git `user.name` / `user.email`           |
@@ -232,7 +233,23 @@ git std commit --type fix -m "fix crash" -s
 git std commit --type feat -m "new api" \
   --footer "Co-authored-by: Alice <a@b.com>" \
   --footer "Reviewed-by: Carol <c@d.com>"
+
+# With commit body (subject ≤50 chars, body wrapped at 72 chars)
+git std commit --type fix --scope cache \
+  -m "prevent race condition in invalidation" \
+  --body "The cache invalidation routine was checking stale entries
+after acquiring the lock, creating a window where two threads
+could invalidate the same entry. Wrap the check-and-clear in a
+single lock acquisition instead of splitting into two operations."
 ```
+
+**Commit message guidelines:**
+
+- Subject line: imperative mood, ≤50 characters, no period
+- Body (optional): explain _what_ changed and _why_, not _how_ — the diff
+  shows that
+- Body wrapping: 72 characters per line for readability
+- Body length: 2–5 sentences typical
 
 ### 2.2 `git std lint`
 

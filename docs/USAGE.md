@@ -66,6 +66,7 @@ scope, description, body, and breaking change, then runs
 | `--type <type>`    | Pre-fill type, skip prompt        |
 | `--scope <scope>`  | Pre-fill scope, skip prompt       |
 | `--message <msg>`  | Non-interactive mode              |
+| `--body <text>`    | Commit body paragraph             |
 | `--breaking <msg>` | Add `BREAKING CHANGE` footer      |
 | `--footer <text>`  | Add a trailer footer (repeatable) |
 | `--signoff` / `-s` | Add `Signed-off-by` trailer       |

@@ -17,7 +17,12 @@ Run `git std --context`, then author a `git std commit` invocation for the stage
 - If the output signals `Not bootstrapped` or `Nothing staged`, print the message and stop.
 - Match changed file paths against workspace package names to determine `--scope`.
   If the diff spans multiple scopes, pick the most-changed one.
-- `--message`: imperative mood, lowercase, no trailing period.
+- `--message`: imperative mood, lowercase, no trailing period. Limit to 50 characters.
+- If there's additional context: use `--body "text"` for the extended description.
+  - Wrap body at 72 characters per line
+  - Explain _what_ changed and _why_ (not _how_ — the diff shows that)
+  - Aim for 2-5 sentences
+  - Example: "The cache invalidation routine was checking stale entries after acquiring the lock, creating a window where two threads could invalidate the same entry simultaneously."
 - If the diff contains a clear breaking change, add `--breaking "short description"`.
 - For issue refs:
   - If context specifies that refs are required for this commit type, ask for the
