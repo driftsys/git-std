@@ -261,14 +261,18 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         let bump_level = match standard_version::determine_bump(&parsed) {
             Some(level) => level,
             None => {
-                ui::blank();
-                ui::heading(
-                    "Analysing commits since ",
-                    &format!("{}...", cur_ver_str.bold()),
-                );
-                ui::detail("no bump-worthy commits found");
-                ui::blank();
-                return 0;
+                if !opts.force {
+                    ui::blank();
+                    ui::heading(
+                        "Analysing commits since ",
+                        &format!("{}...", cur_ver_str.bold()),
+                    );
+                    ui::detail("no bump-worthy commits found");
+                    ui::blank();
+                    return 0;
+                }
+                // --force: allow bump even with no bump-worthy commits (defaults to patch)
+                standard_version::BumpLevel::Patch
             }
         };
 
@@ -304,8 +308,7 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         } else {
             format!("forced as {forced}")
         }
-    } else {
-        let level = standard_version::determine_bump(&parsed).unwrap();
+    } else if let Some(level) = standard_version::determine_bump(&parsed) {
         let is_pre1 = cur_ver.major == 0;
         let reason = match (level, is_pre1) {
             (standard_version::BumpLevel::Major, true) => {
@@ -320,6 +323,9 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
             (standard_version::BumpLevel::Patch, false) => "patch \u{2014} bug fix",
         };
         reason.to_string()
+    } else {
+        // No commits found, but --force was used
+        "forced patch (no commits)".to_string()
     };
 
     ui::blank();
