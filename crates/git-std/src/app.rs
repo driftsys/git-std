@@ -23,7 +23,7 @@ pub enum ColorWhen {
 
 /// Standard git workflow — commits, versioning, hooks.
 #[derive(Parser)]
-#[command(name = "git-std", version, about)]
+#[command(name = "git-std", about)]
 pub struct Cli {
     /// When to use coloured output.
     #[arg(long, global = true, default_value = "auto")]

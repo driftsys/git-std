@@ -28,7 +28,7 @@ use crate::ui;
 
 use bootstrap::{append_bootstrap_marker, write_bootstrap_hooks, write_bootstrap_script};
 use scaffold::{
-    generate_lifecycle_hook_template, skill_definitions, write_config_file, write_skill,
+    generate_lifecycle_hook_template, skill_definitions, write_config_file, write_skill_source,
     write_skill_symlink,
 };
 
@@ -43,8 +43,6 @@ const MARKER: &str = "<!-- git-std:bootstrap -->";
 
 const AGENTS_SKILL_COMMIT_DIR: &str = ".agents/skills/std-commit";
 const AGENTS_SKILL_BUMP_DIR: &str = ".agents/skills/std-bump";
-const AGENTS_SKILL_COMMIT_FILE: &str = ".agents/skills/std-commit/SKILL.md";
-const AGENTS_SKILL_BUMP_FILE: &str = ".agents/skills/std-bump/SKILL.md";
 const CLAUDE_SKILL_COMMIT: &str = ".claude/skills/std-commit";
 const CLAUDE_SKILL_BUMP: &str = ".claude/skills/std-bump";
 
@@ -260,24 +258,32 @@ pub fn run(force: bool) -> i32 {
     }
 
     // ── Step 8: scaffold agent skills ───────────────────────────────────────
-    for (dir, file, claude_link, content) in skill_definitions() {
-        match write_skill(&root, dir, file, &content, force) {
+    for (skill_name, skill_dir, claude_link) in skill_definitions() {
+        // Create symlink in .agents/skills/<name>/SKILL.md → ../../skills/<name>.md
+        match write_skill_source(&root, skill_dir, skill_name, force) {
             FileResult::Created => {
-                staged.push(file);
-                ui::info(&format!("{}  {file} created", ui::pass()));
+                staged.push(skill_dir);
+                ui::info(&format!(
+                    "{}  {skill_dir}/SKILL.md → ../../skills/{skill_name}.md created",
+                    ui::pass()
+                ));
             }
             FileResult::Skipped => {
                 ui::info(&format!(
-                    "{}  {file} already exists (use --force to overwrite)",
+                    "{}  {skill_dir}/SKILL.md already exists (use --force to overwrite)",
                     ui::warn()
                 ));
             }
             FileResult::Error => return 1,
         }
-        match write_skill_symlink(&root, claude_link, dir, force) {
+        // Create symlink in .claude/skills/<name> → ../../.agents/skills/<name>
+        match write_skill_symlink(&root, claude_link, skill_dir, force) {
             FileResult::Created => {
                 staged.push(claude_link);
-                ui::info(&format!("{}  {claude_link} → {dir} created", ui::pass()));
+                ui::info(&format!(
+                    "{}  {claude_link} → {skill_dir} created",
+                    ui::pass()
+                ));
             }
             FileResult::Skipped => {}
             FileResult::Error => return 1,

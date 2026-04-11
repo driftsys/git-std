@@ -31,8 +31,9 @@ fn main() -> std::io::Result<()> {
         fs::write(man_dir.join(format!("{name}.1")), buf)?;
     }
 
-    // Tell Cargo to re-run if the CLI definition changes.
+    // Tell Cargo to re-run if the CLI definition or skills change.
     println!("cargo:rerun-if-changed=src/app.rs");
+    println!("cargo:rerun-if-changed=../../skills/");
 
     Ok(())
 }

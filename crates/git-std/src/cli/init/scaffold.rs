@@ -8,8 +8,8 @@ use std::path::Path;
 use crate::ui;
 
 use super::{
-    AGENTS_SKILL_BUMP_DIR, AGENTS_SKILL_BUMP_FILE, AGENTS_SKILL_COMMIT_DIR,
-    AGENTS_SKILL_COMMIT_FILE, CLAUDE_SKILL_BUMP, CLAUDE_SKILL_COMMIT, CONFIG_FILE, FileResult,
+    AGENTS_SKILL_BUMP_DIR, AGENTS_SKILL_COMMIT_DIR, CLAUDE_SKILL_BUMP, CLAUDE_SKILL_COMMIT,
+    CONFIG_FILE, FileResult,
 };
 
 // ---------------------------------------------------------------------------
@@ -32,20 +32,57 @@ pub fn write_config_file(root: &Path, force: bool) -> FileResult {
     FileResult::Created
 }
 
-/// Write an agent skill file under `.agents/skills/`.
-pub fn write_skill(root: &Path, dir: &str, file: &str, content: &str, force: bool) -> FileResult {
-    let file_path = root.join(file);
-    if file_path.exists() && !force {
-        return FileResult::Skipped;
-    }
-    if let Err(e) = std::fs::create_dir_all(root.join(dir)) {
-        ui::error(&format!("cannot create {dir}: {e}"));
+/// Create a symlink from `.agents/skills/<name>/SKILL.md` to `../../skills/<name>.md`.
+pub fn write_skill_source(
+    root: &Path,
+    skill_dir: &str,
+    skill_name: &str,
+    force: bool,
+) -> FileResult {
+    let skill_path = root.join(skill_dir).join("SKILL.md");
+
+    // Ensure parent directory exists
+    if let Some(parent) = skill_path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        ui::error(&format!("cannot create {}: {e}", parent.display()));
         return FileResult::Error;
     }
-    if let Err(e) = std::fs::write(&file_path, content) {
-        ui::error(&format!("cannot write {file}: {e}"));
-        return FileResult::Error;
+
+    // Remove existing file/symlink if force is set
+    if skill_path.exists() || skill_path.symlink_metadata().is_ok() {
+        if !force {
+            return FileResult::Skipped;
+        }
+        if let Err(e) = std::fs::remove_file(&skill_path) {
+            ui::error(&format!("cannot remove {}: {e}", skill_path.display()));
+            return FileResult::Error;
+        }
     }
+
+    // Create relative symlink: .agents/skills/std-commit/SKILL.md → ../../skills/std-commit.md
+    let relative_target = format!("../../skills/{skill_name}.md");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+        if let Err(e) = symlink(&relative_target, &skill_path) {
+            ui::error(&format!(
+                "cannot create symlink {}: {e}",
+                skill_path.display()
+            ));
+            return FileResult::Error;
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        // On non-Unix, write a text file pointing to the target as a fallback
+        if let Err(e) = std::fs::write(&skill_path, format!("{relative_target}\n")) {
+            ui::error(&format!("cannot write {}: {e}", skill_path.display()));
+            return FileResult::Error;
+        }
+    }
+
     FileResult::Created
 }
 
@@ -88,21 +125,11 @@ pub fn write_skill_symlink(root: &Path, link: &str, target: &str, force: bool) -
 
 /// Return all skill definitions for scaffolding.
 ///
-/// Each tuple: `(dir, file, claude_link, content)`.
-pub fn skill_definitions() -> Vec<(&'static str, &'static str, &'static str, String)> {
+/// Each tuple: `(skill_name, skill_dir, claude_link)`.
+pub fn skill_definitions() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
-        (
-            AGENTS_SKILL_COMMIT_DIR,
-            AGENTS_SKILL_COMMIT_FILE,
-            CLAUDE_SKILL_COMMIT,
-            generate_std_commit_skill(),
-        ),
-        (
-            AGENTS_SKILL_BUMP_DIR,
-            AGENTS_SKILL_BUMP_FILE,
-            CLAUDE_SKILL_BUMP,
-            generate_std_bump_skill(),
-        ),
+        ("std-commit", AGENTS_SKILL_COMMIT_DIR, CLAUDE_SKILL_COMMIT),
+        ("std-bump", AGENTS_SKILL_BUMP_DIR, CLAUDE_SKILL_BUMP),
     ]
 }
 
@@ -190,138 +217,6 @@ pub fn generate_lifecycle_hook_template(hook_name: &str) -> String {
     }
 }
 
-fn generate_std_commit_skill() -> String {
-    "\
----
-name: std-commit
-description: Author a conventional commit for staged changes using git std — use when asked to \"commit\", \"write a commit\", or \"commit my changes\".
----
-
-## Workflow
-
-**Step 1: Verify git std is installed**
-
-- Run `git std --version`
-- If it fails:
-  - If `./bootstrap` exists at repo root: ask \"git std is not installed — run `./bootstrap` to install it?\"
-  - Otherwise: ask \"git std is not installed — install it now?\" with `curl -fsSL https://driftsys.github.io/git-std/install.sh | bash`
-  - If user declines, stop.
-
-**Step 2: Get project context**
-
-- Run `git std --context`
-- If output shows `Not bootstrapped` or `Nothing staged`, print the message and stop.
-- Otherwise, extract:
-  - Available **Types** from context (e.g., feat, fix, docs, test, chore)
-  - Available **Scopes** from context
-  - Whether scopes are `(required, strict)` — if so, `--scope` flag is mandatory
-
-**Step 3: Determine commit type and scope**
-
-- Use **only** the types and scopes from context — never invent either.
-- For scope: match changed file paths against workspace package names
-  - If diff spans multiple scopes, pick the most-changed one
-  - If scopes are `(required, strict)` and no scope determined, ask user
-
-**Step 4: Construct the commit message**
-
-- **Subject line** (`--message`):
-  - Imperative mood, lowercase, no trailing period
-  - **Limit to 50 characters**
-  - Example: \"add login flow\" (not \"added login flow\" or \"Add login flow\")
-
-- **Body** (`--body`, optional if extended context needed):
-  - Wrap at 72 characters per line
-  - Explain *what* changed and *why* — not *how* (the diff shows that)
-  - Aim for 2–5 sentences
-  - Example: \"The cache invalidation routine was checking stale entries after acquiring the lock, creating a window where two threads could invalidate the same entry. Wrap the check-and-clear in a single lock acquisition.\"
-
-**Step 5: Check for special markers**
-
-- **Breaking change**: If diff contains one, add `--breaking \"short description\"`
-- **Issue reference**:
-  - Extract from branch name if it matches `{type}/{issue}-{description}`
-  - For `feat` or `fix` type, ask: \"Related issue? (e.g. #123 — leave blank to skip)\"
-  - If issue provided, add `--footer \"Closes #N\"`
-
-**Step 6: Assemble and approve**
-
-- Show the proposed `git std commit` command with all flags
-- Ask: \"Proceed with this commit?\"
-- Do **not** run the command without explicit user approval
-"
-    .to_string()
-}
-
-fn generate_std_bump_skill() -> String {
-    "\
----
-name: std-bump
-description: Bump the project version using git std — use when asked to \"bump\", \"release\", \"cut a release\", or \"tag a version\".
----
-
-## Workflow
-
-**Step 1: Verify git std is installed**
-
-- Run `git std --version`
-- If it fails:
-  - If `./bootstrap` exists at repo root: ask \"git std is not installed — run `./bootstrap` to install it?\"
-  - Otherwise: ask \"git std is not installed — install it now?\" with `curl -fsSL https://driftsys.github.io/git-std/install.sh | bash`
-  - If user declines, stop.
-
-**Step 2: Assess project state and branch**
-
-- Run `git std --context`
-- If output shows `Not bootstrapped`, print the message and stop.
-- Check `Stable:` status:
-  - If `Stable: true` — already on release branch, proceed to Step 3
-  - If `Stable: false` — need to switch to main/master
-
-**Step 3: Sync with main (if needed)**
-
-Only if `Stable: false` from Step 2:
-
-- Run `git fetch origin`
-- If current branch is NOT main or master:
-  - Ask: \"You're not on main — switch to main and pull origin/main first?\"
-  - If yes: run `git checkout main && git pull origin main`, then re-run `git std --context` and show `git status` + `git log --oneline -5`
-  - If no: stop — do not bump outside release branch
-- If already on main or master:
-  - Check sync: run `git rev-list HEAD..origin/main --count`
-  - If behind origin: ask \"⚠ local main is N commits behind origin/main — pull before bumping?\"
-  - If yes: run `git pull origin main`
-
-**Step 4: Plan the bump**
-
-- Run `git std bump --dry-run` and show the full output
-- Ask: \"Proceed with this bump?\" (must confirm before continuing)
-- If `--first-release` is needed (no tags yet), note this will be used
-
-**Step 5: Select packages (if multi-package workspace)**
-
-Only if workspace has multiple packages:
-
-- Ask: \"Bump all packages or specific ones? (leave blank for all, or list e.g. git-std, standard-commit)\"
-- If specific packages: add `--package <name>` for each
-
-**Step 6: Confirm push strategy**
-
-- Ask: \"Push commit and tags after? (--push)\"
-- Note: if user says no, they'll need to push manually
-
-**Step 7: Execute the bump**
-
-- Run `git std bump [flags]` with:
-  - `--prerelease` if needed
-  - `--first-release` if needed
-  - `--package <name>` for each specified package
-  - `--push` if user confirmed in Step 6
-- Do **not** run without explicit user approval from Step 4
-"
-    .to_string()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -388,7 +283,7 @@ mod tests {
 
     #[test]
     fn std_commit_skill_has_frontmatter() {
-        let s = generate_std_commit_skill();
+        let s = include_str!("../../../../../skills/std-commit.md");
         assert!(s.starts_with("---\nname: std-commit\n"));
         assert!(s.contains("git std --context"));
         assert!(s.contains("git std commit"));
@@ -396,7 +291,7 @@ mod tests {
 
     #[test]
     fn std_commit_skill_includes_message_guidelines() {
-        let s = generate_std_commit_skill();
+        let s = include_str!("../../../../../skills/std-commit.md");
         assert!(
             s.contains("50 characters"),
             "skill should document 50 char limit"
@@ -414,7 +309,7 @@ mod tests {
 
     #[test]
     fn std_bump_skill_has_frontmatter() {
-        let s = generate_std_bump_skill();
+        let s = include_str!("../../../../../skills/std-bump.md");
         assert!(s.starts_with("---\nname: std-bump\n"));
         assert!(s.contains("git std bump --dry-run"));
         assert!(s.contains("--push"));

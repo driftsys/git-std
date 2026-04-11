@@ -18,6 +18,13 @@ fn main() {
         return;
     }
 
+    // Handle --version / -V before clap so we can append the update hint to stderr.
+    if std::env::args().any(|a| a == "--version" || a == "-V") {
+        println!("git-std {}", env!("CARGO_PKG_VERSION"));
+        cli::update_check::print_update_hint();
+        return;
+    }
+
     let cli = Cli::parse();
 
     // Configure yansi colour output based on --color flag.
