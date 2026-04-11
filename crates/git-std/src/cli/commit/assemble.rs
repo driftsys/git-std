@@ -90,7 +90,9 @@ pub(super) fn gather_answers(
         prompt::prompt_description()?
     };
 
-    let body = if fully_non_interactive {
+    let body = if opts.body.is_some() {
+        opts.body.clone()
+    } else if fully_non_interactive {
         None
     } else {
         prompt::prompt_body()?

@@ -8,6 +8,7 @@ pub struct CommitOptions {
     pub commit_type: Option<String>,
     pub scope: Option<String>,
     pub message: Option<String>,
+    pub body: Option<String>,
     pub breaking: Option<String>,
     pub dry_run: bool,
     pub amend: bool,
@@ -308,6 +309,7 @@ mod tests {
             commit_type: Some("feat".into()),
             scope: Some("auth".into()),
             message: Some("add login".into()),
+            body: None,
             breaking: Some("removed old flow".into()),
             dry_run: false,
             amend: false,
@@ -326,6 +328,31 @@ mod tests {
     }
 
     #[test]
+    fn gather_answers_with_body_flag() {
+        let config = ProjectConfig {
+            types: vec!["feat".into()],
+            scopes: ScopesConfig::None,
+            strict: false,
+            ..Default::default()
+        };
+        let opts = CommitOptions {
+            commit_type: Some("feat".into()),
+            scope: None,
+            message: Some("add PKCE".into()),
+            body: Some("Full PKCE flow for OAuth2.".into()),
+            breaking: None,
+            dry_run: false,
+            amend: false,
+            sign: false,
+            all: false,
+            footer: vec![],
+            signoff: false,
+        };
+        let answers = gather_answers(&config, &opts).unwrap();
+        assert_eq!(answers.body.as_deref(), Some("Full PKCE flow for OAuth2."));
+    }
+
+    #[test]
     fn gather_answers_minimal_non_interactive() {
         let config = ProjectConfig {
             types: vec!["feat".into()],
@@ -337,6 +364,7 @@ mod tests {
             commit_type: Some("feat".into()),
             scope: None,
             message: Some("add login".into()),
+            body: None,
             breaking: None,
             dry_run: false,
             amend: false,
@@ -368,6 +396,7 @@ mod tests {
             commit_type: Some("feat".into()),
             scope: Some("git-std".into()),
             message: Some("add feature".into()),
+            body: None,
             breaking: None,
             dry_run: false,
             amend: false,
@@ -392,6 +421,7 @@ mod tests {
             commit_type: Some("feat".into()),
             scope: Some("auth".into()),
             message: Some("add login".into()),
+            body: None,
             breaking: None,
             dry_run: true,
             amend: false,
@@ -491,6 +521,7 @@ mod tests {
             commit_type: Some("feat".into()),
             scope: None,
             message: Some("add login".into()),
+            body: None,
             breaking: None,
             dry_run: false,
             amend: false,

@@ -59,6 +59,9 @@ pub enum Command {
         /// Commit description (subject line). Skips all prompts when combined with --type.
         #[arg(short = 'm', long)]
         message: Option<String>,
+        /// Commit body paragraph (extended description).
+        #[arg(short = 'b', long)]
+        body: Option<String>,
         /// Breaking change description.
         #[arg(long)]
         breaking: Option<String>,
