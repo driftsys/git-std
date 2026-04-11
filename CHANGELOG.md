@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.7] (2026-04-11)
+
+### Documentation
+
+- **git-std:** refactor std-bump skill for better clarity and reactivity
+  ([465def3])
+- **git-std:** refactor std-commit skill for better clarity and reactivity
+  ([d4f6649])
+
+[0.11.7]: https://github.com/driftsys/git-std/compare/v0.11.6...v0.11.7
+[465def3]: https://github.com/driftsys/git-std/commit/465def3
+[d4f6649]: https://github.com/driftsys/git-std/commit/d4f6649
+
 ## [0.11.6] (2026-04-11)
 
 ### Features

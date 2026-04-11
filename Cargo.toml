@@ -10,16 +10,16 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.11.6"
+version = "0.11.7"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/driftsys/git-std"
 
 [workspace.dependencies]
-standard-commit = { version = "0.11.6", path = "crates/standard-commit" }
-standard-changelog = { version = "0.11.6", path = "crates/standard-changelog" }
-standard-version = { version = "0.11.6", path = "crates/standard-version" }
-standard-githooks = { version = "0.11.6", path = "crates/standard-githooks" }
+standard-commit = { version = "0.11.7", path = "crates/standard-commit" }
+standard-changelog = { version = "0.11.7", path = "crates/standard-changelog" }
+standard-version = { version = "0.11.7", path = "crates/standard-version" }
+standard-githooks = { version = "0.11.7", path = "crates/standard-githooks" }
 
 [profile.release]
 lto = true
