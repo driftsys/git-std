@@ -17,16 +17,69 @@ use super::{
 // ---------------------------------------------------------------------------
 
 /// Write `.git-std.toml` starter config with taplo schema directive.
+///
+/// When the file does not exist, writes the full template.
+/// When it exists and `force` is false, merges missing default keys
+/// into the existing config (backing up the original first).
+/// When `force` is true, overwrites entirely.
 pub fn write_config_file(root: &Path, force: bool) -> FileResult {
     let path = root.join(CONFIG_FILE);
-    if path.exists() && !force {
+
+    if !path.exists() || force {
+        let template = generate_config_template();
+        if let Err(e) = std::fs::write(&path, &template) {
+            ui::error(&format!("cannot write {CONFIG_FILE}: {e}"));
+            return FileResult::Error;
+        }
+        return FileResult::Created;
+    }
+
+    // File exists and !force → attempt smart merge.
+    let existing_content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(e) => {
+            ui::error(&format!("cannot read {CONFIG_FILE}: {e}"));
+            return FileResult::Error;
+        }
+    };
+
+    let mut existing: toml::Table = match existing_content.parse() {
+        Ok(t) => t,
+        Err(_) => {
+            // Unparseable config — don't touch it.
+            return FileResult::Skipped;
+        }
+    };
+
+    let defaults = default_config_table();
+    let added = merge_defaults(&mut existing, &defaults);
+
+    if added.is_empty() {
         return FileResult::Skipped;
     }
 
-    let template = generate_config_template();
-    if let Err(e) = std::fs::write(&path, &template) {
+    // Back up existing config.
+    let backup = root.join(format!("{CONFIG_FILE}.backup"));
+    if let Err(e) = std::fs::copy(&path, &backup) {
+        ui::error(&format!("cannot back up {CONFIG_FILE}: {e}"));
+        return FileResult::Error;
+    }
+
+    // Preserve the schema directive and write merged config.
+    let schema_line =
+        "#:schema https://driftsys.github.io/git-std/schemas/v1/git-std.schema.json\n\n";
+    let merged = format!(
+        "{schema_line}{}",
+        toml::to_string_pretty(&existing).unwrap_or_default()
+    );
+
+    if let Err(e) = std::fs::write(&path, &merged) {
         ui::error(&format!("cannot write {CONFIG_FILE}: {e}"));
         return FileResult::Error;
+    }
+
+    for key in &added {
+        ui::info(&format!("  added default: {key}"));
     }
 
     FileResult::Created
@@ -217,6 +270,57 @@ pub fn generate_lifecycle_hook_template(hook_name: &str) -> String {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Config merge helpers
+// ---------------------------------------------------------------------------
+
+/// Build a TOML table of default config values.
+fn default_config_table() -> toml::Table {
+    let mut t = toml::Table::new();
+    t.insert("scheme".into(), toml::Value::String("semver".into()));
+    t.insert("strict".into(), toml::Value::Boolean(false));
+    t.insert(
+        "types".into(),
+        toml::Value::Array(
+            [
+                "feat", "fix", "docs", "style", "refactor", "perf", "test", "chore", "ci", "build",
+                "revert",
+            ]
+            .iter()
+            .map(|s| toml::Value::String((*s).to_string()))
+            .collect(),
+        ),
+    );
+    t.insert("scopes".into(), toml::Value::String("auto".into()));
+    t
+}
+
+/// Deep-merge `defaults` into `existing`, adding only missing keys.
+///
+/// For table values, recurses into sub-tables. For all other types,
+/// the existing value always wins. Returns the list of keys that were added.
+fn merge_defaults(existing: &mut toml::Table, defaults: &toml::Table) -> Vec<String> {
+    let mut added = Vec::new();
+    for (key, default_val) in defaults {
+        match existing.get_mut(key) {
+            Some(toml::Value::Table(existing_sub)) => {
+                if let toml::Value::Table(default_sub) = default_val {
+                    let sub_added = merge_defaults(existing_sub, default_sub);
+                    if !sub_added.is_empty() {
+                        added.push(key.clone());
+                    }
+                }
+            }
+            Some(_) => {}
+            None => {
+                existing.insert(key.clone(), default_val.clone());
+                added.push(key.clone());
+            }
+        }
+    }
+    added
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,5 +417,74 @@ mod tests {
         assert!(s.starts_with("---\nname: std-bump\n"));
         assert!(s.contains("git std bump --dry-run"));
         assert!(s.contains("--push"));
+    }
+
+    #[test]
+    fn merge_adds_missing_keys() {
+        let mut existing: toml::Table = r#"scheme = "semver""#.parse().unwrap();
+        let defaults = default_config_table();
+        let added = merge_defaults(&mut existing, &defaults);
+        assert!(added.contains(&"strict".to_string()));
+        assert!(added.contains(&"types".to_string()));
+        assert!(!added.contains(&"scheme".to_string()));
+        assert_eq!(
+            existing["scheme"],
+            toml::Value::String("semver".to_string())
+        );
+    }
+
+    #[test]
+    fn merge_preserves_user_values() {
+        let mut existing: toml::Table = r#"
+scheme = "calver"
+types = ["feat", "fix"]
+"#
+        .parse()
+        .unwrap();
+        let defaults = default_config_table();
+        merge_defaults(&mut existing, &defaults);
+        assert_eq!(
+            existing["scheme"],
+            toml::Value::String("calver".to_string())
+        );
+        // User's shorter types list is preserved
+        if let toml::Value::Array(arr) = &existing["types"] {
+            assert_eq!(arr.len(), 2);
+        } else {
+            panic!("types should be an array");
+        }
+    }
+
+    #[test]
+    fn merge_no_changes_returns_empty() {
+        let mut existing: toml::Table = r#"
+scheme = "semver"
+strict = false
+types = ["feat"]
+scopes = "auto"
+"#
+        .parse()
+        .unwrap();
+        let defaults = default_config_table();
+        let added = merge_defaults(&mut existing, &defaults);
+        assert!(added.is_empty());
+    }
+
+    #[test]
+    fn write_config_merges_existing() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join(CONFIG_FILE);
+        std::fs::write(&config_path, "scheme = \"calver\"\n").unwrap();
+
+        let result = write_config_file(dir.path(), false);
+        assert!(matches!(result, FileResult::Created));
+
+        let content = std::fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("scheme = \"calver\""));
+        assert!(content.contains("strict"));
+        assert!(content.contains("types"));
+
+        // Backup should exist
+        assert!(dir.path().join(format!("{CONFIG_FILE}.backup")).exists());
     }
 }
