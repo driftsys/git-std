@@ -63,7 +63,10 @@ enum FileResult {
 // ---------------------------------------------------------------------------
 
 /// Run `git std init`. Returns the process exit code.
-pub fn run(force: bool) -> i32 {
+///
+/// When `refresh` is true, only updates skill files and merges config
+/// defaults — skips hook setup, bootstrap, and README markers.
+pub fn run(force: bool, refresh: bool) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root = match crate::git::workdir(&cwd) {
         Ok(r) => r,
@@ -72,6 +75,10 @@ pub fn run(force: bool) -> i32 {
             return 1;
         }
     };
+
+    if refresh {
+        return run_refresh(&root, force);
+    }
 
     let hooks_dir = root.join(".githooks");
 
@@ -303,6 +310,64 @@ pub fn run(force: bool) -> i32 {
     }
     if let Err(e) = cmd.status() {
         ui::warning(&format!("git add failed: {e} — stage files manually"));
+    }
+
+    0
+}
+
+// ---------------------------------------------------------------------------
+// Refresh mode
+// ---------------------------------------------------------------------------
+
+/// Refresh skills and config without touching hooks or bootstrap.
+fn run_refresh(root: &std::path::Path, force: bool) -> i32 {
+    let mut staged: Vec<&str> = Vec::new();
+
+    // ── Merge config defaults ───────────────────────────────────────────────
+    match write_config_file(root, false) {
+        FileResult::Created => {
+            staged.push(CONFIG_FILE);
+            ui::info(&format!("{}  {CONFIG_FILE} updated", ui::pass()));
+        }
+        FileResult::Skipped => {
+            ui::info(&format!("{}  {CONFIG_FILE} up to date", ui::pass()));
+        }
+        FileResult::Error => return 1,
+    }
+
+    // ── Update skill files (force-overwrite to get latest) ──────────────────
+    for (skill_name, skill_dir, claude_link) in skill_definitions() {
+        match write_skill_source(root, skill_dir, skill_name, true) {
+            FileResult::Created => {
+                staged.push(skill_dir);
+                ui::info(&format!("{}  {skill_dir}/SKILL.md refreshed", ui::pass()));
+            }
+            FileResult::Skipped => {}
+            FileResult::Error => return 1,
+        }
+        match write_skill_symlink(root, claude_link, skill_dir, force) {
+            FileResult::Created => {
+                staged.push(claude_link);
+                ui::info(&format!(
+                    "{}  {claude_link} → {skill_dir} created",
+                    ui::pass()
+                ));
+            }
+            FileResult::Skipped => {}
+            FileResult::Error => return 1,
+        }
+    }
+
+    // ── Stage updated files ─────────────────────────────────────────────────
+    if !staged.is_empty() {
+        let mut cmd = Command::new("git");
+        cmd.current_dir(root).arg("add").arg("--");
+        for f in &staged {
+            cmd.arg(f);
+        }
+        if let Err(e) = cmd.status() {
+            ui::warning(&format!("git add failed: {e} — stage files manually"));
+        }
     }
 
     0

@@ -189,7 +189,7 @@ fn main() {
             };
             cli::bump::run(&project_config, &opts)
         }
-        Command::Init { force } => cli::init::run(force),
+        Command::Init { force, refresh } => cli::init::run(force, refresh),
         Command::Bootstrap { dry_run } => cli::bootstrap::run(dry_run),
         Command::Hook { subcommand } => match subcommand {
             HookCommand::Run { hook, args, format } => cli::hook::run(&hook, &args, format),
