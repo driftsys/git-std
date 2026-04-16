@@ -1,7 +1,6 @@
-use std::process::Command;
+use standard_githooks::Prefix;
 
-use standard_githooks::{HookCommand, Prefix};
-
+use crate::cli::hook::exec_sh;
 use crate::{git, ui};
 
 /// Run a bump lifecycle hook file (`.githooks/<hook>.hooks`).
@@ -54,7 +53,7 @@ pub(super) fn run_lifecycle_hook(hook_name: &str, extra_args: &[&str]) -> Result
     }
 
     for cmd in &commands {
-        let exit_code = execute_hook_command(cmd, extra_args);
+        let exit_code = exec_sh(&cmd.command, extra_args);
         let success = exit_code == Some(0);
         let is_advisory = cmd.prefix == Prefix::Advisory;
 
@@ -80,19 +79,4 @@ pub(super) fn run_lifecycle_hook(hook_name: &str, extra_args: &[&str]) -> Result
     }
 
     Ok(())
-}
-
-/// Execute a single hook command and return its exit code.
-fn execute_hook_command(cmd: &HookCommand, extra_args: &[&str]) -> Option<i32> {
-    let status = Command::new("sh")
-        .arg("-c")
-        .arg(&cmd.command)
-        .arg("_")
-        .args(extra_args)
-        .status();
-
-    match status {
-        Ok(s) => s.code(),
-        Err(_) => Some(127),
-    }
 }

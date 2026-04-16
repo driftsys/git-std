@@ -100,47 +100,16 @@ fn execute_and_print(
     let (exit_code, captured) = if !quiet && ui::is_tty() {
         // TTY: use spinner and capture output to show only on failure
         ui::spin_while(&display, || {
-            let output = Command::new("sh")
-                .arg("-c")
-                .arg(&command_text)
-                .arg("_")
-                .args(staged_files)
-                .output();
-            match output {
-                Ok(o) => {
-                    let mut combined = String::from_utf8_lossy(&o.stdout).into_owned();
-                    combined.push_str(&String::from_utf8_lossy(&o.stderr));
-                    (o.status.code(), combined.trim_end().to_string())
-                }
-                Err(_) => (Some(127), String::new()),
-            }
+            super::exec_sh_capture(&command_text, staged_files)
         })
     } else if !quiet {
         // Non-TTY: show pending, let output inherit, print result
         ui::pending_non_tty(&display);
-        let status = Command::new("sh")
-            .arg("-c")
-            .arg(&command_text)
-            .arg("_")
-            .args(staged_files)
-            .status();
-        let code = match status {
-            Ok(s) => s.code(),
-            Err(_) => Some(127),
-        };
+        let code = super::exec_sh(&command_text, staged_files);
         (code, String::new())
     } else {
         // JSON / quiet mode: no spinner, no output capture or display.
-        let status = Command::new("sh")
-            .arg("-c")
-            .arg(&command_text)
-            .arg("_")
-            .args(staged_files)
-            .status();
-        let code = match status {
-            Ok(s) => s.code(),
-            Err(_) => Some(127),
-        };
+        let code = super::exec_sh(&command_text, staged_files);
         (code, String::new())
     };
 

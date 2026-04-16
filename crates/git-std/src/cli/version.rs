@@ -277,81 +277,9 @@ fn compute_next_semver(
 }
 
 fn compute_next_calver(config: &ProjectConfig, cur_ver: &str) -> Result<String, String> {
-    let date = today_calver_date();
+    let date = crate::cli::bump::detect::today_calver_date();
     standard_version::calver::next_version(&config.versioning.calver_format, date, Some(cur_ver))
         .map_err(|e| e.to_string())
-}
-
-/// Compute today's calver date from the system clock.
-fn today_calver_date() -> standard_version::calver::CalverDate {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
-    calver_date_from_epoch_days(secs.div_euclid(86400) as i32)
-}
-
-/// Convert days since Unix epoch to a calver date using the Howard Hinnant algorithm.
-fn calver_date_from_epoch_days(days: i32) -> standard_version::calver::CalverDate {
-    let z = days + 719468;
-    let era = z.div_euclid(146097);
-    let doe = z.rem_euclid(146097) as u32;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe as i32 + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
-
-    let dow = ((days + 3).rem_euclid(7) + 1) as u32;
-    let jan1_days = {
-        let ys = y - 1;
-        let eras = ys.div_euclid(400);
-        let yoes = ys.rem_euclid(400) as u32;
-        let ms: u32 = 10;
-        let ds: u32 = 1;
-        let doys = (153 * ms + 2) / 5 + ds - 1;
-        let does = yoes * 365 + yoes / 4 - yoes / 100 + doys;
-        eras * 146097 + does as i32 - 719468
-    };
-    let ordinal = days - jan1_days + 1;
-    let jan1_dow = (jan1_days + 3).rem_euclid(7) + 1;
-
-    let iso_week = {
-        let w = (ordinal - dow as i32 + 10) / 7;
-        if w < 1 {
-            let prev_jan1_dow = (jan1_days - 1 + 3).rem_euclid(7) + 1;
-            if prev_jan1_dow == 4
-                || (prev_jan1_dow == 3 && {
-                    let py = y - 1;
-                    py % 4 == 0 && (py % 100 != 0 || py % 400 == 0)
-                })
-            {
-                53
-            } else {
-                52
-            }
-        } else if w > 52 {
-            let is_leap = y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
-            let days_in_year = if is_leap { 366 } else { 365 };
-            if ordinal > days_in_year - 3 && jan1_dow != 4 {
-                1
-            } else {
-                w
-            }
-        } else {
-            w
-        }
-    };
-
-    standard_version::calver::CalverDate {
-        year: y as u32,
-        month: m,
-        day: d,
-        iso_week: iso_week as u32,
-        day_of_week: dow,
-    }
 }
 
 // ---------------------------------------------------------------------------

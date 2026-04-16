@@ -8,7 +8,7 @@
   ✓  post-merge             disabled
   ✓  bootstrap created
   ✓  .githooks/bootstrap.hooks created
-  ✓  .git-std.toml created
+  ✓  .git-std.toml updated
   ✓  .agents/skills/std-commit/SKILL.md → ../../skills/std-commit.md created
   ✓  .claude/skills/std-commit → .agents/skills/std-commit created
   ✓  .agents/skills/std-bump/SKILL.md → ../../skills/std-bump.md created

@@ -242,17 +242,14 @@ pub fn run(force: bool) -> i32 {
         FileResult::Error => return 1,
     }
 
-    // ── Step 7: create .git-std.toml with taplo schema directive ────────────
+    // ── Step 7: create or merge .git-std.toml ──────────────────────────────
     match write_config_file(&root, force) {
         FileResult::Created => {
             staged.push(CONFIG_FILE);
-            ui::info(&format!("{}  {CONFIG_FILE} created", ui::pass()));
+            ui::info(&format!("{}  {CONFIG_FILE} updated", ui::pass()));
         }
         FileResult::Skipped => {
-            ui::info(&format!(
-                "{}  {CONFIG_FILE} already exists (use --force to overwrite)",
-                ui::warn()
-            ));
+            ui::info(&format!("{}  {CONFIG_FILE} up to date", ui::pass()));
         }
         FileResult::Error => return 1,
     }
@@ -268,12 +265,7 @@ pub fn run(force: bool) -> i32 {
                     ui::pass()
                 ));
             }
-            FileResult::Skipped => {
-                ui::info(&format!(
-                    "{}  {skill_dir}/SKILL.md already exists (use --force to overwrite)",
-                    ui::warn()
-                ));
-            }
+            FileResult::Skipped => {}
             FileResult::Error => return 1,
         }
         // Create symlink in .claude/skills/<name> → ../../.agents/skills/<name>

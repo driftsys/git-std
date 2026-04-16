@@ -2,7 +2,7 @@ use crate::ui;
 
 /// Compute today's [`standard_version::calver::CalverDate`] using the Howard
 /// Hinnant civil_from_days algorithm (no external date crate needed).
-pub(super) fn today_calver_date() -> standard_version::calver::CalverDate {
+pub(crate) fn today_calver_date() -> standard_version::calver::CalverDate {
     let secs = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(d) => d.as_secs() as i64,
         Err(e) => {
@@ -16,7 +16,7 @@ pub(super) fn today_calver_date() -> standard_version::calver::CalverDate {
 }
 
 /// Compute a [`CalverDate`] from days since the Unix epoch.
-pub(super) fn calver_date_from_epoch_days(days: i32) -> standard_version::calver::CalverDate {
+pub(crate) fn calver_date_from_epoch_days(days: i32) -> standard_version::calver::CalverDate {
     // Howard Hinnant's civil_from_days algorithm.
     let z = days + 719468;
     let era = z.div_euclid(146097);
