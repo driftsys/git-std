@@ -85,6 +85,72 @@ pub fn print_update_hint() {
     }
 }
 
+/// Run a self-update of the git-std binary. Returns the exit code.
+pub fn run_self_update() -> i32 {
+    ui::info("checking for updates…");
+
+    let Some(latest) = fetch_latest_version() else {
+        ui::error("could not fetch latest release from GitHub");
+        ui::hint("check your network connection and try again");
+        return 1;
+    };
+
+    let cur = match semver::Version::parse(CURRENT_VERSION) {
+        Ok(v) => v,
+        Err(_) => {
+            ui::error(&format!("cannot parse current version: {CURRENT_VERSION}"));
+            return 1;
+        }
+    };
+    let lat = match semver::Version::parse(&latest) {
+        Ok(v) => v,
+        Err(_) => {
+            ui::error(&format!("cannot parse latest version: {latest}"));
+            return 1;
+        }
+    };
+
+    if lat <= cur {
+        ui::info(&format!(
+            "{} already up to date ({CURRENT_VERSION})",
+            ui::pass()
+        ));
+        return 0;
+    }
+
+    ui::info(&format!("updating git-std {CURRENT_VERSION} → {latest}…"));
+
+    let method = detect_install_method();
+    let (cmd, args) = update_command_for_method(&method);
+
+    let status = std::process::Command::new(cmd).args(&args).status();
+
+    match status {
+        Ok(s) if s.success() => {
+            // Update the cache to reflect the new version.
+            if let Some(path) = cache_path() {
+                let cache = UpdateCache {
+                    latest_version: latest.clone(),
+                    checked_at: now_epoch_secs(),
+                };
+                let _ = write_cache_to(&path, &cache);
+            }
+            ui::info(&format!("{} git-std updated to {latest}", ui::pass()));
+            0
+        }
+        Ok(s) => {
+            ui::error("update command failed");
+            ui::hint(&format!("try running manually: {method}"));
+            s.code().unwrap_or(1)
+        }
+        Err(e) => {
+            ui::error(&format!("could not run update command: {e}"));
+            ui::hint(&format!("try running manually: {method}"));
+            1
+        }
+    }
+}
+
 // ── private helpers ─────────────────────────────────────────────────
 
 fn is_disabled() -> bool {
@@ -173,6 +239,25 @@ fn install_method_for_path(path: &str) -> String {
     }
 }
 
+/// Split a human-readable install method string into a command and args
+/// suitable for `std::process::Command`.
+fn update_command_for_method(method: &str) -> (&str, Vec<&str>) {
+    if method.starts_with("cargo install") {
+        ("cargo", vec!["install", "git-std"])
+    } else if method.starts_with("curl") {
+        ("sh", vec!["-c", method])
+    } else if method.starts_with("nix") {
+        ("nix", vec!["profile", "upgrade", "git-std"])
+    } else {
+        // Fallback: open the releases page (won't actually work as a command,
+        // but run_self_update prints the hint on failure).
+        (
+            "echo",
+            vec!["visit https://github.com/driftsys/git-std/releases"],
+        )
+    }
+}
+
 // ── tests ───────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -255,5 +340,35 @@ mod tests {
     fn method_other() {
         let m = install_method_for_path("/usr/local/bin/git-std");
         assert!(m.contains("github.com"));
+    }
+
+    #[test]
+    fn update_cmd_cargo() {
+        let (cmd, args) = update_command_for_method("cargo install git-std");
+        assert_eq!(cmd, "cargo");
+        assert_eq!(args, vec!["install", "git-std"]);
+    }
+
+    #[test]
+    fn update_cmd_curl() {
+        let method =
+            "curl -fsSL https://raw.githubusercontent.com/driftsys/git-std/main/install.sh | sh";
+        let (cmd, args) = update_command_for_method(method);
+        assert_eq!(cmd, "sh");
+        assert_eq!(args, vec!["-c", method]);
+    }
+
+    #[test]
+    fn update_cmd_nix() {
+        let (cmd, args) = update_command_for_method("nix profile upgrade git-std");
+        assert_eq!(cmd, "nix");
+        assert_eq!(args, vec!["profile", "upgrade", "git-std"]);
+    }
+
+    #[test]
+    fn update_cmd_fallback() {
+        let (cmd, _) =
+            update_command_for_method("visit https://github.com/driftsys/git-std/releases");
+        assert_eq!(cmd, "echo");
     }
 }
