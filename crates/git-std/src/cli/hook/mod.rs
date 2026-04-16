@@ -8,10 +8,50 @@ pub use list::list;
 pub use run::run;
 
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use standard_githooks::HookCommand;
 
 use crate::{git, ui};
+
+/// Execute a shell command via `sh -c`, passing extra positional args.
+///
+/// Returns the exit code, or `Some(127)` on spawn failure.
+pub(crate) fn exec_sh(command: &str, args: &[impl AsRef<std::ffi::OsStr>]) -> Option<i32> {
+    let status = Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .arg("_")
+        .args(args)
+        .status();
+    match status {
+        Ok(s) => s.code(),
+        Err(_) => Some(127),
+    }
+}
+
+/// Execute a shell command via `sh -c`, capturing stdout+stderr.
+///
+/// Returns `(exit_code, combined_output)`.
+pub(crate) fn exec_sh_capture(
+    command: &str,
+    args: &[impl AsRef<std::ffi::OsStr>],
+) -> (Option<i32>, String) {
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .arg("_")
+        .args(args)
+        .output();
+    match output {
+        Ok(o) => {
+            let mut combined = String::from_utf8_lossy(&o.stdout).into_owned();
+            combined.push_str(&String::from_utf8_lossy(&o.stderr));
+            (o.status.code(), combined.trim_end().to_string())
+        }
+        Err(_) => (Some(127), String::new()),
+    }
+}
 
 /// Resolve the `.githooks/` directory from the repository root.
 ///
