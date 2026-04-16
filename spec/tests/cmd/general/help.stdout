@@ -33,6 +33,9 @@ Options:
       --context
           Dump project context as Markdown for agent consumption
 
+      --update
+          Update git-std to the latest release
+
       --format <FORMAT>
           Output format for --context
 

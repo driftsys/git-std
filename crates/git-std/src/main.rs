@@ -18,6 +18,11 @@ fn main() {
         return;
     }
 
+    // Handle --update before clap so it works as a global flag.
+    if std::env::args().any(|a| a == "--update") {
+        std::process::exit(cli::update_check::run_self_update());
+    }
+
     // Handle --version / -V before clap so we can append the update hint to stderr.
     if std::env::args().any(|a| a == "--version" || a == "-V") {
         println!("git-std {}", env!("CARGO_PKG_VERSION"));

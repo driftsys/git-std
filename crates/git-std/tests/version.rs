@@ -163,6 +163,30 @@ fn version_describe_ahead_includes_distance_and_hash() {
     );
 }
 
+#[test]
+fn version_describe_dirty_tree() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    create_tag(dir.path(), "v1.0.0");
+
+    // Create an unstaged file to make the tree dirty
+    std::fs::write(dir.path().join("dirty.txt"), "uncommitted").unwrap();
+
+    let output = git_std(dir.path())
+        .args(["version", "--describe"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&output).trim().to_string();
+
+    assert!(
+        text.ends_with(".dirty"),
+        "describe should end with .dirty for dirty tree, got: {text}"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // --next
 // ---------------------------------------------------------------------------
