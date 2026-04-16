@@ -268,12 +268,7 @@ pub fn run(force: bool) -> i32 {
                     ui::pass()
                 ));
             }
-            FileResult::Skipped => {
-                ui::info(&format!(
-                    "{}  {skill_dir}/SKILL.md already exists (use --force to overwrite)",
-                    ui::warn()
-                ));
-            }
+            FileResult::Skipped => {}
             FileResult::Error => return 1,
         }
         // Create symlink in .claude/skills/<name> → ../../.agents/skills/<name>
