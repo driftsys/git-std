@@ -34,16 +34,14 @@ pub fn next_version(
 
     // Determine patch number.
     let patch = match previous_version {
-        Some(prev) => {
+        Some(prev)
             // Check if the date segments match.
-            if date_segments_match(prev, &tokens, date) {
-                // Extract the current patch number and increment.
-                extract_patch(prev, &tokens) + 1
-            } else {
-                0
-            }
+            if date_segments_match(prev, &tokens, date) =>
+        {
+            // Extract the current patch number and increment.
+            extract_patch(prev, &tokens) + 1
         }
-        None => 0,
+        _ => 0,
     };
 
     Ok(format!("{date_prefix}{patch}{date_suffix}"))
