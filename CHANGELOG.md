@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.11.9] (2026-04-16)
+
+### Features
+
+- **git-std:** suggest commit type in --context based on staged files
+  ([a0e8cb0])
+
+### Refactoring
+
+- **git-std:** consolidate skills as SSOT and show update hint on --version
+  ([b2996bd])
+
+[0.11.9]: https://github.com/driftsys/git-std/compare/v0.11.8...v0.11.9
+[a0e8cb0]: https://github.com/driftsys/git-std/commit/a0e8cb0
+[b2996bd]: https://github.com/driftsys/git-std/commit/b2996bd
+
 ## [0.11.8] (2026-04-11)
 
 ### Features
