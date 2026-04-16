@@ -37,6 +37,10 @@ pub struct Cli {
     #[arg(long)]
     pub context: bool,
 
+    /// Update git-std to the latest release.
+    #[arg(long)]
+    pub update: bool,
+
     /// Output format for --context.
     #[arg(long, default_value = "text")]
     pub format: OutputFormat,

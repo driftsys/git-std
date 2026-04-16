@@ -12,6 +12,7 @@ git std <command> [options]
 | `--version` / `-V`      | Print version                        |
 | `--color <when>`        | `auto` (default), `always`, `never`  |
 | `--completions <shell>` | Generate shell completions to stdout |
+| `--update`              | Update git-std to the latest release |
 
 ## `git std lint`
 
