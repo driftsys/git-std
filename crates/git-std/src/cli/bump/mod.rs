@@ -1,5 +1,5 @@
 mod apply;
-mod detect;
+pub(crate) mod detect;
 mod lifecycle;
 pub(crate) mod monorepo;
 mod plan;
