@@ -152,8 +152,9 @@ Scaffold hooks, bootstrap script, and README section in one step.
 Consolidates hook setup and bootstrap scaffolding for maintainers.
 
 ```bash
-git std init            # scaffold everything interactively
-git std init --force    # overwrite existing files
+git std init              # scaffold everything interactively
+git std init --force      # overwrite existing files
+git std init --refresh    # update skills and merge config defaults
 ```
 
 **What it does:**
@@ -170,9 +171,10 @@ git std init --force    # overwrite existing files
 
 **Flags:**
 
-| Flag      | Description              |
-| --------- | ------------------------ |
-| `--force` | Overwrite existing files |
+| Flag        | Description                                          |
+| ----------- | ---------------------------------------------------- |
+| `--force`   | Overwrite existing files                             |
+| `--refresh` | Update skills and merge config defaults (skip hooks) |
 
 **Exit codes:** `0` = success, `1` = error.
 
