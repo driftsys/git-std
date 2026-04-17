@@ -621,4 +621,47 @@ mod tests {
     fn calver_code_invalid() {
         assert!(calver_code("notaversion").is_err());
     }
+
+    #[test]
+    fn calver_code_two_digit_year() {
+        // "26.3.0" should be treated as 2026.
+        let short = calver_code("26.3.0").unwrap();
+        let full = calver_code("2026.3.0").unwrap();
+        assert_eq!(short, full);
+    }
+
+    #[test]
+    fn calver_code_leap_year_february() {
+        // 2024 is a leap year — February should still work.
+        assert!(calver_code("2024.2.0").is_ok());
+    }
+
+    #[test]
+    fn calver_code_year_rollover() {
+        // December of one year < January of next year.
+        let dec = calver_code("2025.12.0").unwrap();
+        let jan = calver_code("2026.1.0").unwrap();
+        assert!(dec < jan);
+    }
+
+    #[test]
+    fn calver_code_high_micro() {
+        // Micro 99 should still produce a valid code.
+        assert!(calver_code("2026.3.99").is_ok());
+    }
+
+    #[test]
+    fn calver_code_malformed_month() {
+        assert!(calver_code("2024.X.1").is_err());
+    }
+
+    #[test]
+    fn calver_code_malformed_micro() {
+        assert!(calver_code("2024.3.abc").is_err());
+    }
+
+    #[test]
+    fn calver_code_too_few_parts() {
+        assert!(calver_code("2024.3").is_err());
+    }
 }
