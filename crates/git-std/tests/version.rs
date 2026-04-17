@@ -52,6 +52,12 @@ fn git_std(dir: &Path) -> Command {
     cmd
 }
 
+fn write_calver_config(dir: &Path) {
+    std::fs::write(dir.join(".git-std.toml"), "scheme = \"calver\"\n").unwrap();
+    git(dir, &["add", ".git-std.toml"]);
+    git(dir, &["commit", "-m", "chore: add calver config"]);
+}
+
 // ---------------------------------------------------------------------------
 // Help / usage
 // ---------------------------------------------------------------------------
@@ -402,4 +408,171 @@ fn version_multiple_flags_each_printed() {
     assert_eq!(lines.len(), 2, "expected two output lines, got: {text}");
     assert_eq!(lines[0], "1.1.0");
     assert_eq!(lines[1], "minor");
+}
+
+// ---------------------------------------------------------------------------
+// Calver — bare version
+// ---------------------------------------------------------------------------
+
+#[test]
+fn calver_bare_version() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    write_calver_config(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+
+    git_std(dir.path())
+        .arg("version")
+        .assert()
+        .success()
+        .stdout("2026.3.0\n");
+}
+
+#[test]
+fn calver_no_tag_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    write_calver_config(dir.path());
+
+    git_std(dir.path())
+        .arg("version")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("no version tag found"));
+}
+
+// ---------------------------------------------------------------------------
+// Calver — --describe
+// ---------------------------------------------------------------------------
+
+#[test]
+fn calver_describe_at_tag() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    write_calver_config(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+
+    git_std(dir.path())
+        .args(["version", "--describe"])
+        .assert()
+        .success()
+        .stdout("2026.3.0\n");
+}
+
+#[test]
+fn calver_describe_ahead() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    write_calver_config(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+    add_commit(dir.path(), "a.txt", "feat: something");
+
+    let output = git_std(dir.path())
+        .args(["version", "--describe"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&output).trim().to_string();
+    assert!(
+        text.starts_with("2026.3.0-dev.1+g"),
+        "calver describe should have -dev.1+g prefix, got: {text}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Calver — --next
+// ---------------------------------------------------------------------------
+
+#[test]
+fn calver_next_computes_new_version() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    write_calver_config(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+    add_commit(dir.path(), "a.txt", "feat: feature");
+
+    let output = git_std(dir.path())
+        .args(["version", "--next"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&output).trim().to_string();
+    // Next calver version should start with the current year/month.
+    assert!(
+        text.chars().next().unwrap().is_ascii_digit(),
+        "calver next should be a date-based version, got: {text}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Calver — --code
+// ---------------------------------------------------------------------------
+
+#[test]
+fn calver_code_returns_numeric() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    write_calver_config(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+
+    let output = git_std(dir.path())
+        .args(["version", "--code"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&output).trim().to_string();
+    let code: u64 = text
+        .parse()
+        .unwrap_or_else(|_| panic!("calver code should be numeric, got: {text}"));
+    assert!(code > 0, "calver code should be positive");
+}
+
+// ---------------------------------------------------------------------------
+// Calver — --format json
+// ---------------------------------------------------------------------------
+
+#[test]
+fn calver_format_json() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    write_calver_config(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+
+    let output = git_std(dir.path())
+        .args(["version", "--format", "json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&output);
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .unwrap_or_else(|e| panic!("calver json should be valid JSON: {e}\n{text}"));
+    assert_eq!(json["version"], "2026.3.0");
+    assert_eq!(json["label"], "calver");
+}
+
+// ---------------------------------------------------------------------------
+// Calver — --label
+// ---------------------------------------------------------------------------
+
+#[test]
+fn calver_label_is_calver() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    write_calver_config(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+    add_commit(dir.path(), "a.txt", "feat: feature");
+
+    git_std(dir.path())
+        .args(["version", "--label"])
+        .assert()
+        .success()
+        .stdout("calver\n");
 }
