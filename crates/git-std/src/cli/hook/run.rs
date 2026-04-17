@@ -17,11 +17,6 @@ struct CommandResult {
     exit_code: Option<i32>,
     /// Whether this command was advisory.
     advisory: bool,
-    /// Combined stdout+stderr captured from the child process.
-    /// Empty when the command succeeded (pass) or when quiet=true.
-    /// Used only in human-readable output path, not in JSON path.
-    #[allow(dead_code)]
-    captured_output: String,
 }
 
 /// JSON output schema for a single executed command.
@@ -149,7 +144,6 @@ fn execute_and_print(
         CommandResult {
             exit_code,
             advisory: is_advisory,
-            captured_output: if quiet { String::new() } else { captured },
         },
         failed,
     )
