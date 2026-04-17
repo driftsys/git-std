@@ -219,7 +219,6 @@ configures the local environment.
 ```bash
 git std bootstrap              # run built-in checks + bootstrap.hooks
 git std bootstrap --dry-run    # print what would be done
-git std bootstrap install      # scaffold bootstrap files for contributors
 ```
 
 **Built-in checks:**
@@ -232,13 +231,7 @@ git std bootstrap install      # scaffold bootstrap files for contributors
 
 After built-in checks, runs `.githooks/bootstrap.hooks` if present.
 
-**`bootstrap install` flags:**
-
-| Flag      | Description              |
-| --------- | ------------------------ |
-| `--force` | Overwrite existing files |
-
-**`bootstrap` flags:**
+**Flags:**
 
 | Flag        | Description                             |
 | ----------- | --------------------------------------- |
@@ -348,52 +341,6 @@ eval "$(git-std --completions zsh)"
 
 # Fish (~/.config/fish/config.fish)
 git-std --completions fish | source
-```
-
-## `git std config`
-
-Inspect effective configuration loaded from `.git-std.toml`.
-
-```bash
-git std config list              # print all settings with source annotations
-git std config list --format json  # machine-readable JSON on stdout
-git std config get <key>         # print a single value to stdout
-git std config get <key> --format json  # value as JSON
-```
-
-**Subcommands:**
-
-| Subcommand  | Description                                   |
-| ----------- | --------------------------------------------- |
-| `list`      | Print all effective config grouped by section |
-| `get <key>` | Print a single dot-separated key value        |
-
-**Flags (list and get):**
-
-| Flag             | Description                             |
-| ---------------- | --------------------------------------- |
-| `--format <fmt>` | Output format: `text` (default), `json` |
-
-**Supported keys for `get`:**
-
-`scheme`, `strict`, `types`, `scopes`,
-`versioning.tag_prefix`, `versioning.prerelease_tag`, `versioning.calver_format`,
-`changelog.title`, `changelog.hidden`, `changelog.sections`, `changelog.bug_url`
-
-**Exit codes:** `0` = success, `1` = unknown key or error.
-
-**Example output:**
-
-```text
-$ git std config list
-  scheme = semver                            (default)
-  strict = false                             (default)
-  types = [feat, fix, docs, ...]             (default)
-  scopes = none                              (default)
-
-  [versioning]
-  tag_prefix = v                             (default)
-  ...
 ```
 
 ## Update Check

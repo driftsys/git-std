@@ -34,6 +34,8 @@ types = ["feat", "fix", "docs", "style",
 scopes = ["auth", "api", "ci", "deps"]         # "auto" | string[] | omit
 strict = true                         # enforce types/scopes
 monorepo = false                      # per-package versioning
+release_branch = "main"               # expected branch for bumps
+refs_required = ["feat", "fix"]       # types that require a footer ref
 
 # ── Versioning ────────────────────────────────────────────────────
 [versioning]
@@ -71,13 +73,15 @@ path = "crates/core"
 
 ### Top-level
 
-| Field      | Type                 | Default           | Description                                             |
-| ---------- | -------------------- | ----------------- | ------------------------------------------------------- |
-| `scheme`   | string               | `"semver"`        | Versioning scheme (see below)                           |
-| `types`    | string[]             | 11 standard types | Allowed conventional commit types                       |
-| `scopes`   | `"auto"` or string[] | None              | Scope discovery or explicit allowlist                   |
-| `strict`   | bool                 | `false`           | Enforce types/scopes validation without `--strict` flag |
-| `monorepo` | bool                 | `false`           | Enable per-package versioning                           |
+| Field            | Type                 | Default           | Description                                             |
+| ---------------- | -------------------- | ----------------- | ------------------------------------------------------- |
+| `scheme`         | string               | `"semver"`        | Versioning scheme (see below)                           |
+| `types`          | string[]             | 11 standard types | Allowed conventional commit types                       |
+| `scopes`         | `"auto"` or string[] | None              | Scope discovery or explicit allowlist                   |
+| `strict`         | bool                 | `false`           | Enforce types/scopes validation without `--strict` flag |
+| `monorepo`       | bool                 | `false`           | Enable per-package versioning                           |
+| `release_branch` | string               | _(none)_          | Branch that `git std bump` is expected to run on        |
+| `refs_required`  | string[]             | `[]`              | Commit types that require a footer reference            |
 
 Default types: `feat`, `fix`, `docs`, `style`, `refactor`,
 `perf`, `test`, `chore`, `ci`, `build`, `revert`.
@@ -106,6 +110,15 @@ When scopes is set (either `"auto"` or an array) and
 `--strict` is used, a scope is required and must be in the
 resolved list. For `git std commit`, the resolved scopes
 populate the interactive scope prompt.
+
+**`release_branch`:** When set, bumping on a different branch
+triggers a confirmation prompt (or an error in non-interactive
+mode unless `--yes` is supplied). When unset, both `main` and
+`master` are accepted without prompting.
+
+**`refs_required`:** Types listed here must include a footer
+reference (e.g. `Refs: #123`). Validated during `git std lint`
+with `--strict`.
 
 ### `[versioning]`
 
