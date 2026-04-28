@@ -1,5 +1,64 @@
 # Changelog
 
+## [0.11.10] (2026-04-28)
+
+### Bug Fixes
+
+- **standard-version:** collapse nested if into match guard for clippy 1.95
+  ([8ab14b0])
+
+### Refactoring
+
+- **git-std:** extract shared exec_sh primitives from hook runner ([9b3c1a1]),
+  closes [#427]
+- **git-std:** deduplicate calver date algorithm between version and bump
+  ([5070536]), closes [#420]
+
+### Documentation
+
+- **git-std:** add AI agent preferences and use @ include in CLAUDE.md
+  ([30e008e])
+
+### Features
+
+- **git-std:** add init --refresh to update skills and merge config ([#483])
+  ([1d79314]), closes 472
+
+* feat(git-std): add init --refresh to update skills
+  and merge config
+
+--refresh updates skill files from latest templates and
+merges missing
+config defaults, without touching hooks, bootstrap, or README
+markers.
+Preserves custom .git-std.toml settings via smart merge., [#471]
+
+- **git-std:** add --update flag for self-updating the binary ([#481])
+  ([40bdd5d]), closes [#470]
+- **git-std:** smart config merge preserves user customizations during init
+  ([#482]) ([46e88c5]), closes [#472]
+- **git-std:** complete agent skills scaffolding acceptance criteria
+  ([4ad20f4]), closes [#460]
+
+[0.11.10]: https://github.com/driftsys/git-std/compare/v0.11.9...v0.11.10
+[8ab14b0]: https://github.com/driftsys/git-std/commit/8ab14b0
+[9b3c1a1]: https://github.com/driftsys/git-std/commit/9b3c1a1
+[#427]: https://github.com/driftsys/git-std/issues/427
+[5070536]: https://github.com/driftsys/git-std/commit/5070536
+[#420]: https://github.com/driftsys/git-std/issues/420
+[30e008e]: https://github.com/driftsys/git-std/commit/30e008e
+[1d79314]: https://github.com/driftsys/git-std/commit/1d79314
+[#483]: https://github.com/driftsys/git-std/issues/483
+[#471]: https://github.com/driftsys/git-std/issues/471
+[40bdd5d]: https://github.com/driftsys/git-std/commit/40bdd5d
+[#481]: https://github.com/driftsys/git-std/issues/481
+[#470]: https://github.com/driftsys/git-std/issues/470
+[46e88c5]: https://github.com/driftsys/git-std/commit/46e88c5
+[#482]: https://github.com/driftsys/git-std/issues/482
+[#472]: https://github.com/driftsys/git-std/issues/472
+[4ad20f4]: https://github.com/driftsys/git-std/commit/4ad20f4
+[#460]: https://github.com/driftsys/git-std/issues/460
+
 ## [0.11.9] (2026-04-16)
 
 ### Features
