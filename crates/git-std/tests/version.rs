@@ -403,3 +403,149 @@ fn version_multiple_flags_each_printed() {
     assert_eq!(lines[0], "1.1.0");
     assert_eq!(lines[1], "minor");
 }
+
+// ---------------------------------------------------------------------------
+// Calver
+// ---------------------------------------------------------------------------
+
+fn init_calver_repo(dir: &Path) {
+    init_repo(dir);
+    std::fs::write(dir.join(".git-std.toml"), "scheme = \"calver\"\n").unwrap();
+    git(dir, &["add", ".git-std.toml"]);
+    git(dir, &["commit", "-m", "chore: add calver config"]);
+}
+
+#[test]
+fn version_calver_bare_prints_current() {
+    let dir = tempfile::tempdir().unwrap();
+    init_calver_repo(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+
+    git_std(dir.path())
+        .arg("version")
+        .assert()
+        .success()
+        .stdout("2026.3.0\n");
+}
+
+#[test]
+fn version_calver_no_tag_exits_with_error() {
+    let dir = tempfile::tempdir().unwrap();
+    init_calver_repo(dir.path());
+
+    git_std(dir.path())
+        .arg("version")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("no version tag found"));
+}
+
+#[test]
+fn version_calver_code_is_integer() {
+    let dir = tempfile::tempdir().unwrap();
+    init_calver_repo(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+
+    let output = git_std(dir.path())
+        .args(["version", "--code"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&output).trim().to_string();
+    assert!(
+        text.parse::<u64>().is_ok(),
+        "--code output should be an integer for calver, got: {text}"
+    );
+}
+
+#[test]
+fn version_calver_label_is_calver() {
+    let dir = tempfile::tempdir().unwrap();
+    init_calver_repo(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+
+    git_std(dir.path())
+        .args(["version", "--label"])
+        .assert()
+        .success()
+        .stdout("calver\n");
+}
+
+#[test]
+fn version_calver_next_prints_next_version() {
+    let dir = tempfile::tempdir().unwrap();
+    init_calver_repo(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
+
+    // --next should succeed and print a non-empty version string.
+    let output = git_std(dir.path())
+        .args(["version", "--next"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&output).trim().to_string();
+    assert!(!text.is_empty(), "--next should print a version string");
+}
+
+#[test]
+fn version_calver_format_json_has_all_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    init_calver_repo(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+    add_commit(dir.path(), "a.txt", "feat: feature");
+
+    let output = git_std(dir.path())
+        .args(["version", "--format", "json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8_lossy(&output);
+    let val: serde_json::Value = serde_json::from_str(text.trim()).expect("valid JSON");
+
+    assert_eq!(val["version"], "2026.3.0");
+    assert_eq!(val["label"], "calver");
+    assert!(val["next"].is_string(), "next should be a string");
+    assert!(val["code"].is_number(), "code should be a number");
+}
+
+#[test]
+fn version_calver_describe_at_tag_is_clean() {
+    let dir = tempfile::tempdir().unwrap();
+    init_calver_repo(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+
+    git_std(dir.path())
+        .args(["version", "--describe"])
+        .assert()
+        .success()
+        .stdout("2026.3.0\n");
+}
+
+#[test]
+fn version_calver_describe_ahead_includes_distance() {
+    let dir = tempfile::tempdir().unwrap();
+    init_calver_repo(dir.path());
+    create_tag(dir.path(), "v2026.3.0");
+    add_commit(dir.path(), "a.txt", "feat: something");
+
+    let output = git_std(dir.path())
+        .args(["version", "--describe"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&output).trim().to_string();
+    assert!(
+        text.starts_with("2026.3.0-dev.1+g"),
+        "describe should have -dev.1+g prefix, got: {text}"
+    );
+}
