@@ -621,4 +621,48 @@ mod tests {
     fn calver_code_invalid() {
         assert!(calver_code("notaversion").is_err());
     }
+
+    #[test]
+    fn calver_code_prerelease_segment_uses_last_numeric() {
+        // "2026.3.1-rc.1" splits as ["2026","3","1","rc","1"]; micro = 1
+        let days = days_since_epoch(2026, 3, 1);
+        let expected = days as u64 * 10_000 + 1 * 100 + 99;
+        assert_eq!(calver_code("2026.3.1-rc.1").unwrap(), expected);
+    }
+
+    #[test]
+    fn calver_code_leap_year_feb() {
+        // 2024 is a leap year — Feb 1 2024 should parse without error.
+        assert!(calver_code("2024.2.0").is_ok());
+    }
+
+    #[test]
+    fn calver_code_year_rollover_ordering() {
+        // Dec 2025 code must be less than Jan 2026 code.
+        let dec = calver_code("2025.12.0").unwrap();
+        let jan = calver_code("2026.1.0").unwrap();
+        assert!(dec < jan, "dec={dec} should be less than jan={jan}");
+    }
+
+    #[test]
+    fn calver_code_invalid_year() {
+        assert!(calver_code("XXXX.3.1").is_err());
+    }
+
+    #[test]
+    fn calver_code_invalid_month() {
+        assert!(calver_code("2026.X.1").is_err());
+    }
+
+    #[test]
+    fn calver_code_invalid_micro() {
+        assert!(calver_code("2026.3.X").is_err());
+    }
+
+    #[test]
+    fn calver_code_two_digit_year_adjusted() {
+        // year=26 → full_year=2026; same as 4-digit 2026.
+        let expected = calver_code("2026.3.0").unwrap();
+        assert_eq!(calver_code("26.3.0").unwrap(), expected);
+    }
 }
