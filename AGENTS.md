@@ -178,6 +178,12 @@ when they reflect a genuine concern, but keep each module focused and small.
 - **Comments:** doc comments on all public API items, brief inline comments on
   tricky internals only.
 
+## AI Agent Preferences
+
+- **Plans:** Save to `docs/plans/`
+- **Specs:** Save to `docs/specs/`
+- **Designs:** Save to `docs/design/`
+
 <!-- git-std:bootstrap -->
 
 ## Post-clone setup
