@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.11.11] (2026-05-01)
+
+### Refactoring
+
+- **git-std:** inline run_refresh into run ([a69ea9d])
+- **git-std:** remove skill scaffolding from init, restructure skills/ to
+  agentskills.io format ([#499]) ([1e8187a])
+
+### Documentation
+
+- **git-std:** fix USAGE.md and CONFIG.md consistency with implementation
+  ([#492]) ([6176f91])
+
+[0.11.11]: https://github.com/driftsys/git-std/compare/v0.11.10...v0.11.11
+[a69ea9d]: https://github.com/driftsys/git-std/commit/a69ea9d
+[1e8187a]: https://github.com/driftsys/git-std/commit/1e8187a
+[#499]: https://github.com/driftsys/git-std/issues/499
+[6176f91]: https://github.com/driftsys/git-std/commit/6176f91
+[#492]: https://github.com/driftsys/git-std/issues/492
+
 ## [0.11.10] (2026-04-28)
 
 ### Bug Fixes

@@ -394,7 +394,7 @@ dependencies = [
 
 [[package]]
 name = "git-std"
-version = "0.11.10"
+version = "0.11.11"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -977,14 +977,14 @@ dependencies = [
 
 [[package]]
 name = "standard-changelog"
-version = "0.11.10"
+version = "0.11.11"
 dependencies = [
  "standard-commit",
 ]
 
 [[package]]
 name = "standard-commit"
-version = "0.11.10"
+version = "0.11.11"
 dependencies = [
  "git-conventional",
  "thiserror",
@@ -992,14 +992,14 @@ dependencies = [
 
 [[package]]
 name = "standard-githooks"
-version = "0.11.10"
+version = "0.11.11"
 dependencies = [
  "globset",
 ]
 
 [[package]]
 name = "standard-version"
-version = "0.11.10"
+version = "0.11.11"
 dependencies = [
  "regex",
  "semver",
