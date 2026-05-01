@@ -9,9 +9,8 @@
 //! 5. Generate `./bootstrap` script.
 //! 6. Generate `.githooks/bootstrap.hooks`.
 //! 7. Create `.git-std.toml` with taplo schema directive (if absent).
-//! 8. Scaffold agent skills in `.agents/skills/` with `.claude/skills/` symlinks.
-//! 9. Append post-clone section to README/AGENTS (if found).
-//! 10. Stage everything.
+//! 8. Append post-clone section to README/AGENTS (if found).
+//! 9. Stage everything.
 
 mod bootstrap;
 mod scaffold;
@@ -27,10 +26,7 @@ use standard_githooks::{KNOWN_HOOKS, generate_hooks_template, generate_shim};
 use crate::ui;
 
 use bootstrap::{append_bootstrap_marker, write_bootstrap_hooks, write_bootstrap_script};
-use scaffold::{
-    generate_lifecycle_hook_template, skill_definitions, write_config_file, write_skill_source,
-    write_skill_symlink,
-};
+use scaffold::{generate_lifecycle_hook_template, write_config_file};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -40,11 +36,6 @@ const BOOTSTRAP_HOOKS_FILE: &str = ".githooks/bootstrap.hooks";
 const BOOTSTRAP_SCRIPT: &str = "bootstrap";
 const CONFIG_FILE: &str = ".git-std.toml";
 const MARKER: &str = "<!-- git-std:bootstrap -->";
-
-const AGENTS_SKILL_COMMIT_DIR: &str = ".agents/skills/std-commit";
-const AGENTS_SKILL_BUMP_DIR: &str = ".agents/skills/std-bump";
-const CLAUDE_SKILL_COMMIT: &str = ".claude/skills/std-commit";
-const CLAUDE_SKILL_BUMP: &str = ".claude/skills/std-bump";
 
 const LIFECYCLE_HOOKS: &[&str] = &["pre-bump", "post-version", "post-changelog", "post-bump"];
 
@@ -64,8 +55,8 @@ enum FileResult {
 
 /// Run `git std init`. Returns the process exit code.
 ///
-/// When `refresh` is true, only updates skill files and merges config
-/// defaults — skips hook setup, bootstrap, and README markers.
+/// When `refresh` is true, only merges config defaults — skips hook setup,
+/// bootstrap, and README markers.
 pub fn run(force: bool, refresh: bool) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root = match crate::git::workdir(&cwd) {
@@ -77,7 +68,7 @@ pub fn run(force: bool, refresh: bool) -> i32 {
     };
 
     if refresh {
-        return run_refresh(&root, force);
+        return run_refresh(&root);
     }
 
     let hooks_dir = root.join(".githooks");
@@ -261,35 +252,7 @@ pub fn run(force: bool, refresh: bool) -> i32 {
         FileResult::Error => return 1,
     }
 
-    // ── Step 8: scaffold agent skills ───────────────────────────────────────
-    for (skill_name, skill_dir, claude_link) in skill_definitions() {
-        // Create symlink in .agents/skills/<name>/SKILL.md → ../../skills/<name>.md
-        match write_skill_source(&root, skill_dir, skill_name, force) {
-            FileResult::Created => {
-                staged.push(skill_dir);
-                ui::info(&format!(
-                    "{}  {skill_dir}/SKILL.md → ../../skills/{skill_name}.md created",
-                    ui::pass()
-                ));
-            }
-            FileResult::Skipped => {}
-            FileResult::Error => return 1,
-        }
-        // Create symlink in .claude/skills/<name> → ../../.agents/skills/<name>
-        match write_skill_symlink(&root, claude_link, skill_dir, force) {
-            FileResult::Created => {
-                staged.push(claude_link);
-                ui::info(&format!(
-                    "{}  {claude_link} → {skill_dir} created",
-                    ui::pass()
-                ));
-            }
-            FileResult::Skipped => {}
-            FileResult::Error => return 1,
-        }
-    }
-
-    // ── Step 9: append post-clone section to README/AGENTS ───────────────────
+    // ── Step 8: append post-clone section to README/AGENTS ───────────────────
     for doc in &["AGENTS.md", "README.md"] {
         let doc_path = root.join(doc);
         if doc_path.exists() {
@@ -301,7 +264,7 @@ pub fn run(force: bool, refresh: bool) -> i32 {
         }
     }
 
-    // ── Step 10: stage all created/modified files ────────────────────────────
+    // ── Step 9: stage all created/modified files ────────────────────────────
     // Always stage .githooks/ (shims + templates) plus any other created files.
     let mut cmd = Command::new("git");
     cmd.current_dir(&root).arg("add").arg("--").arg(".githooks");
@@ -319,8 +282,8 @@ pub fn run(force: bool, refresh: bool) -> i32 {
 // Refresh mode
 // ---------------------------------------------------------------------------
 
-/// Refresh skills and config without touching hooks or bootstrap.
-fn run_refresh(root: &std::path::Path, force: bool) -> i32 {
+/// Refresh config without touching hooks or bootstrap.
+fn run_refresh(root: &std::path::Path) -> i32 {
     let mut staged: Vec<&str> = Vec::new();
 
     // ── Merge config defaults ───────────────────────────────────────────────
@@ -333,29 +296,6 @@ fn run_refresh(root: &std::path::Path, force: bool) -> i32 {
             ui::info(&format!("{}  {CONFIG_FILE} up to date", ui::pass()));
         }
         FileResult::Error => return 1,
-    }
-
-    // ── Update skill files (force-overwrite to get latest) ──────────────────
-    for (skill_name, skill_dir, claude_link) in skill_definitions() {
-        match write_skill_source(root, skill_dir, skill_name, true) {
-            FileResult::Created => {
-                staged.push(skill_dir);
-                ui::info(&format!("{}  {skill_dir}/SKILL.md refreshed", ui::pass()));
-            }
-            FileResult::Skipped => {}
-            FileResult::Error => return 1,
-        }
-        match write_skill_symlink(root, claude_link, skill_dir, force) {
-            FileResult::Created => {
-                staged.push(claude_link);
-                ui::info(&format!(
-                    "{}  {claude_link} → {skill_dir} created",
-                    ui::pass()
-                ));
-            }
-            FileResult::Skipped => {}
-            FileResult::Error => return 1,
-        }
     }
 
     // ── Stage updated files ─────────────────────────────────────────────────

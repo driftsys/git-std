@@ -1,16 +1,12 @@
 //! Scaffold generation for `git std init`.
 //!
-//! Owns: `.git-std.toml` config, lifecycle hook templates, agent skill files
-//! and their `.claude/skills/` symlinks.
+//! Owns: `.git-std.toml` config and lifecycle hook templates.
 
 use std::path::Path;
 
 use crate::ui;
 
-use super::{
-    AGENTS_SKILL_BUMP_DIR, AGENTS_SKILL_COMMIT_DIR, CLAUDE_SKILL_BUMP, CLAUDE_SKILL_COMMIT,
-    CONFIG_FILE, FileResult,
-};
+use super::{CONFIG_FILE, FileResult};
 
 // ---------------------------------------------------------------------------
 // Writers
@@ -83,107 +79,6 @@ pub fn write_config_file(root: &Path, force: bool) -> FileResult {
     }
 
     FileResult::Created
-}
-
-/// Create a symlink from `.agents/skills/<name>/SKILL.md` to `../../skills/<name>.md`.
-pub fn write_skill_source(
-    root: &Path,
-    skill_dir: &str,
-    skill_name: &str,
-    force: bool,
-) -> FileResult {
-    let skill_path = root.join(skill_dir).join("SKILL.md");
-
-    // Ensure parent directory exists
-    if let Some(parent) = skill_path.parent()
-        && let Err(e) = std::fs::create_dir_all(parent)
-    {
-        ui::error(&format!("cannot create {}: {e}", parent.display()));
-        return FileResult::Error;
-    }
-
-    // Remove existing file/symlink if force is set
-    if skill_path.exists() || skill_path.symlink_metadata().is_ok() {
-        if !force {
-            return FileResult::Skipped;
-        }
-        if let Err(e) = std::fs::remove_file(&skill_path) {
-            ui::error(&format!("cannot remove {}: {e}", skill_path.display()));
-            return FileResult::Error;
-        }
-    }
-
-    // Create relative symlink: .agents/skills/std-commit/SKILL.md → ../../skills/std-commit.md
-    let relative_target = format!("../../skills/{skill_name}.md");
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::symlink;
-        if let Err(e) = symlink(&relative_target, &skill_path) {
-            ui::error(&format!(
-                "cannot create symlink {}: {e}",
-                skill_path.display()
-            ));
-            return FileResult::Error;
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        // On non-Unix, write a text file pointing to the target as a fallback
-        if let Err(e) = std::fs::write(&skill_path, format!("{relative_target}\n")) {
-            ui::error(&format!("cannot write {}: {e}", skill_path.display()));
-            return FileResult::Error;
-        }
-    }
-
-    FileResult::Created
-}
-
-/// Create a `.claude/skills/` symlink pointing back to `.agents/skills/`.
-pub fn write_skill_symlink(root: &Path, link: &str, target: &str, force: bool) -> FileResult {
-    // Ensure .claude/skills/ exists
-    let link_path = root.join(link);
-    if let Some(parent) = link_path.parent()
-        && let Err(e) = std::fs::create_dir_all(parent)
-    {
-        ui::error(&format!("cannot create {}: {e}", parent.display()));
-        return FileResult::Error;
-    }
-    if link_path.exists() || link_path.symlink_metadata().is_ok() {
-        if !force {
-            return FileResult::Skipped;
-        }
-        let _ = std::fs::remove_file(&link_path);
-    }
-    // Relative symlink: from .claude/skills/std-commit → ../../.agents/skills/std-commit
-    let relative_target = format!("../../{target}");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::symlink;
-        if let Err(e) = symlink(&relative_target, &link_path) {
-            ui::error(&format!("cannot create symlink {link}: {e}"));
-            return FileResult::Error;
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        // On non-Unix, write a text file pointing to the target as a fallback
-        if let Err(e) = std::fs::write(&link_path, format!("{relative_target}\n")) {
-            ui::error(&format!("cannot write {link}: {e}"));
-            return FileResult::Error;
-        }
-    }
-    FileResult::Created
-}
-
-/// Return all skill definitions for scaffolding.
-///
-/// Each tuple: `(skill_name, skill_dir, claude_link)`.
-pub fn skill_definitions() -> Vec<(&'static str, &'static str, &'static str)> {
-    vec![
-        ("std-commit", AGENTS_SKILL_COMMIT_DIR, CLAUDE_SKILL_COMMIT),
-        ("std-bump", AGENTS_SKILL_BUMP_DIR, CLAUDE_SKILL_BUMP),
-    ]
 }
 
 // ---------------------------------------------------------------------------
