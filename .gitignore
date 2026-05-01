@@ -32,3 +32,9 @@ target
 
 # Git worktrees
 .worktrees/
+
+# AI agent scratchpads (designs, plans, specs — kept local, not tracked)
+docs/design/
+docs/plans/
+docs/specs/
+docs/superpowers/
