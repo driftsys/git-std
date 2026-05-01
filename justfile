@@ -18,7 +18,11 @@ audit:
     cargo audit
 
 # Run all checks (test + lint + audit)
-check: test lint audit
+check: test test-install lint audit
+
+# Test install.sh functions (detect_target, sha256_check, URL patterns)
+test-install:
+    bash tools/bash_unit spec/install/install_test.sh
 
 # Assemble + check
 build: assemble check
