@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn std_commit_skill_has_frontmatter() {
-        let s = include_str!("../../../../../skills/std-commit.md");
+        let s = include_str!("../../../../../skills/std-commit/SKILL.md");
         assert!(s.starts_with("---\nname: std-commit\n"));
         assert!(s.contains("git std --context"));
         assert!(s.contains("git std commit"));
@@ -395,7 +395,7 @@ mod tests {
 
     #[test]
     fn std_commit_skill_includes_message_guidelines() {
-        let s = include_str!("../../../../../skills/std-commit.md");
+        let s = include_str!("../../../../../skills/std-commit/SKILL.md");
         assert!(
             s.contains("50 characters"),
             "skill should document 50 char limit"
@@ -413,7 +413,7 @@ mod tests {
 
     #[test]
     fn std_bump_skill_has_frontmatter() {
-        let s = include_str!("../../../../../skills/std-bump.md");
+        let s = include_str!("../../../../../skills/std-bump/SKILL.md");
         assert!(s.starts_with("---\nname: std-bump\n"));
         assert!(s.contains("git std bump --dry-run"));
         assert!(s.contains("--push"));
