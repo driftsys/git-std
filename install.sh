@@ -144,4 +144,8 @@ main() {
   fi
 }
 
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then main "$@"; fi
+# Run main when executed as a script (directly or via `curl … | bash`).
+# When piped from stdin BASH_SOURCE[0] is unset; under `set -u` a bare
+# expansion would abort before main() runs, so default to empty and treat
+# the unset case as "executed, not sourced".
+if [[ -z "${BASH_SOURCE[0]:-}" || "${BASH_SOURCE[0]}" == "${0}" ]]; then main "$@"; fi

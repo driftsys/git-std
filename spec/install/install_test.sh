@@ -4,7 +4,8 @@
 # Run with: bash tools/bash_unit tests/install_test.sh
 #
 # Sourcing install.sh loads the helper functions without executing main()
-# because of the [[ "${BASH_SOURCE[0]}" == "${0}" ]] guard at the bottom.
+# because the guard at the bottom only runs main() when BASH_SOURCE[0] is
+# unset (piped via stdin) or equals $0 (executed as a script).
 
 # shellcheck source=../install.sh
 . "$(git rev-parse --show-toplevel)/install.sh"
@@ -77,6 +78,26 @@ test_url_contains_version_tag() {
     local version="v0.11.10"
     local url="https://github.com/driftsys/git-std/releases/download/$version/git-std-$target.tar.gz"
     assert_matches "$version" "$url"
+}
+
+# ── piped invocation (curl | bash) ────────────────────────────────────────────
+# Regression guard: when the script is fed via stdin (the documented
+# `curl … | bash` install path), BASH_SOURCE[0] is unset. Combined with
+# `set -u` this used to fail with "BASH_SOURCE[0]: unbound variable" before
+# main() ever ran.
+
+test_piped_invocation_does_not_fail_on_unbound_bash_source() {
+    local script
+    script="$(git rev-parse --show-toplevel)/install.sh"
+
+    # Replace main() with a no-op so the test does not perform a real install.
+    # Capture stderr; the bug surfaces as a bash error, not via main's exit code.
+    local stderr
+    stderr="$(sed 's/^main() {$/main() { return 0; }\n_orig_main() {/' "$script" \
+        | bash 2>&1 >/dev/null)"
+
+    assert_equals "" "$stderr" \
+        "piped invocation produced bash errors: $stderr"
 }
 
 # ── sha256_check ──────────────────────────────────────────────────────────────
