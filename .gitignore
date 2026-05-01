@@ -29,3 +29,6 @@ target
 # Added by cargo
 
 /target
+
+# Git worktrees
+.worktrees/
