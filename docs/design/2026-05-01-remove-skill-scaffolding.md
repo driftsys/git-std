@@ -24,11 +24,33 @@ This coupling is problematic:
 ## Decision
 
 Remove all skill scaffolding from `git std init`. Skill lifecycle is delegated
-to a future dedicated tool (`upskill`) that will deploy skills from `skills/`
-into whatever agent directories it targets. `git std` is completely silent on
-the topic — no commands, no hints, no documentation until `upskill` is ready.
+to the `skills` CLI (agentskills.io format, `npx skills add`) in the short term
+and a future dedicated `upskill` tool long term. Both consume skills from
+`skills/` in the repo. `git std` is completely silent on the topic — no
+commands, no hints, no documentation until `upskill` is ready.
 
 ## What changes
+
+### `skills/` — restructure to agentskills.io format
+
+The `skills` CLI (`npx skills add driftsys/git-std`) expects each skill to be a
+subdirectory containing `SKILL.md`:
+
+```text
+skills/
+  std-commit/
+    SKILL.md
+  std-bump/
+    SKILL.md
+```
+
+Current layout uses flat files (`skills/std-commit.md`). Rename:
+
+- `skills/std-commit.md` → `skills/std-commit/SKILL.md`
+- `skills/std-bump.md` → `skills/std-bump/SKILL.md`
+
+Optional subdirectories `scripts/` and `references/` may be added per-skill in
+the future but are out of scope here.
 
 ### `crates/git-std/src/cli/init/scaffold.rs`
 
@@ -40,13 +62,13 @@ Remove:
 - `#[cfg(unix)] use std::os::unix::fs::symlink` import (only used by the above)
 - Module-doc reference to skill files
 
-Keep:
+Keep and update:
 
 - The three skill _content_ unit tests (`std_commit_skill_has_frontmatter`,
   `std_commit_skill_includes_message_guidelines`, `std_bump_skill_has_frontmatter`)
-  — these verify that `skills/*.md` source files are well-formed and carry the
-  required sections. They are not scaffolding tests; they guard quality for the
-  future `upskill` consumer.
+  — these verify the source files are well-formed for the `skills` CLI consumer.
+  Update `include_str!` paths from `"../../../../../skills/std-commit.md"` to
+  `"../../../../../skills/std-commit/SKILL.md"` (and same for `std-bump`).
 
 ### `crates/git-std/src/cli/init/mod.rs`
 
@@ -63,19 +85,26 @@ Remove:
 
 | Item                                              | Why                                                      |
 | ------------------------------------------------- | -------------------------------------------------------- |
-| `skills/std-commit.md`, `skills/std-bump.md`      | Canonical sources; `upskill` will consume them           |
 | `.agents/skills/`, `.claude/skills/` in this repo | Already committed; left as-is until `upskill` takes over |
 | Hook, config, bootstrap scaffolding in `init`     | Unrelated — unchanged                                    |
 | `git std init` output and UX                      | Skill lines simply disappear from output                 |
 
+## Compatibility note
+
+`.agents/skills/std-commit/SKILL.md` already matches the agentskills.io layout,
+so `npx skills add driftsys/git-std` will naturally deploy skills into the same
+directory structure that the repo uses today.
+
 ## What closes
 
 - **#488** — the `skill add` command proposal is superseded by this decision.
-  Close as won't-implement with a note pointing to `upskill`.
+  Close as won't-implement with a note pointing to the `skills` CLI and
+  `upskill`.
 
 ## Out of scope
 
 - Removing `.agents/skills/` and `.claude/skills/` from this repo's git history
   (left for when `upskill` is operational)
+- Adding `scripts/` or `references/` subdirectories to skills
 - Any `upskill` implementation or interface definition
 - Documentation updates (deferred until `upskill` is ready)
