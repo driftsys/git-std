@@ -81,6 +81,29 @@ Remove:
 - Step 8 ("scaffold agent skills") in `init()`
 - Skill scaffolding loop in `refresh()`
 
+### `docs/README.md`
+
+Add an **AI agent skills** bullet to the Features section:
+
+```markdown
+- **AI agent skills** — install commit and bump skills for your AI coding agent
+  with `npx skills add driftsys/git-std`
+```
+
+### `docs/getting-started.md`
+
+Add an **AI agent skills** section after "Set up hooks":
+
+```markdown
+## AI agent skills
+
+Install the `std-commit` and `std-bump` skills for your AI coding agent:
+
+​`bash
+npx skills add driftsys/git-std
+​`
+```
+
 ## What does not change
 
 | Item                                              | Why                                                      |
@@ -100,6 +123,8 @@ directory structure that the repo uses today.
 - **#488** — the `skill add` command proposal is superseded by this decision.
   Close as won't-implement with a note pointing to the `skills` CLI and
   `upskill`.
+- **debt story** — open a K2 story (#498) to replace the `npx skills add`
+  references with `upskill` documentation once that tool is available.
 
 ## Out of scope
 
