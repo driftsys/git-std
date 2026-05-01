@@ -30,6 +30,8 @@ single, fast binary — zero runtime dependencies.
 - **Configuration** — `.git-std.toml` with sensible
   defaults, inspectable via `config list`/`get`
 - **Shell completions** — bash, zsh, fish
+- **AI agent skills** — install commit and bump skills for your AI coding agent
+  with `npx skills add driftsys/git-std`
 - **CI-ready** — JSON output, non-zero exit codes, no
   interactive prompts in pipelines
 
