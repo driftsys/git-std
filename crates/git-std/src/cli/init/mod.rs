@@ -68,7 +68,20 @@ pub fn run(force: bool, refresh: bool) -> i32 {
     };
 
     if refresh {
-        return run_refresh(&root);
+        match write_config_file(&root, false) {
+            FileResult::Created => {
+                let _ = Command::new("git")
+                    .current_dir(&root)
+                    .args(["add", "--", CONFIG_FILE])
+                    .status();
+                ui::info(&format!("{}  {CONFIG_FILE} updated", ui::pass()));
+            }
+            FileResult::Skipped => {
+                ui::info(&format!("{}  {CONFIG_FILE} up to date", ui::pass()));
+            }
+            FileResult::Error => return 1,
+        }
+        return 0;
     }
 
     let hooks_dir = root.join(".githooks");
@@ -273,41 +286,6 @@ pub fn run(force: bool, refresh: bool) -> i32 {
     }
     if let Err(e) = cmd.status() {
         ui::warning(&format!("git add failed: {e} — stage files manually"));
-    }
-
-    0
-}
-
-// ---------------------------------------------------------------------------
-// Refresh mode
-// ---------------------------------------------------------------------------
-
-/// Refresh config without touching hooks or bootstrap.
-fn run_refresh(root: &std::path::Path) -> i32 {
-    let mut staged: Vec<&str> = Vec::new();
-
-    // ── Merge config defaults ───────────────────────────────────────────────
-    match write_config_file(root, false) {
-        FileResult::Created => {
-            staged.push(CONFIG_FILE);
-            ui::info(&format!("{}  {CONFIG_FILE} updated", ui::pass()));
-        }
-        FileResult::Skipped => {
-            ui::info(&format!("{}  {CONFIG_FILE} up to date", ui::pass()));
-        }
-        FileResult::Error => return 1,
-    }
-
-    // ── Stage updated files ─────────────────────────────────────────────────
-    if !staged.is_empty() {
-        let mut cmd = Command::new("git");
-        cmd.current_dir(root).arg("add").arg("--");
-        for f in &staged {
-            cmd.arg(f);
-        }
-        if let Err(e) = cmd.status() {
-            ui::warning(&format!("git add failed: {e} — stage files manually"));
-        }
     }
 
     0
