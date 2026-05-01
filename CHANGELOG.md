@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.11.12] (2026-05-01)
+
+### Bug Fixes
+
+- **git-std:** install.sh works when piped from curl ([#501]) ([95f900b])
+
+[0.11.12]: https://github.com/driftsys/git-std/compare/v0.11.11...v0.11.12
+[95f900b]: https://github.com/driftsys/git-std/commit/95f900b
+[#501]: https://github.com/driftsys/git-std/issues/501
+
 ## [0.11.11] (2026-05-01)
 
 ### Refactoring
