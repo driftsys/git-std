@@ -37,6 +37,14 @@ This sets `core.hooksPath`, writes shim scripts, and
 prompts which hooks to enable. Default: `pre-commit` and
 `commit-msg`.
 
+## AI agent skills
+
+Install the `std-commit` and `std-bump` skills for your AI coding agent:
+
+```bash
+npx skills add driftsys/git-std
+```
+
 ## Make a commit
 
 Stage your changes and run the interactive builder:
