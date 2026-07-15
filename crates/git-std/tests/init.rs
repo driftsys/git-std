@@ -247,6 +247,54 @@ fn init_non_tty_without_env_fails() {
         .stderr(predicate::str::contains("GIT_STD_HOOKS_ENABLE"));
 }
 
+/// #504 — a non-TTY init without the env override must fail *before*
+/// mutating any repository state: no `core.hooksPath`, no `.githooks/`
+/// contents, and no "git hooks configured" side-effect message.
+#[test]
+fn init_non_tty_without_env_makes_no_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "init"])
+        .current_dir(dir.path())
+        .assert()
+        .failure();
+
+    let err = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        !err.contains("git hooks configured"),
+        "no side effect should be applied before the TTY error, got:\n{err}"
+    );
+
+    // core.hooksPath must not have been set.
+    let hooks_path = std::process::Command::new("git")
+        .args(["config", "--get", "core.hooksPath"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(
+        hooks_path.stdout.is_empty(),
+        "core.hooksPath must not be set after an early-failing init, got:\n{}",
+        String::from_utf8_lossy(&hooks_path.stdout)
+    );
+
+    // No hook templates or shims should have been written.
+    let githooks = dir.path().join(".githooks");
+    if githooks.exists() {
+        let entries: Vec<_> = std::fs::read_dir(&githooks)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert!(
+            entries.is_empty(),
+            ".githooks/ must be empty after an early-failing init, got:\n{entries:?}"
+        );
+    }
+}
+
 #[test]
 fn init_outputs_hooks_configured() {
     let dir = tempfile::tempdir().unwrap();
