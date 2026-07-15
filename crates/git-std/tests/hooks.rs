@@ -1121,3 +1121,128 @@ fn hooks_run_from_subdirectory() {
         "hooks run from subdirectory should succeed and show check mark, got:\n{combined}"
     );
 }
+
+// --- Shared stash-stack isolation regression tests (#511) ---
+
+/// #511 — A fix-mode pre-commit hook must not touch a stash it did not
+/// create. Git worktrees share one stash stack (`refs/stash`); when the
+/// committing worktree has nothing to stash, `git stash push` is a no-op
+/// but exits 0. The hook must not then apply/drop whatever stash sits on
+/// top of the shared stack (e.g. an orphan stash from another worktree).
+#[test]
+fn hooks_run_fix_mode_does_not_apply_foreign_stash_when_nothing_to_stash() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Fix-mode hook committed so the working tree can be fully clean
+    // (nothing tracked or untracked left to stash).
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "~ true\n").unwrap();
+    std::fs::write(dir.path().join("base.txt"), "base\n").unwrap();
+    git(
+        dir.path(),
+        &["add", "base.txt", ".githooks/pre-commit.hooks"],
+    );
+    git(dir.path(), &["commit", "-m", "base"]);
+
+    // Simulate an orphan stash left on the shared stack by another worktree.
+    std::fs::write(dir.path().join("foreign.txt"), "foreign\n").unwrap();
+    git(dir.path(), &["add", "foreign.txt"]);
+    git(dir.path(), &["stash", "push", "--include-untracked"]);
+    let stash_before = git(dir.path(), &["stash", "list"]);
+    assert!(
+        stash_before.contains("stash@{0}"),
+        "precondition: orphan stash should be on the stack, got:\n{stash_before}"
+    );
+
+    // Precondition: the working tree is completely clean — nothing to stash.
+    let clean = git(dir.path(), &["status", "--porcelain"]);
+    assert!(
+        clean.is_empty(),
+        "precondition: tree must be clean, got:\n{clean}"
+    );
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hook", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // The orphan stash must be untouched.
+    let stash_after = git(dir.path(), &["stash", "list"]);
+    assert_eq!(
+        stash_before, stash_after,
+        "the foreign stash must not be dropped or altered, got:\n{stash_after}"
+    );
+
+    // The orphan stash's file must not be dumped into the working tree.
+    assert!(
+        !dir.path().join("foreign.txt").exists(),
+        "foreign stash contents must not be applied into the working tree"
+    );
+
+    // The working tree must remain clean.
+    let status = git(dir.path(), &["status", "--porcelain"]);
+    assert!(
+        status.is_empty(),
+        "working tree should be clean after the hook, got:\n{status}"
+    );
+}
+
+/// #511 — With a foreign stash on the shared stack AND real staged changes,
+/// the fix-mode hook must apply/drop only its own stash, leaving the foreign
+/// stash intact while still re-staging the formatter's changes.
+#[test]
+fn hooks_run_fix_mode_isolates_own_stash_from_foreign_stash() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    std::fs::write(dir.path().join("base.txt"), "base\n").unwrap();
+    git(dir.path(), &["add", "base.txt"]);
+    git(dir.path(), &["commit", "-m", "base"]);
+
+    // Orphan stash from another worktree.
+    std::fs::write(dir.path().join("foreign.txt"), "foreign\n").unwrap();
+    git(dir.path(), &["add", "foreign.txt"]);
+    git(dir.path(), &["stash", "push", "--include-untracked"]);
+    let stash_before = git(dir.path(), &["stash", "list"]);
+
+    // Real staged change plus a formatter that appends to it.
+    std::fs::write(dir.path().join("fmt.txt"), "line1\n").unwrap();
+    git(dir.path(), &["add", "fmt.txt"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(
+        hooks_dir.join("pre-commit.hooks"),
+        "~ for f in \"$@\"; do echo 'formatted' >> \"$f\"; done\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hook", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // The formatter's change must be staged.
+    let staged = git(dir.path(), &["show", ":fmt.txt"]);
+    assert!(
+        staged.contains("formatted"),
+        "staged content should include formatter output, got:\n{staged}"
+    );
+
+    // The foreign stash must be untouched, and its file not dumped.
+    let stash_after = git(dir.path(), &["stash", "list"]);
+    assert_eq!(
+        stash_before, stash_after,
+        "the foreign stash must remain intact, got:\n{stash_after}"
+    );
+    assert!(
+        !dir.path().join("foreign.txt").exists(),
+        "foreign stash contents must not leak into the working tree"
+    );
+}
