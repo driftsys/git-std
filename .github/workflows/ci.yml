@@ -50,7 +50,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test
 
-  convco:
+  commit-lint:
     name: Conventional commits
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -58,11 +58,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - run: |
-          curl -sSfL https://github.com/convco/convco/releases/latest/download/convco-ubuntu.zip -o /tmp/convco.zip
-          unzip -o /tmp/convco.zip -d /usr/local/bin
-          chmod +x /usr/local/bin/convco
-      - run: convco check ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo run -p git-std --bin git-std -- lint --range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
 
   install-test:
     name: Install script tests
@@ -74,7 +72,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [fmt, dprint, clippy, test, convco, install-test]
+    needs: [fmt, dprint, clippy, test, commit-lint, install-test]
     runs-on: ubuntu-latest
     steps:
       - name: Check results
