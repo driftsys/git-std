@@ -152,6 +152,19 @@ path = "src/version.h"
 regex = '#define\s+VERSION\s+"([^"]+)"'
 ```
 
+**Glob pattern (many similar files):**
+
+```toml
+[[version_files]]
+path = "skills/*/SKILL.md"
+regex = 'version:\s*(\S+)'
+```
+
+A `path` containing `* ? [ {` is treated as a glob and expanded
+against every matching file, sharing the same `regex`. See
+[CONFIG.md](CONFIG.md#version_files) for details on glob syntax and
+warning behavior.
+
 These are updated alongside auto-detected files during
 `git std bump`. Use `--dry-run` to preview which files
 would be updated.
