@@ -188,13 +188,28 @@ path = "Chart.yaml"
 regex = 'version:\s*(.+)'
 ```
 
-| Field   | Type   | Description                                 |
-| ------- | ------ | ------------------------------------------- |
-| `path`  | string | File path relative to repo root             |
-| `regex` | string | Regex with capture group containing version |
+`path` also accepts a glob pattern (containing any of `* ? [ {`), which
+expands to every matching file and applies the same `regex` to each one.
+This is useful for projects with one version-bearing file per item, such as
+a content registry with a `metadata.version` field in every skill file:
 
-Entries with missing `path` or `regex` are silently skipped.
-These are in addition to auto-detected version files
+```toml
+[[version_files]]
+path = "skills/**/*.md"
+regex = 'version:\s*(\S+)'
+```
+
+A glob that matches zero files emits a warning (`no files matched
+version_files glob: <pattern>`) but does not fail the bump. A literal path
+(no glob metacharacters) behaves exactly as before.
+
+| Field   | Type   | Description                                      |
+| ------- | ------ | ------------------------------------------------ |
+| `path`  | string | File path or glob pattern, relative to repo root |
+| `regex` | string | Regex with capture group containing version      |
+
+Entries with a missing (non-glob) `path` or missing `regex` are silently
+skipped. These are in addition to auto-detected version files
 (e.g. `Cargo.toml`).
 
 ### `[[packages]]`

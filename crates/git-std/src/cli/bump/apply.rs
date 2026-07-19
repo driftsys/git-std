@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use serde::Serialize;
 use standard_changelog::VersionRelease;
 use yansi::Paint;
@@ -79,14 +77,8 @@ pub(super) fn finalize_bump(
     };
     let workdir = workdir.as_path();
 
-    let custom_files: Vec<standard_version::CustomVersionFile> = config
-        .version_files
-        .iter()
-        .map(|vf| standard_version::CustomVersionFile {
-            path: PathBuf::from(&vf.path),
-            pattern: vf.regex.clone(),
-        })
-        .collect();
+    let custom_files: Vec<standard_version::CustomVersionFile> =
+        crate::config::resolve_custom_version_files(workdir, &config.version_files);
 
     // --- Dry run: print plan and exit ---
     if opts.dry_run {

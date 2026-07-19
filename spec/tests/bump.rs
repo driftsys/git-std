@@ -262,6 +262,40 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
         ]);
 }
 
+/// Dry-run with a glob `[[version_files]]` path shows every matched file.
+#[test]
+fn bump_dry_run_glob_version_files() {
+    let mut repo = TestRepo::new().with_cargo_toml("1.0.0").with_config(
+        r#"
+[[version_files]]
+path = "skills/*/SKILL.md"
+regex = 'version:\s*(\S+)'
+"#,
+    );
+
+    std::fs::create_dir_all(repo.path().join("skills/alpha")).unwrap();
+    std::fs::create_dir_all(repo.path().join("skills/beta")).unwrap();
+    std::fs::write(
+        repo.path().join("skills/alpha/SKILL.md"),
+        "version: 1.0.0\n",
+    )
+    .unwrap();
+    std::fs::write(repo.path().join("skills/beta/SKILL.md"), "version: 1.0.0\n").unwrap();
+
+    repo.add_commit("chore: init");
+    repo.create_tag("v1.0.0");
+    repo.add_commit("feat: add feature");
+
+    Command::new(TestRepo::bin_path())
+        .args(["bump", "--dry-run"])
+        .current_dir(repo.path())
+        .assert()
+        .success()
+        .stderr_eq(file![
+            "../snapshots/bump/dry_run_glob_version_files.stderr.expected"
+        ]);
+}
+
 /// Calver scheme produces a date-based version (YYYY.MM.PATCH).
 #[test]
 fn bump_calver_scheme() {

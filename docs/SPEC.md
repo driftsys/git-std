@@ -529,11 +529,17 @@ regex = '<Version>(.*)</Version>'
 Rules:
 
 - `path` is relative to repo root.
+- `path` may be a glob pattern (containing any of `* ? [ {`), which expands
+  to every matching file at bump time; the same `regex` is applied to each
+  matched file. A literal path (no glob metacharacters) is used as-is,
+  unchanged from prior behaviour.
+- A glob matching zero files emits a warning (not an error) and contributes
+  no entries.
 - `regex` uses RE2 syntax (Rust `regex` crate —
   linear time, no backtracking).
 - First capture group = version string to replace.
   No capture group = error at config parse time.
-- If the file doesn't exist, warn and skip (not an
+- If a literal file doesn't exist, warn and skip (not an
   error).
 - If the regex doesn't match, warn and skip.
 - Multiple `[[version_files]]` entries are supported.

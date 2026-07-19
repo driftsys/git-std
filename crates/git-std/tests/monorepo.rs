@@ -189,6 +189,71 @@ fn monorepo_package_filter() {
 }
 
 #[test]
+fn monorepo_package_glob_version_files_resolved_relative_to_package_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    init_monorepo(dir.path());
+
+    // A glob-matched custom version file living inside the `core` package,
+    // not the repo root — this only resolves correctly if the glob root is
+    // the package directory (`crates/core`), not the workspace root.
+    write_file(
+        dir.path(),
+        "crates/core/skills/alpha/SKILL.md",
+        "version: 0.1.0",
+    );
+
+    // Explicit [[packages]] with a glob version_files override on `core`
+    // only; `cli` keeps default (Cargo.toml) version file handling.
+    write_file(
+        dir.path(),
+        ".git-std.toml",
+        r#"monorepo = true
+
+[[packages]]
+name = "core"
+path = "crates/core"
+
+[[packages.version_files]]
+path = "skills/*/SKILL.md"
+regex = 'version:\s*(\S+)'
+
+[[packages]]
+name = "cli"
+path = "crates/cli"
+"#,
+    );
+    git(dir.path(), &["add", "."]);
+    git(
+        dir.path(),
+        &["commit", "-m", "chore: add package glob version file"],
+    );
+
+    create_tag(dir.path(), "v0.1.0");
+    create_tag(dir.path(), "core@0.1.0");
+    create_tag(dir.path(), "cli@0.1.0");
+
+    add_commit(
+        dir.path(),
+        "crates/core/src/lib.rs",
+        "feat: add core feature",
+    );
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let skill_md =
+        std::fs::read_to_string(dir.path().join("crates/core/skills/alpha/SKILL.md")).unwrap();
+    assert!(
+        skill_md.contains("version: 0.1.1"),
+        "expected the package-relative glob match to be updated, got: {skill_md}"
+    );
+}
+
+#[test]
 fn monorepo_unknown_package_error() {
     let dir = tempfile::tempdir().unwrap();
     init_monorepo(dir.path());

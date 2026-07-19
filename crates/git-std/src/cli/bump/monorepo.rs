@@ -645,14 +645,7 @@ fn write_versions(
         let custom_files: Vec<standard_version::CustomVersionFile> = pkg_configs
             .get(plan.name.as_str())
             .and_then(|pc| pc.version_files.as_ref())
-            .map(|vfs| {
-                vfs.iter()
-                    .map(|vf| standard_version::CustomVersionFile {
-                        path: PathBuf::from(&vf.path),
-                        pattern: vf.regex.clone(),
-                    })
-                    .collect()
-            })
+            .map(|vfs| crate::config::resolve_custom_version_files(&pkg_dir, vfs))
             .unwrap_or_default();
         let bump_result = crate::ecosystem::run_bump(&pkg_dir, &plan.new_version, &custom_files);
 
@@ -676,14 +669,8 @@ fn write_versions(
     }
 
     if let Some(root) = root_plan {
-        let custom_files: Vec<standard_version::CustomVersionFile> = config
-            .version_files
-            .iter()
-            .map(|vf| standard_version::CustomVersionFile {
-                path: PathBuf::from(&vf.path),
-                pattern: vf.regex.clone(),
-            })
-            .collect();
+        let custom_files: Vec<standard_version::CustomVersionFile> =
+            crate::config::resolve_custom_version_files(workdir, &config.version_files);
         let bump_result = crate::ecosystem::run_bump(workdir, &root.new_version, &custom_files);
         for r in &bump_result.update_results {
             if opts.format != OutputFormat::Json {
