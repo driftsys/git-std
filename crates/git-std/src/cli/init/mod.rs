@@ -49,6 +49,61 @@ enum FileResult {
     Error,
 }
 
+/// Resolve which hooks to enable for `git std init`.
+///
+/// Honours the `GIT_STD_HOOKS_ENABLE` escape hatch (`all`, `none`, or a
+/// comma-separated list); otherwise prompts interactively. Returns `Err(1)`
+/// when there is no TTY and the env override is unset, or when the user
+/// cancels the prompt. Callers must resolve the selection *before* mutating
+/// any repository state so a non-interactive failure leaves nothing behind
+/// (#504).
+fn resolve_enabled_hooks() -> Result<Vec<&'static str>, i32> {
+    let default_enabled = ["pre-commit", "commit-msg"];
+
+    // Test/CI escape hatch — not a supported public API.
+    // Accepts "all", "none", or a comma-separated list of hook names.
+    if let Ok(val) = std::env::var("GIT_STD_HOOKS_ENABLE") {
+        let selected = match val.to_lowercase().as_str() {
+            "all" => KNOWN_HOOKS.to_vec(),
+            "none" => vec![],
+            _ => val
+                .split(',')
+                .map(|s| s.trim())
+                .filter_map(|s| KNOWN_HOOKS.iter().find(|h| **h == s).copied())
+                .collect(),
+        };
+        return Ok(selected);
+    }
+
+    if !std::io::stdin().is_terminal() {
+        ui::error("interactive prompt requires a TTY");
+        ui::hint("set GIT_STD_HOOKS_ENABLE to select hooks non-interactively");
+        ui::hint("  GIT_STD_HOOKS_ENABLE=all            enable all hooks");
+        ui::hint("  GIT_STD_HOOKS_ENABLE=pre-commit     comma-separated list");
+        ui::hint("  GIT_STD_HOOKS_ENABLE=none            skip all hooks");
+        return Err(1);
+    }
+
+    let options: Vec<&str> = KNOWN_HOOKS.to_vec();
+    match MultiSelect::new("Which hooks do you want to enable?", options)
+        .with_default(
+            &KNOWN_HOOKS
+                .iter()
+                .enumerate()
+                .filter(|(_, h)| default_enabled.contains(h))
+                .map(|(i, _)| i)
+                .collect::<Vec<_>>(),
+        )
+        .prompt()
+    {
+        Ok(s) => Ok(s),
+        Err(_) => {
+            ui::error("init cancelled");
+            Err(1)
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
@@ -85,6 +140,14 @@ pub fn run(force: bool, refresh: bool) -> i32 {
     }
 
     let hooks_dir = root.join(".githooks");
+
+    // Resolve which hooks to enable *before* touching the repository, so a
+    // non-interactive run without a TTY fails cleanly with no partial state
+    // (#504).
+    let selected = match resolve_enabled_hooks() {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
 
     // ── Step 1: ensure .githooks/ exists ────────────────────────────────────
     if let Err(e) = std::fs::create_dir_all(&hooks_dir) {
@@ -132,50 +195,7 @@ pub fn run(force: bool, refresh: bool) -> i32 {
         }
     }
 
-    // ── Step 4: determine which hooks to enable and write shims ─────────────
-    let default_enabled = ["pre-commit", "commit-msg"];
-
-    // Test/CI escape hatch — not a supported public API.
-    // Accepts "all", "none", or a comma-separated list of hook names.
-    let env_enable = std::env::var("GIT_STD_HOOKS_ENABLE").ok();
-    let selected: Vec<&str> = if let Some(ref val) = env_enable {
-        match val.to_lowercase().as_str() {
-            "all" => KNOWN_HOOKS.to_vec(),
-            "none" => vec![],
-            _ => val
-                .split(',')
-                .map(|s| s.trim())
-                .filter(|s| KNOWN_HOOKS.contains(s))
-                .collect(),
-        }
-    } else if !std::io::stdin().is_terminal() {
-        ui::error("interactive prompt requires a TTY");
-        ui::hint("set GIT_STD_HOOKS_ENABLE to select hooks non-interactively");
-        ui::hint("  GIT_STD_HOOKS_ENABLE=all            enable all hooks");
-        ui::hint("  GIT_STD_HOOKS_ENABLE=pre-commit     comma-separated list");
-        ui::hint("  GIT_STD_HOOKS_ENABLE=none            skip all hooks");
-        return 1;
-    } else {
-        let options: Vec<&str> = KNOWN_HOOKS.to_vec();
-        match MultiSelect::new("Which hooks do you want to enable?", options)
-            .with_default(
-                &KNOWN_HOOKS
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, h)| default_enabled.contains(h))
-                    .map(|(i, _)| i)
-                    .collect::<Vec<_>>(),
-            )
-            .prompt()
-        {
-            Ok(s) => s,
-            Err(_) => {
-                ui::error("init cancelled");
-                return 1;
-            }
-        }
-    };
-
+    // ── Step 4: write shims for the resolved hook selection ─────────────────
     ui::blank();
 
     // Write shims — active for selected, .off for the rest
