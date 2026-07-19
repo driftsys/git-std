@@ -105,18 +105,54 @@ pub(super) fn has_staged_submodules() -> bool {
     }
 }
 
-/// Run `git stash push --quiet --include-untracked`. Returns `true` if the
-/// stash was created successfully (something was stashed), `false` otherwise
-/// (nothing to stash or git error).
+/// Read the commit SHA at the top of the shared stash stack, or `None`
+/// when the stack is empty.
+///
+/// Git worktrees share a single `refs/stash`, so the top may be a stash
+/// created by another worktree. Callers use this to identify the exact
+/// stash this hook created rather than trusting the positional
+/// `stash@{0}`.
+fn stash_top() -> Option<String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", "--quiet", "refs/stash"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if sha.is_empty() { None } else { Some(sha) }
+}
+
+/// Run `git stash push --quiet --include-untracked` and return the commit
+/// SHA of the stash it created, or `None` when nothing was stashed.
+///
+/// `git stash push` exits `0` even when there is nothing to stash, so its
+/// exit code cannot be used to detect stash creation. Because the stash
+/// stack is shared across all worktrees of a repository (#511), trusting
+/// the exit code would let the hook mistake an orphan stash left by
+/// another worktree for one it created — and later apply or drop it. We
+/// instead compare the top of `refs/stash` before and after: a new stash
+/// exists iff the top SHA changed.
 ///
 /// `--include-untracked` ensures formatter-generated new files are captured
 /// in the stash backup so they can be detected by the post-run diff check.
-pub(super) fn stash_push() -> bool {
-    Command::new("git")
+pub(super) fn stash_push() -> Option<String> {
+    let before = stash_top();
+    let pushed = Command::new("git")
         .args(["stash", "push", "--quiet", "--include-untracked"])
         .status()
         .map(|s| s.success())
-        .unwrap_or(false)
+        .unwrap_or(false);
+    if !pushed {
+        return None;
+    }
+    let after = stash_top();
+    if after.is_some() && after != before {
+        after
+    } else {
+        None
+    }
 }
 
 /// Get the new names of any files staged as renames.
@@ -152,18 +188,30 @@ pub(super) fn unstage_renames(rename_targets: &[String]) -> bool {
     matches!(cmd.status(), Ok(s) if s.success())
 }
 
-/// Run `git stash apply --quiet`. Returns `true` on success, `false` on
-/// failure (e.g. merge conflicts).
-pub(super) fn stash_apply() -> bool {
+/// Apply the stash identified by `stash_sha` to the working tree.
+///
+/// Applies the exact commit this hook created, never the positional
+/// `stash@{0}`, so a stash left on the shared worktree stash stack by
+/// another worktree is never applied (#511). Returns `true` on success,
+/// `false` on failure (e.g. merge conflicts).
+pub(super) fn stash_apply(stash_sha: &str) -> bool {
     Command::new("git")
-        .args(["stash", "apply", "--quiet"])
+        .args(["stash", "apply", "--quiet", stash_sha])
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
 }
 
-/// Run `git stash drop --quiet`. Warns on failure.
-pub(super) fn stash_drop() {
+/// Drop the hook's own stash entry, identified by `stash_sha`.
+///
+/// Only drops when that commit is still the top of the shared stash stack,
+/// so a stash created by another worktree is never dropped (#511). Warns if
+/// the entry is no longer on top or the drop fails.
+pub(super) fn stash_drop(stash_sha: &str) {
+    if stash_top().as_deref() != Some(stash_sha) {
+        ui::warning("hook stash is no longer at the top of the stash stack — leaving it in place");
+        return;
+    }
     let ok = Command::new("git")
         .args(["stash", "drop", "--quiet"])
         .status()

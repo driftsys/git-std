@@ -262,19 +262,24 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
     };
 
     // Perform the stash dance if needed.
-    // stash_active tracks whether a stash entry was actually created.
-    let stash_active = if use_stash_dance {
+    // `hook_stash` holds the SHA of the stash this hook created, or `None`
+    // when nothing was stashed. It is used to apply and drop only the
+    // hook's own stash, never one left on the shared stack by another
+    // worktree (#511).
+    let hook_stash = if use_stash_dance {
         stash::stash_push()
-        // If stash_push returns false (nothing to stash or error), we skip
+        // If stash_push returns None (nothing to stash or error), we skip
         // the stash dance but still run commands normally.
     } else {
-        false
+        None
     };
 
-    if use_stash_dance && stash_active && !stash::stash_apply() {
+    if let Some(ref stash_sha) = hook_stash
+        && !stash::stash_apply(stash_sha)
+    {
         ui::error("stash apply failed — working tree has conflicting unstaged changes");
         ui::hint("commit or stash your unstaged changes first, then retry");
-        stash::stash_drop();
+        stash::stash_drop(stash_sha);
         print_failure_hints(hook);
         return 1;
     }
@@ -358,15 +363,15 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
                 {
                     // Already returning 1 for the fail-fast failure, but
                     // ensure the stash is cleaned up before returning.
-                    if stash_active {
-                        stash::stash_drop();
+                    if let Some(ref stash_sha) = hook_stash {
+                        stash::stash_drop(stash_sha);
                     }
                     ui::blank();
                     print_failure_hints(hook);
                     return 1;
                 }
-                if stash_active {
-                    stash::stash_drop();
+                if let Some(ref stash_sha) = hook_stash {
+                    stash::stash_drop(stash_sha);
                 }
             }
 
@@ -412,14 +417,14 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
         // was created (no stash means no unstaged changes to protect, but
         // re-staging is still needed to pick up formatter output).
         if !stash::restage_files(&staged_files) || !stash::restage_deletions(&staged_deletions) {
-            if stash_active {
-                stash::stash_drop();
+            if let Some(ref stash_sha) = hook_stash {
+                stash::stash_drop(stash_sha);
             }
             print_failure_hints(hook);
             return 1;
         }
 
-        if stash_active {
+        if let Some(ref stash_sha) = hook_stash {
             // Warn about any unstaged files that the formatter also touched.
             // These are files in `git diff --name-only` that were NOT in
             // the original staged set.
@@ -430,7 +435,7 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
                 }
             }
 
-            stash::stash_drop();
+            stash::stash_drop(stash_sha);
         }
 
         // Re-stage renamed files after the stash dance completes.
