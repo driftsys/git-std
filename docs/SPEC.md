@@ -332,6 +332,13 @@ changelog, commit, and tag.
    - `BREAKING CHANGE` footer or `!` suffix → major
    - `feat` → minor
    - `fix` / `perf` / `revert` → patch
+   - all other types (`docs`, `style`, `refactor`, `test`,
+     `chore`, `ci`, `build`) → no bump
+
+   This matches the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+   specification and the default rules used by `semantic-release`.
+   It is intentional and not configurable: types other than
+   `feat`/`fix` have no implicit effect on the version.
 
    **Pre-1.0 convention** (major == 0): bump levels are
    downshifted following the Rust/Cargo convention:
@@ -346,6 +353,9 @@ changelog, commit, and tag.
    `0.10.2` + feat → `0.10.3`.
    To force a 1.0.0 release: `git std bump --release-as 1.0.0`.
 5. If no bump-worthy commits exist, print a message and exit `0` (not an error).
+   To release anyway (e.g. for a docs-only change), force a bump level
+   explicitly: `git std bump --release-as patch` (also accepts `minor`
+   or `major`).
 6. Compute the new version string.
 7. Update all version files:
    a. Auto-detected built-in files (see §2.3.1).
@@ -378,20 +388,20 @@ changelog, commit, and tag.
 
 **Flags:**
 
-| Flag                     | Description                                                                               |
-| ------------------------ | ----------------------------------------------------------------------------------------- |
-| `--dry-run`              | Print the full plan without writing anything                                              |
-| `--prerelease [tag]`     | Bump as pre-release (e.g., `2.0.0-rc.1`). Default tag from `[versioning] prerelease_tag`. |
-| `--release-as <version>` | Force a specific version, skip calculation                                                |
-| `--first-release`        | Use current version for initial changelog. No bump.                                       |
-| `--no-tag`               | Update files and commit, skip tag creation                                                |
-| `--no-commit`            | Update files only, no commit or tag                                                       |
-| `--sign` / `-S`          | GPG-sign the release commit and annotated tag                                             |
-| `--skip-changelog`       | Bump version files without changelog generation                                           |
-| `--force`                | Allow breaking changes in patch-only scheme                                               |
-| `--stable [branch]`      | Create a stable branch for patch-only releases (optional custom branch name)              |
-| `--push [remote]`        | Push commit and tags after release. Without a remote, pushes to `origin`                  |
-| `--minor`                | Use minor bump (instead of major) when advancing main after `--stable`                    |
+| Flag                     | Description                                                                                                                                        |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--dry-run`              | Print the full plan without writing anything                                                                                                       |
+| `--prerelease [tag]`     | Bump as pre-release (e.g., `2.0.0-rc.1`). Default tag from `[versioning] prerelease_tag`.                                                          |
+| `--release-as <version>` | Force a specific version, skip calculation. Also accepts `patch`/`minor`/`major` to force that bump level (e.g. when no bump-worthy commits exist) |
+| `--first-release`        | Use current version for initial changelog. No bump.                                                                                                |
+| `--no-tag`               | Update files and commit, skip tag creation                                                                                                         |
+| `--no-commit`            | Update files only, no commit or tag                                                                                                                |
+| `--sign` / `-S`          | GPG-sign the release commit and annotated tag                                                                                                      |
+| `--skip-changelog`       | Bump version files without changelog generation                                                                                                    |
+| `--force`                | Allow breaking changes in patch-only scheme                                                                                                        |
+| `--stable [branch]`      | Create a stable branch for patch-only releases (optional custom branch name)                                                                       |
+| `--push [remote]`        | Push commit and tags after release. Without a remote, pushes to `origin`                                                                           |
+| `--minor`                | Use minor bump (instead of major) when advancing main after `--stable`                                                                             |
 
 **Exit codes:** `0` = success (or no bump needed), `1` = error.
 

@@ -85,23 +85,23 @@ update version files, generate changelog, commit, and tag.
 
 **Flags:**
 
-| Flag                 | Description                                                        |
-| -------------------- | ------------------------------------------------------------------ |
-| `--dry-run`          | Print plan without writing                                         |
-| `--prerelease [tag]` | Bump as pre-release (e.g. `2.0.0-rc.1`)                            |
-| `--release-as <ver>` | Force a specific version                                           |
-| `--first-release`    | Initial changelog, no bump                                         |
-| `--no-tag`           | Skip tag creation                                                  |
-| `--no-commit`        | Update files only                                                  |
-| `--sign` / `-S`      | GPG-sign commit and tag                                            |
-| `--skip-changelog`   | Bump without changelog                                             |
-| `--force`            | Allow breaking changes in patch-only scheme                        |
-| `--stable [branch]`  | Create a stable branch for patch-only releases                     |
-| `--minor`            | Use minor bump (instead of major) when advancing main after stable |
-| `--format <fmt>`     | Output format: `text` (default) or `json`                          |
-| `--package <name>`   | Filter bump to specific package(s) (monorepo only, repeatable)     |
-| `--push [remote]`    | Push commit and tags after release (default remote: `origin`)      |
-| `--yes` / `-y`       | Skip branch confirmation prompt                                    |
+| Flag                 | Description                                                                                                            |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `--dry-run`          | Print plan without writing                                                                                             |
+| `--prerelease [tag]` | Bump as pre-release (e.g. `2.0.0-rc.1`)                                                                                |
+| `--release-as <ver>` | Force a specific version, or `patch`/`minor`/`major` to force that bump level (e.g. when no bump-worthy commits exist) |
+| `--first-release`    | Initial changelog, no bump                                                                                             |
+| `--no-tag`           | Skip tag creation                                                                                                      |
+| `--no-commit`        | Update files only                                                                                                      |
+| `--sign` / `-S`      | GPG-sign commit and tag                                                                                                |
+| `--skip-changelog`   | Bump without changelog                                                                                                 |
+| `--force`            | Allow breaking changes in patch-only scheme                                                                            |
+| `--stable [branch]`  | Create a stable branch for patch-only releases                                                                         |
+| `--minor`            | Use minor bump (instead of major) when advancing main after stable                                                     |
+| `--format <fmt>`     | Output format: `text` (default) or `json`                                                                              |
+| `--package <name>`   | Filter bump to specific package(s) (monorepo only, repeatable)                                                         |
+| `--push [remote]`    | Push commit and tags after release (default remote: `origin`)                                                          |
+| `--yes` / `-y`       | Skip branch confirmation prompt                                                                                        |
 
 **Exit codes:** `0` = success, `1` = error.
 

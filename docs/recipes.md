@@ -29,13 +29,19 @@ Bump rules are inferred from conventional commits:
 
 - `BREAKING CHANGE` or `!` suffix → **major**
 - `feat` → **minor**
-- Everything else → **patch**
+- `fix` / `perf` / `revert` → **patch**
+- `docs` / `style` / `refactor` / `test` / `chore` / `ci` / `build` → **no bump**
+
+This matches the Conventional Commits spec and isn't configurable.
+If no commits warrant a bump but you still want a release (e.g. a
+docs-only change), force the level explicitly:
 
 ```bash
 git std bump               # auto-detect bump type
 git std bump --dry-run     # preview without writing
 git std bump --prerelease  # e.g. 2.0.0-rc.1
 git std bump --release-as 3.0.0  # force a specific version
+git std bump --release-as patch  # force a patch bump with no bump-worthy commits
 ```
 
 ## Calver workflow

@@ -16,7 +16,9 @@ pub struct BumpOptions {
     pub dry_run: bool,
     /// Bump as pre-release (e.g. `2.0.0-rc.1`).
     pub prerelease: Option<String>,
-    /// Force a specific version, skip calculation.
+    /// Force a specific version, or "patch"/"minor"/"major" to force that
+    /// bump level even with no bump-worthy commits (e.g. a docs-only
+    /// release).
     pub release_as: Option<String>,
     /// Use current version for initial changelog (no bump).
     pub first_release: bool,

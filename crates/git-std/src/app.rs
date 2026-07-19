@@ -113,7 +113,9 @@ pub enum Command {
         /// Bump as pre-release (e.g. `2.0.0-rc.1`). Uses default tag from config if no value given.
         #[arg(long, num_args = 0..=1, default_missing_value = "")]
         prerelease: Option<String>,
-        /// Force a specific version, skip calculation.
+        /// Force a specific version, or "patch"/"minor"/"major" to force that
+        /// bump level even with no bump-worthy commits (e.g. a docs-only
+        /// release).
         #[arg(long)]
         release_as: Option<String>,
         /// Use current version for initial changelog (no bump).
