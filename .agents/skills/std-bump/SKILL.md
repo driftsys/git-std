@@ -70,7 +70,19 @@ Ask user: "What type of bump?" with options:
 
 - Run `git std bump --dry-run` with all flags determined so far
 - Display the **full dry-run output** to user
-- Show what will be bumped, new versions, and tags that will be created
+- If the output shows **"no bump-worthy commits found"**:
+  - Only `feat`/`fix`/`perf`/`revert`/breaking changes trigger a bump —
+    `docs`/`style`/`refactor`/`test`/`chore`/`ci`/`build` never do (matches
+    the Conventional Commits spec; not configurable).
+  - Ask: "No bump-worthy commits since the last tag. Force a release anyway
+    (e.g. for a docs-only change)?" with options:
+    - "No, don't bump" (stop here)
+    - "Yes, force patch" → add `--release-as patch`
+    - "Yes, force minor" → add `--release-as minor`
+    - "Yes, force major" → add `--release-as major`
+  - Re-run `git std bump --dry-run` with the chosen `--release-as` flag and
+    show the updated plan
+- Otherwise, show what will be bumped, new versions, and tags that will be created
 - Ask: "Proceed with this version bump?" (Yes/No)
 - **Do not proceed without explicit approval**
 
@@ -84,6 +96,7 @@ Ask user: "What type of bump?" with options:
 - Run `git std bump` with all confirmed flags:
   - `--prerelease` if user selected prerelease
   - `--first-release` if applicable
+  - `--release-as <level>` if the user chose to force a bump in Step 7
   - `--package <name>` for each selected package
   - `--push` if user confirmed push in Step 8
 - Display the result (commit hash, new version, tags created)
