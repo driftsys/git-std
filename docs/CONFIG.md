@@ -111,6 +111,14 @@ When scopes is set (either `"auto"` or an array) and
 resolved list. For `git std commit`, the resolved scopes
 populate the interactive scope prompt.
 
+With `scopes = "auto"`, if staged changes touch a top-level
+directory that doesn't match any discovered scope (e.g. a new
+folder outside `crates/`, `packages/`, `modules/`), both
+`git std --context` and the interactive `git std commit` scope
+prompt surface a hint — the prompt offers an "other" choice to
+type the new scope directly, and `.git-std.toml` can be updated
+to add it permanently.
+
 **`release_branch`:** When set, bumping on a different branch
 triggers a confirmation prompt (or an error in non-interactive
 mode unless `--yes` is supplied). When unset, both `main` and

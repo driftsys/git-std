@@ -24,10 +24,19 @@ description: Author a conventional commit for staged changes using git std — u
   - Available **Types** from context (e.g., feat, fix, docs, test, chore)
   - Available **Scopes** from context
   - Whether scopes are `(required, strict)` — if so, `--scope` flag is mandatory
+  - Any `⚠ Staged path '<dir>/' doesn't match any configured scope` warning
 
 **Step 3: Determine commit type and scope**
 
 - Use **only** the types and scopes from context — never invent either.
+- Scopes are configurable in `.git-std.toml`. In `scopes = "auto"` mode, scopes
+  are discovered only from `crates/*`, `packages/*`, `modules/*` — a new
+  top-level folder outside those patterns won't appear as a scope on its own.
+- If `--context` warned about an unmatched scope path, **don't silently fall
+  back** to a generic type/scope (e.g. `docs`/`chore`). Ask the user: "Staged
+  changes touch `<dir>/`, which isn't a configured scope. Add `<dir>` as a new
+  scope in `.git-std.toml` now, use an existing scope instead, or skip the
+  scope for this commit?" Only edit `.git-std.toml` if the user agrees.
 - Ask user to select from available types
 - If scopes are configured, ask user to select or skip
 - For scope: match changed file paths against workspace package names if

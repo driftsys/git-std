@@ -304,6 +304,49 @@ fn context_commit_config_scopes_from_workspace() {
         .stdout(contains("Scopes: from workspace (required, strict)"));
 }
 
+#[test]
+fn context_warns_on_unmatched_scope_path() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
+    commit_file(dir.path(), "a.txt", "chore: init");
+
+    std::fs::create_dir_all(dir.path().join("services/foo")).unwrap();
+    std::fs::write(dir.path().join("services/foo/main.rs"), "fn main() {}").unwrap();
+    git(dir.path(), &["add", "services/foo/main.rs"]);
+
+    git_std()
+        .args(["--context"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(contains("'services/' doesn't match any configured scope"))
+        .stdout(contains(".git-std.toml"));
+}
+
+#[test]
+fn context_no_scope_warning_when_paths_match() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    std::fs::write(dir.path().join(".git-std.toml"), "scopes = \"auto\"\n").unwrap();
+    std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+    commit_file(dir.path(), "a.txt", "chore: init");
+
+    std::fs::write(dir.path().join("crates/api/main.rs"), "fn main() {}").unwrap();
+    git(dir.path(), &["add", "crates/api/main.rs"]);
+
+    let assert = git_std()
+        .args(["--context"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    assert!(
+        !stdout.contains("doesn't match any configured scope"),
+        "should not warn when staged path matches a resolved scope"
+    );
+}
+
 // ===========================================================================
 // Status states
 // ===========================================================================
