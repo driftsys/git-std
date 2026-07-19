@@ -79,6 +79,15 @@ pub(super) fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     let bump_kind = if opts.minor { "minor" } else { "major" };
 
+    if super::crosses_first_major_boundary(&cur_ver, &new_version) && !opts.first_major_release {
+        ui::error(&format!(
+            "advancing to {new_version} would promote from 0.x to a stable major version \u{2014} \
+             this is a deliberate API-stability commitment, not a routine bump \
+             (re-run with --first-major-release to confirm)"
+        ));
+        return 1;
+    }
+
     if opts.dry_run {
         ui::blank();
         ui::info("Would create stable branch:");

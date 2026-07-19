@@ -82,6 +82,16 @@ Ask user: "What type of bump?" with options:
     - "Yes, force major" → add `--release-as major`
   - Re-run `git std bump --dry-run` with the chosen `--release-as` flag and
     show the updated plan
+- If the command instead exits non-zero with a message mentioning
+  `--first-major-release` (the dry-run plan would promote the project from
+  `0.x` to `1.0.0`):
+  - This is a deliberate API-stability commitment, not a routine bump. Ask
+    the user explicitly: "This bump would promote the project from 0.x to
+    1.0.0 — a stability commitment for the public API. What's changed that
+    justifies declaring 1.0 now? Should we proceed, or hold in 0.x for now?"
+  - If the user confirms: add `--first-major-release` and re-run
+    `git std bump --dry-run` to show the updated plan
+  - If the user is unsure or declines: stop here — do not add the flag
 - Otherwise, show what will be bumped, new versions, and tags that will be created
 - Ask: "Proceed with this version bump?" (Yes/No)
 - **Do not proceed without explicit approval**
@@ -97,6 +107,7 @@ Ask user: "What type of bump?" with options:
   - `--prerelease` if user selected prerelease
   - `--first-release` if applicable
   - `--release-as <level>` if the user chose to force a bump in Step 7
+  - `--first-major-release` if the user confirmed the 0.x → 1.0 promotion in Step 7
   - `--package <name>` for each selected package
   - `--push` if user confirmed push in Step 8
 - Display the result (commit hash, new version, tags created)

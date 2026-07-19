@@ -295,6 +295,15 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     };
 
+    if super::crosses_first_major_boundary(&cur_ver, &new_version) && !opts.first_major_release {
+        ui::error(&format!(
+            "bump would promote {cur_ver} to {new_version} \u{2014} this is a deliberate \
+             API-stability commitment, not a routine bump (re-run with \
+             --first-major-release to confirm)"
+        ));
+        return 1;
+    }
+
     let bump_reason = if opts.first_release {
         "first release".to_string()
     } else if let Some(ref forced) = opts.release_as {

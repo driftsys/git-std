@@ -121,6 +121,10 @@ pub enum Command {
         /// Use current version for initial changelog (no bump).
         #[arg(long)]
         first_release: bool,
+        /// Confirm an intentional 0.x → 1.0 promotion (API-stability commitment).
+        /// Required whenever a bump would cross from major 0 to major 1+.
+        #[arg(long)]
+        first_major_release: bool,
         /// Skip tag creation.
         #[arg(long)]
         no_tag: bool,

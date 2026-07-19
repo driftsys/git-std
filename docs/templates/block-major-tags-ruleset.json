@@ -1,0 +1,12 @@
+{
+  "name": "Block major version tags until first 1.0 release",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/tags/v*"],
+      "exclude": ["refs/tags/v0.*"]
+    }
+  },
+  "rules": [{ "type": "creation" }]
+}

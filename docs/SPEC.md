@@ -351,7 +351,17 @@ changelog, commit, and tag.
 
    Example: `0.10.2` + breaking → `0.11.0`,
    `0.10.2` + feat → `0.10.3`.
-   To force a 1.0.0 release: `git std bump --release-as 1.0.0`.
+   To force a 1.0.0 release: `git std bump --release-as 1.0.0 --first-major-release`.
+
+   **First major release gate**: promoting from major `0` to major `1+` is a
+   deliberate API-stability commitment
+   ([SemVer §4-5](https://semver.org/#spec-item-4)), not a routine version
+   bump — so `git std bump` and `git std bump --stable` both refuse it unless
+   `--first-major-release` is also passed, regardless of how the crossing was
+   requested (`--release-as <exact version>`, `--stable`'s default main
+   advance, etc.). Without the flag, the command exits `1` with an
+   explanatory message. This gate only applies to the _first_ crossing out of
+   `0.x`; later major bumps (e.g. `1.4.2` → `2.0.0`) are never gated.
 5. If no bump-worthy commits exist, print a message and exit `0` (not an error).
    To release anyway (e.g. for a docs-only change), force a bump level
    explicitly: `git std bump --release-as patch` (also accepts `minor`
@@ -394,6 +404,7 @@ changelog, commit, and tag.
 | `--prerelease [tag]`     | Bump as pre-release (e.g., `2.0.0-rc.1`). Default tag from `[versioning] prerelease_tag`.                                                          |
 | `--release-as <version>` | Force a specific version, skip calculation. Also accepts `patch`/`minor`/`major` to force that bump level (e.g. when no bump-worthy commits exist) |
 | `--first-release`        | Use current version for initial changelog. No bump.                                                                                                |
+| `--first-major-release`  | Confirm an intentional 0.x → 1.0 promotion (see below). Required whenever a bump would cross from major `0` to major `1+`; a no-op otherwise.      |
 | `--no-tag`               | Update files and commit, skip tag creation                                                                                                         |
 | `--no-commit`            | Update files only, no commit or tag                                                                                                                |
 | `--sign` / `-S`          | GPG-sign the release commit and annotated tag                                                                                                      |

@@ -192,6 +192,55 @@ fn bump_stable_creates_branch_and_bumps_major() {
     );
 }
 
+/// Advancing main past --stable is refused when it would promote from 0.x
+/// to 1.x, without an explicit --first-major-release confirmation.
+#[test]
+fn bump_stable_blocks_first_major_release_without_flag() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v0.9.0");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--stable", "--skip-changelog"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("--first-major-release"));
+
+    assert!(
+        !branch_exists(dir.path(), "stable-v0.9"),
+        "stable-v0.9 branch should NOT be created when the gate blocks the bump"
+    );
+    assert!(!tag_exists(dir.path(), "v1.0.0"));
+}
+
+/// Advancing main past --stable into 1.0 succeeds with --first-major-release.
+#[test]
+fn bump_stable_allows_first_major_release_with_flag() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v0.9.0");
+    add_commit(dir.path(), "a.txt", "feat: new feature");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args([
+            "bump",
+            "--stable",
+            "--skip-changelog",
+            "--first-major-release",
+        ])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("0.9.0 \u{2192} 1.0.0"));
+
+    assert!(branch_exists(dir.path(), "stable-v0.9"));
+    assert!(tag_exists(dir.path(), "v1.0.0"));
+}
+
 #[test]
 fn bump_stable_with_minor_flag() {
     let dir = tempfile::tempdir().unwrap();
