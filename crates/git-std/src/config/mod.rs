@@ -4,11 +4,13 @@ use serde::Serialize;
 
 pub(crate) mod deps;
 mod load;
+mod scope_hint;
 mod version_files;
 mod workspace;
 
 pub use load::load;
 pub(crate) use load::load_with_raw;
+pub use scope_hint::unmatched_scope_dir;
 pub(crate) use version_files::resolve_custom_version_files;
 pub(crate) use workspace::discover_packages;
 
@@ -16,7 +18,7 @@ pub(crate) use workspace::discover_packages;
 mod tests;
 
 /// Directory patterns scanned for auto-discovered scopes.
-const SCOPE_DIRS: &[&str] = &["crates", "packages", "modules"];
+pub(crate) const SCOPE_DIRS: &[&str] = &["crates", "packages", "modules"];
 
 /// Discover scope names from workspace directory layout.
 ///

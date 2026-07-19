@@ -69,9 +69,22 @@ pub(super) fn prompt_scope(config: &ProjectConfig) -> Result<Option<String>> {
                     Ok(Some(scope))
                 }
             } else {
-                let items: Vec<&str> = discovered.iter().map(|s| s.as_str()).collect();
-                let selection = Select::new("scope:", items).prompt()?;
-                Ok(Some(selection.to_string()))
+                let staged = crate::git::staged_files(&cwd).unwrap_or_default();
+                let unmatched_dir = crate::config::unmatched_scope_dir(&staged, &discovered);
+                if let Some(dir) = &unmatched_dir {
+                    crate::ui::hint(&format!(
+                        "staged path '{dir}/' doesn't match any configured scope"
+                    ));
+                }
+                let items = scope_select_items(&discovered, unmatched_dir.as_deref());
+                let item_refs: Vec<&str> = items.iter().map(|s| s.as_str()).collect();
+                let selection = Select::new("scope:", item_refs).prompt()?;
+                if selection == OTHER_SCOPE {
+                    let scope = Text::new("new scope:").prompt()?;
+                    Ok(Some(scope))
+                } else {
+                    Ok(Some(selection.to_string()))
+                }
             }
         }
     }
@@ -145,4 +158,37 @@ pub(super) fn prompt_footers() -> Result<Vec<String>> {
         footers.push(input);
     }
     Ok(footers)
+}
+
+/// Sentinel item appended to the scope `Select` when a staged path doesn't
+/// match any discovered scope, letting the user type a new one instead.
+const OTHER_SCOPE: &str = "other (type a new scope)";
+
+/// Build the choice list for the Auto-mode scope `Select` prompt.
+///
+/// Appends [`OTHER_SCOPE`] when `unmatched_dir` is `Some`, signalling that a
+/// staged path didn't match any discovered scope.
+fn scope_select_items(discovered: &[String], unmatched_dir: Option<&str>) -> Vec<String> {
+    let mut items = discovered.to_vec();
+    if unmatched_dir.is_some() {
+        items.push(OTHER_SCOPE.to_string());
+    }
+    items
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scope_select_items_plain_when_no_unmatched_dir() {
+        let items = scope_select_items(&["api".to_string(), "cli".to_string()], None);
+        assert_eq!(items, vec!["api", "cli"]);
+    }
+
+    #[test]
+    fn scope_select_items_appends_other_when_unmatched_dir() {
+        let items = scope_select_items(&["api".to_string()], Some("services"));
+        assert_eq!(items, vec!["api", OTHER_SCOPE]);
+    }
 }

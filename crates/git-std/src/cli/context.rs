@@ -188,6 +188,9 @@ struct CommitConfig {
     /// Suggested type based on staged files. `None` means no confident suggestion.
     /// May be a single type or a shortlist like "feat or fix".
     suggested_type: Option<String>,
+    /// Top-level directory of a staged file that doesn't match any resolved
+    /// scope in `Auto` mode. `None` when scopes aren't `Auto` or everything matches.
+    scope_hint: Option<String>,
 }
 
 enum GitState {
@@ -289,7 +292,7 @@ fn build_workspace_groups(root: &Path, cfg: &ProjectConfig) -> Vec<WorkspaceGrou
     groups
 }
 
-fn build_commit_config(cfg: &ProjectConfig, files: &[String]) -> CommitConfig {
+fn build_commit_config(cfg: &ProjectConfig, repo_root: &Path, files: &[String]) -> CommitConfig {
     let types = cfg.types.clone();
 
     let scopes_line = match &cfg.scopes {
@@ -312,6 +315,14 @@ fn build_commit_config(cfg: &ProjectConfig, files: &[String]) -> CommitConfig {
         }
     };
 
+    let scope_hint = match &cfg.scopes {
+        ScopesConfig::Auto => {
+            let resolved = cfg.resolved_scopes(repo_root, None);
+            config::unmatched_scope_dir(files, &resolved)
+        }
+        ScopesConfig::None | ScopesConfig::List(_) => None,
+    };
+
     let refs_required = cfg.refs_required.clone();
     let suggested_type = suggest_type(files, &types);
 
@@ -320,6 +331,7 @@ fn build_commit_config(cfg: &ProjectConfig, files: &[String]) -> CommitConfig {
         scopes_line,
         refs_required,
         suggested_type,
+        scope_hint,
     }
 }
 
@@ -390,7 +402,7 @@ pub fn run(cwd: &Path, format: OutputFormat) -> i32 {
     // Get staged files for type suggestion
     let staged_files = git::staged_files(&root).unwrap_or_default();
 
-    let commit_cfg = build_commit_config(&cfg, &staged_files);
+    let commit_cfg = build_commit_config(&cfg, &root, &staged_files);
 
     let state = match gather_git_state(&root) {
         Ok(s) => s,
@@ -442,6 +454,11 @@ fn render_text(
     }
     if !commit_cfg.refs_required.is_empty() {
         println!("Refs: required for {}", commit_cfg.refs_required.join(", "));
+    }
+    if let Some(dir) = &commit_cfg.scope_hint {
+        println!(
+            "⚠ Staged path '{dir}/' doesn't match any configured scope — consider adding it to `scopes` in `.git-std.toml`"
+        );
     }
 
     match state {
@@ -557,6 +574,7 @@ fn render_json(
             "suggested_type": commit_cfg.suggested_type,
             "scopes": commit_cfg.scopes_line,
             "refs_required": commit_cfg.refs_required,
+            "scope_hint": commit_cfg.scope_hint,
         },
         "staged_diff": staged_diff,
         "unstaged_files": unstaged_files,
@@ -624,7 +642,8 @@ mod tests {
     #[test]
     fn scopes_line_none_when_no_scopes() {
         let cfg = config::ProjectConfig::default();
-        let cc = build_commit_config(&cfg, &[]);
+        let dir = tempfile::tempdir().unwrap();
+        let cc = build_commit_config(&cfg, dir.path(), &[]);
         assert!(cc.scopes_line.is_none());
     }
 
@@ -635,7 +654,8 @@ mod tests {
             strict: true,
             ..Default::default()
         };
-        let cc = build_commit_config(&cfg, &[]);
+        let dir = tempfile::tempdir().unwrap();
+        let cc = build_commit_config(&cfg, dir.path(), &[]);
         assert_eq!(
             cc.scopes_line.as_deref(),
             Some("from workspace (required, strict)")
@@ -649,14 +669,47 @@ mod tests {
             strict: false,
             ..Default::default()
         };
-        let cc = build_commit_config(&cfg, &[]);
+        let dir = tempfile::tempdir().unwrap();
+        let cc = build_commit_config(&cfg, dir.path(), &[]);
         assert_eq!(cc.scopes_line.as_deref(), Some("api, cli (optional)"));
+    }
+
+    #[test]
+    fn scope_hint_none_when_scopes_not_configured() {
+        let cfg = config::ProjectConfig::default();
+        let dir = tempfile::tempdir().unwrap();
+        let cc = build_commit_config(&cfg, dir.path(), &["services/foo/main.rs".into()]);
+        assert!(cc.scope_hint.is_none());
+    }
+
+    #[test]
+    fn scope_hint_some_for_auto_unmatched_dir() {
+        let cfg = config::ProjectConfig {
+            scopes: config::ScopesConfig::Auto,
+            ..Default::default()
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let cc = build_commit_config(&cfg, dir.path(), &["services/foo/main.rs".into()]);
+        assert_eq!(cc.scope_hint.as_deref(), Some("services"));
+    }
+
+    #[test]
+    fn scope_hint_none_for_auto_matched_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+        let cfg = config::ProjectConfig {
+            scopes: config::ScopesConfig::Auto,
+            ..Default::default()
+        };
+        let cc = build_commit_config(&cfg, dir.path(), &["crates/api/src/main.rs".into()]);
+        assert!(cc.scope_hint.is_none());
     }
 
     #[test]
     fn refs_required_empty_when_not_configured() {
         let cfg = config::ProjectConfig::default();
-        let cc = build_commit_config(&cfg, &[]);
+        let dir = tempfile::tempdir().unwrap();
+        let cc = build_commit_config(&cfg, dir.path(), &[]);
         assert!(cc.refs_required.is_empty());
     }
 
@@ -666,7 +719,8 @@ mod tests {
             refs_required: vec!["feat".into(), "fix".into()],
             ..Default::default()
         };
-        let cc = build_commit_config(&cfg, &[]);
+        let dir = tempfile::tempdir().unwrap();
+        let cc = build_commit_config(&cfg, dir.path(), &[]);
         assert_eq!(cc.refs_required, vec!["feat", "fix"]);
     }
 
