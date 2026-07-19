@@ -4,10 +4,12 @@ use serde::Serialize;
 
 pub(crate) mod deps;
 mod load;
+mod version_files;
 mod workspace;
 
 pub use load::load;
 pub(crate) use load::load_with_raw;
+pub(crate) use version_files::resolve_custom_version_files;
 pub(crate) use workspace::discover_packages;
 
 #[cfg(test)]
