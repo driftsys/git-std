@@ -149,8 +149,12 @@ fn parse_trailer(raw: &str) -> Option<(&str, &str)> {
     }
     if let Some(pos) = raw.find(" #") {
         let token = raw[..pos].trim();
-        let value = raw[pos + 2..].trim();
-        if !token.is_empty() && !value.is_empty() {
+        // Keep the '#' itself in the value (start at pos + 1, not pos + 2):
+        // GitHub's issue-closing-keyword parser requires a literal '#'
+        // before the number, so "Closes #525" must parse to value "#525",
+        // not "525" (#526).
+        let value = raw[pos + 1..].trim();
+        if !token.is_empty() && value != "#" && !value.is_empty() {
             return Some((token, value));
         }
     }
@@ -164,4 +168,44 @@ fn resolve_signoff(dir: &std::path::Path) -> Result<String> {
     let email = crate::git::config_value(dir, "user.email")
         .map_err(|e| anyhow::anyhow!("cannot read git user.email: {e}"))?;
     Ok(format!("Signed-off-by: {name} <{email}>"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_trailer;
+
+    #[test]
+    fn parse_trailer_colon_form_returns_token_and_value() {
+        assert_eq!(parse_trailer("Refs: 524"), Some(("Refs", "524")));
+    }
+
+    #[test]
+    fn parse_trailer_hash_form_preserves_hash_in_value() {
+        // #526 — "Closes #525" must keep the '#' in the parsed value, or the
+        // rendered trailer ("Closes: 525") won't be recognised by GitHub's
+        // issue-closing-keyword parser, which requires a literal '#'.
+        assert_eq!(parse_trailer("Closes #525"), Some(("Closes", "#525")));
+    }
+
+    #[test]
+    fn parse_trailer_colon_form_with_hash_preserves_hash() {
+        assert_eq!(parse_trailer("Closes: #525"), Some(("Closes", "#525")));
+    }
+
+    #[test]
+    fn parse_trailer_returns_none_for_missing_separator() {
+        assert_eq!(parse_trailer("not a trailer"), None);
+    }
+
+    #[test]
+    fn parse_trailer_returns_none_for_empty_token() {
+        assert_eq!(parse_trailer(": value"), None);
+        assert_eq!(parse_trailer(" #525"), None);
+    }
+
+    #[test]
+    fn parse_trailer_returns_none_for_empty_value() {
+        assert_eq!(parse_trailer("Closes: "), None);
+        assert_eq!(parse_trailer("Closes #"), None);
+    }
 }
