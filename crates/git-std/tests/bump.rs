@@ -648,9 +648,33 @@ fn bump_pre1_fix_bumps_patch() {
         .stderr(predicate::str::contains("0.10.2 → 0.10.3"));
 }
 
-/// Pre-1.0: --release-as still overrides computed version.
+/// Pre-1.0: --release-as still overrides computed version, when the
+/// first-major-release gate is explicitly confirmed.
 #[test]
 fn bump_pre1_release_as_overrides() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v0.10.2");
+
+    add_commit(dir.path(), "ra.txt", "feat: something");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump", "--release-as", "1.0.0", "--first-major-release"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("0.10.2 → 1.0.0"));
+
+    let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
+    assert!(cargo.contains("version = \"1.0.0\""));
+    assert!(tag_exists(dir.path(), "v1.0.0"));
+}
+
+/// A 0.x → 1.x promotion via --release-as is refused without an explicit
+/// --first-major-release confirmation, and nothing is written.
+#[test]
+fn bump_first_major_release_blocked_without_flag() {
     let dir = tempfile::tempdir().unwrap();
     init_bump_repo(dir.path());
     create_tag(dir.path(), "v0.10.2");
@@ -662,12 +686,33 @@ fn bump_pre1_release_as_overrides() {
         .args(["bump", "--release-as", "1.0.0"])
         .current_dir(dir.path())
         .assert()
-        .success()
-        .stderr(predicate::str::contains("0.10.2 → 1.0.0"));
+        .code(1)
+        .stderr(predicate::str::contains("--first-major-release"));
 
+    assert!(!tag_exists(dir.path(), "v1.0.0"));
     let cargo = std::fs::read_to_string(dir.path().join("Cargo.toml")).unwrap();
-    assert!(cargo.contains("version = \"1.0.0\""));
-    assert!(tag_exists(dir.path(), "v1.0.0"));
+    assert!(cargo.contains("version = \"0.0.0\""));
+}
+
+/// N → N+1 major bumps (already stable) are never gated -- only the first
+/// 0.x → 1.0 promotion requires the flag.
+#[test]
+fn bump_major_boundary_not_gated_once_stable() {
+    let dir = tempfile::tempdir().unwrap();
+    init_bump_repo(dir.path());
+    create_tag(dir.path(), "v1.4.2");
+
+    add_commit(dir.path(), "brk.txt", "feat!: remove old API");
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["bump"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1.4.2 → 2.0.0"));
+
+    assert!(tag_exists(dir.path(), "v2.0.0"));
 }
 
 /// Pre-1.0: --dry-run shows the downshifted bump plan.

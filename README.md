@@ -82,6 +82,26 @@ MIT
 - [Specification](docs/SPEC.md)
 - [API docs](https://docs.rs/git-std) (docs.rs)
 
+## Staying in 0.x until you mean to ship 1.0
+
+`git std bump` never lets a routine bump mechanically promote a project from
+`0.x` to `1.0.0` — that transition is a deliberate API-stability commitment
+([SemVer §4-5](https://semver.org/#spec-item-4)), not a side effect of the
+next breaking-change commit. Crossing it (via `--release-as 1.0.0` or
+`--stable`'s default major advance) requires an explicit
+`--first-major-release` confirmation; without it, the bump refuses with a
+non-zero exit. Later major bumps (e.g. `1.4.2` → `2.0.0`) are unaffected —
+only the first crossing out of `0.x` is gated.
+
+For server-side enforcement, apply the
+[ruleset template](docs/templates/block-major-tags-ruleset.json) to block
+`v1+` tag creation until you're ready:
+
+```sh
+gh api --method POST repos/OWNER/REPO/rulesets \
+  --input docs/templates/block-major-tags-ruleset.json
+```
+
 ## References
 
 - [Conventional Commits v1.0.0][cc]

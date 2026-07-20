@@ -22,6 +22,12 @@ pub struct BumpOptions {
     pub release_as: Option<String>,
     /// Use current version for initial changelog (no bump).
     pub first_release: bool,
+    /// Confirm an intentional 0.x → 1.0 promotion (API-stability commitment).
+    ///
+    /// Required whenever a bump would cross from major `0` to major `1+`;
+    /// without it, `git std bump` refuses with a non-zero exit. Has no
+    /// effect on major bumps once already stable (e.g. `1.x` → `2.x`).
+    pub first_major_release: bool,
     /// Skip tag creation.
     pub no_tag: bool,
     /// Skip commit and tag (update files only).
@@ -59,6 +65,19 @@ pub(super) struct FinalizeContext<'a> {
     pub(super) prev_version: Option<&'a str>,
     /// Raw commits since the last tag, used for changelog generation.
     pub(super) raw_commits: &'a [(String, String)],
+}
+
+/// Whether bumping from `current` to `next` would promote the project from
+/// pre-1.0 (major `0`) to a stable major version (`1+`).
+///
+/// This is a one-time API-stability commitment per [SemVer §4-5](https://semver.org/#spec-item-4),
+/// distinct from later major bumps (e.g. `1.x` → `2.x`), which are routine
+/// and never gated.
+pub(super) fn crosses_first_major_boundary(
+    current: &semver::Version,
+    next: &semver::Version,
+) -> bool {
+    current.major == 0 && next.major >= 1
 }
 
 /// Run the bump subcommand. Returns the exit code.
@@ -121,4 +140,37 @@ pub fn run(config: &crate::config::ProjectConfig, opts: &BumpOptions) -> i32 {
         return monorepo::plan_monorepo_bump(config, opts, &opts.packages);
     }
     plan::dispatch(config, opts)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::crosses_first_major_boundary;
+
+    #[test]
+    fn crosses_first_major_boundary_true_for_0_to_1() {
+        let current = semver::Version::new(0, 10, 2);
+        let next = semver::Version::new(1, 0, 0);
+        assert!(crosses_first_major_boundary(&current, &next));
+    }
+
+    #[test]
+    fn crosses_first_major_boundary_false_within_pre_1_0() {
+        let current = semver::Version::new(0, 10, 2);
+        let next = semver::Version::new(0, 11, 0);
+        assert!(!crosses_first_major_boundary(&current, &next));
+    }
+
+    #[test]
+    fn crosses_first_major_boundary_false_for_later_major_bumps() {
+        let current = semver::Version::new(1, 4, 2);
+        let next = semver::Version::new(2, 0, 0);
+        assert!(!crosses_first_major_boundary(&current, &next));
+    }
+
+    #[test]
+    fn crosses_first_major_boundary_false_for_same_major() {
+        let current = semver::Version::new(1, 4, 2);
+        let next = semver::Version::new(1, 5, 0);
+        assert!(!crosses_first_major_boundary(&current, &next));
+    }
 }
