@@ -278,8 +278,11 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
         && !stash::stash_apply(stash_sha)
     {
         ui::error("stash apply failed — working tree has conflicting unstaged changes");
-        ui::hint("commit or stash your unstaged changes first, then retry");
-        stash::stash_drop(stash_sha);
+        ui::hint(&format!(
+            "your original changes are preserved in the stash ({stash_sha}) — resolve \
+             the conflict, inspect it with `git stash show -p {stash_sha}`, then drop it \
+             from `git stash list` once recovered"
+        ));
         print_failure_hints(hook);
         return 1;
     }
