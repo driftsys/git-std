@@ -75,6 +75,15 @@ pub(super) fn prompt_scope(config: &ProjectConfig) -> Result<Option<String>> {
                     crate::ui::hint(&format!(
                         "staged path '{dir}/' doesn't match any configured scope"
                     ));
+                } else {
+                    let meta = config.meta_scope(&cwd);
+                    if discovered.iter().any(|s| s == &meta)
+                        && crate::config::meta_scope_suggested(&staged)
+                    {
+                        crate::ui::hint(&format!(
+                            "staged files touch root-level or multiple scopes — consider `{meta}`"
+                        ));
+                    }
                 }
                 let items = scope_select_items(&discovered, unmatched_dir.as_deref());
                 let item_refs: Vec<&str> = items.iter().map(|s| s.as_str()).collect();

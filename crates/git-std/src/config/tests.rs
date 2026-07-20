@@ -224,9 +224,16 @@ fn to_lint_config_auto_discovers_scopes() {
         ..Default::default()
     };
     let lint = config.to_lint_config(true, dir.path());
+    // No `origin` remote in this temp dir, so the meta-scope falls back to
+    // the default "root".
     assert_eq!(
         lint.scopes,
-        Some(vec!["api".into(), "auth".into(), "release".into()])
+        Some(vec![
+            "api".into(),
+            "auth".into(),
+            "root".into(),
+            "release".into()
+        ])
     );
     assert!(lint.require_scope);
 }
@@ -252,7 +259,12 @@ fn resolved_scopes_auto() {
         scopes: ScopesConfig::Auto,
         ..Default::default()
     };
-    assert_eq!(config.resolved_scopes(dir.path(), None), vec!["web"]);
+    // No `origin` remote in this temp dir, so the meta-scope falls back to
+    // the default "root".
+    assert_eq!(
+        config.resolved_scopes(dir.path(), None),
+        vec!["root", "web"]
+    );
 }
 
 #[test]
@@ -273,6 +285,111 @@ fn resolved_scopes_none() {
         ..Default::default()
     };
     assert!(config.resolved_scopes(dir.path(), None).is_empty());
+}
+
+/// Initialize a bare git repo with an `origin` remote for meta-scope tests.
+fn init_repo_with_remote(dir: &std::path::Path, remote_url: &str) {
+    let run = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .current_dir(dir)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    run(&["init"]);
+    run(&["remote", "add", "origin", remote_url]);
+}
+
+#[test]
+fn resolved_scopes_auto_meta_scope_from_remote() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+    init_repo_with_remote(dir.path(), "git@github.com:driftsys/git-std.git");
+    let config = ProjectConfig {
+        scopes: ScopesConfig::Auto,
+        ..Default::default()
+    };
+    assert_eq!(
+        config.resolved_scopes(dir.path(), None),
+        vec!["api", "git-std"]
+    );
+}
+
+#[test]
+fn resolved_scopes_auto_meta_scope_custom_default() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+    let config = ProjectConfig {
+        scopes: ScopesConfig::Auto,
+        default_scope: "meta".into(),
+        ..Default::default()
+    };
+    // No `origin` remote, so the custom `default_scope` is used.
+    assert_eq!(
+        config.resolved_scopes(dir.path(), None),
+        vec!["api", "meta"]
+    );
+}
+
+#[test]
+fn resolved_scopes_auto_no_meta_scope_when_nothing_discovered() {
+    let dir = tempfile::tempdir().unwrap();
+    let config = ProjectConfig {
+        scopes: ScopesConfig::Auto,
+        ..Default::default()
+    };
+    assert!(config.resolved_scopes(dir.path(), None).is_empty());
+}
+
+#[test]
+fn resolved_scopes_list_never_gets_meta_scope() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo_with_remote(dir.path(), "git@github.com:driftsys/git-std.git");
+    let config = ProjectConfig {
+        scopes: ScopesConfig::List(vec!["auth".into()]),
+        ..Default::default()
+    };
+    // Explicit lists are already curated — no implicit meta-scope injection.
+    assert_eq!(config.resolved_scopes(dir.path(), None), vec!["auth"]);
+}
+
+#[test]
+fn meta_scope_prefers_remote_over_default_scope() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo_with_remote(dir.path(), "https://github.com/driftsys/git-std");
+    let config = ProjectConfig {
+        default_scope: "meta".into(),
+        ..Default::default()
+    };
+    assert_eq!(config.meta_scope(dir.path()), "git-std");
+}
+
+#[test]
+fn meta_scope_falls_back_to_default_scope_without_remote() {
+    let dir = tempfile::tempdir().unwrap();
+    let config = ProjectConfig {
+        default_scope: "meta".into(),
+        ..Default::default()
+    };
+    assert_eq!(config.meta_scope(dir.path()), "meta");
+}
+
+#[test]
+fn default_scope_defaults_to_root() {
+    let config = ProjectConfig::default();
+    assert_eq!(config.default_scope, "root");
+}
+
+#[test]
+fn default_scope_parsed_from_config() {
+    let config = parse_config("default_scope = \"meta\"\n");
+    assert_eq!(config.default_scope, "meta");
 }
 
 #[test]
