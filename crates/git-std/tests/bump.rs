@@ -1091,10 +1091,20 @@ fn init_remote(local_dir: &Path, remote_dir: &Path, remote_name: &str) {
 }
 
 /// Helper: check whether a tag exists in a bare remote repo.
+///
+/// Uses `--git-dir` explicitly rather than `current_dir()`, since modern git
+/// refuses to operate against a bare repository via cwd alone when
+/// `safe.bareRepository = explicit` is set (a hardening setting some
+/// environments enable globally).
 fn remote_tag_exists(remote_dir: &Path, tag: &str) -> bool {
     std::process::Command::new("git")
-        .current_dir(remote_dir)
-        .args(["rev-parse", "--verify", &format!("refs/tags/{tag}")])
+        .args([
+            "--git-dir",
+            &remote_dir.display().to_string(),
+            "rev-parse",
+            "--verify",
+            &format!("refs/tags/{tag}"),
+        ])
         .output()
         .unwrap()
         .status

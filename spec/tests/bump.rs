@@ -466,9 +466,17 @@ fn bump_push_to_local_remote() {
         .assert()
         .success();
 
+    // Use `--git-dir` explicitly rather than `current_dir()` — modern git
+    // refuses to operate against a bare repository via cwd alone when
+    // `safe.bareRepository = explicit` is set (a hardening setting some
+    // environments enable globally).
     let tag_output = std::process::Command::new("git")
-        .args(["tag", "-l"])
-        .current_dir(remote_dir.path())
+        .args([
+            "--git-dir",
+            remote_dir.path().to_str().unwrap(),
+            "tag",
+            "-l",
+        ])
         .output()
         .expect("git tag -l failed");
     let tags = String::from_utf8_lossy(&tag_output.stdout);
