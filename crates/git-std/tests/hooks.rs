@@ -1246,3 +1246,97 @@ fn hooks_run_fix_mode_isolates_own_stash_from_foreign_stash() {
         "foreign stash contents must not leak into the working tree"
     );
 }
+
+/// #527 — When the hook's own `stash apply` fails, the stash it just
+/// created must not be dropped. Dropping it discards the only recoverable
+/// copy of the pre-stash working tree state, leaving the user with nothing
+/// to recover from beyond the hook's own error message.
+///
+/// `git stash apply` cannot be made to fail against its own immediately
+/// preceding `git stash push` under normal conditions (the round-trip is
+/// designed to be a no-op), so this test shadows `git` on `PATH` with a
+/// thin wrapper that forwards every subcommand to the real binary except
+/// `stash apply`, which it forces to fail — deterministically simulating
+/// the rare conflict/race conditions real users can hit.
+#[test]
+fn hooks_run_fix_mode_keeps_own_stash_when_apply_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    std::fs::write(dir.path().join("base.txt"), "base\n").unwrap();
+    git(dir.path(), &["add", "base.txt"]);
+    git(dir.path(), &["commit", "-m", "base"]);
+
+    // Any fix-mode command; it must never actually run since apply fails
+    // before the command loop starts.
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "~ true\n").unwrap();
+
+    // Real staged change — this is what `stash_push()` will capture.
+    std::fs::write(dir.path().join("staged.txt"), "staged\n").unwrap();
+    git(dir.path(), &["add", "staged.txt"]);
+
+    let path_env = path_with_git_apply_forced_to_fail();
+
+    let assert = Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hook", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .env("PATH", &path_env)
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("stash"),
+        "failure message should mention the stash so the user can recover, got:\n{stderr}"
+    );
+
+    // The hook's own stash must still exist — not dropped after the
+    // failed apply.
+    let stash_after = git(dir.path(), &["stash", "list"]);
+    assert!(
+        !stash_after.is_empty(),
+        "the hook's own stash must be preserved after a failed apply, got:\n{stash_after}"
+    );
+}
+
+/// Build a `PATH` whose first entry is a wrapper script shadowing `git`:
+/// it forwards every invocation to the real `git` binary except
+/// `stash apply`, which it forces to fail (exit 1) without doing anything.
+fn path_with_git_apply_forced_to_fail() -> String {
+    let real_git = which_git();
+    let bin_dir = tempfile::tempdir().unwrap();
+    // Leak the tempdir so it outlives this function; test process exit
+    // cleans it up. Fine for a short-lived test binary.
+    let bin_dir = Box::leak(Box::new(bin_dir));
+    let fake_git = bin_dir.path().join("git");
+    std::fs::write(
+        &fake_git,
+        format!(
+            "#!/bin/sh\nif [ \"$1\" = \"stash\" ] && [ \"$2\" = \"apply\" ]; then\n  exit 1\nfi\nexec {real_git} \"$@\"\n"
+        ),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    format!(
+        "{}:{}",
+        bin_dir.path().display(),
+        std::env::var("PATH").unwrap_or_default()
+    )
+}
+
+/// Locate the real `git` binary's absolute path via `PATH` lookup.
+fn which_git() -> String {
+    let output = std::process::Command::new("sh")
+        .args(["-c", "command -v git"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "git must be on PATH for this test");
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
