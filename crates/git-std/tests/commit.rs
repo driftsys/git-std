@@ -367,6 +367,30 @@ fn commit_dry_run_with_single_footer() {
         .stderr(predicate::str::contains("Co-authored-by: Alice <a@b.com>"));
 }
 
+/// #526 — `--footer "Closes #NNN"` (hash form) must keep the '#' in the
+/// rendered trailer. GitHub's issue-closing-keyword parser requires a
+/// literal '#' before the issue number in every accepted form (`Closes
+/// #10`, `Closes: #10`); a rendered `Closes: 525` (no '#') silently fails
+/// to auto-close the referenced issue on merge.
+#[test]
+fn commit_dry_run_with_hash_form_footer_preserves_hash() {
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args([
+            "commit",
+            "--type",
+            "fix",
+            "-m",
+            "fix bug",
+            "--footer",
+            "Closes #525",
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Closes: #525"));
+}
+
 #[test]
 fn commit_dry_run_with_multiple_footers() {
     Command::cargo_bin("git-std")
