@@ -1,4 +1,5 @@
-//! Detect staged paths that don't match any resolved commit scope.
+//! Detect staged paths that don't match any resolved commit scope, or that
+//! look like a better fit for the meta-scope than any single discovered one.
 //!
 //! Only meaningful for `ScopesConfig::Auto`: an explicit `List` is a closed
 //! set of scopes by design and isn't expected to auto-expand when a new
@@ -40,6 +41,57 @@ pub fn unmatched_scope_dir(files: &[String], resolved_scopes: &[String]) -> Opti
         return Some(top.to_string());
     }
     None
+}
+
+/// Return the candidate scope name for a staged file path, or `None` for a
+/// root-level file (no directory component).
+///
+/// For files under a [`SCOPE_DIRS`] parent (e.g. `crates/api/...`), the
+/// candidate is the child directory name (`api`) — the actual discovered
+/// scope. For any other top-level directory, the candidate is that
+/// directory name itself.
+fn candidate_scope(file: &str) -> Option<String> {
+    let (top, rest) = file.split_once('/')?;
+    if SCOPE_DIRS.contains(&top) {
+        let (child, _) = rest.split_once('/').unwrap_or((rest, ""));
+        if child.is_empty() {
+            None
+        } else {
+            Some(child.to_string())
+        }
+    } else {
+        Some(top.to_string())
+    }
+}
+
+/// Detect whether staged files look like a better fit for the meta-scope
+/// than any single discovered scope: either every file is root-level (no
+/// directory component), or the files' candidate scopes span two or more
+/// distinct entries.
+///
+/// A mix of root-level files and exactly one matched scope is *not*
+/// flagged — the single matched scope is still the more accurate choice.
+pub fn meta_scope_suggested(files: &[String]) -> bool {
+    if files.is_empty() {
+        return false;
+    }
+    let mut candidates: Vec<String> = Vec::new();
+    let mut any_root_level = false;
+    for file in files {
+        match candidate_scope(file) {
+            Some(c) => {
+                if !candidates.contains(&c) {
+                    candidates.push(c);
+                }
+            }
+            None => any_root_level = true,
+        }
+    }
+    if candidates.is_empty() {
+        any_root_level
+    } else {
+        candidates.len() >= 2
+    }
 }
 
 #[cfg(test)]
@@ -89,5 +141,40 @@ mod tests {
     fn none_for_known_non_scope_dirs() {
         let files = vec!["docs/guide.md".to_string()];
         assert_eq!(unmatched_scope_dir(&files, &[]), None);
+    }
+
+    #[test]
+    fn meta_scope_not_suggested_when_no_files() {
+        assert!(!meta_scope_suggested(&[]));
+    }
+
+    #[test]
+    fn meta_scope_suggested_when_all_root_level() {
+        let files = vec!["README.md".to_string(), ".git-std.toml".to_string()];
+        assert!(meta_scope_suggested(&files));
+    }
+
+    #[test]
+    fn meta_scope_suggested_when_spanning_multiple_crates() {
+        let files = vec![
+            "crates/api/src/main.rs".to_string(),
+            "crates/auth/src/lib.rs".to_string(),
+        ];
+        assert!(meta_scope_suggested(&files));
+    }
+
+    #[test]
+    fn meta_scope_not_suggested_for_single_matched_scope() {
+        let files = vec!["crates/api/src/main.rs".to_string()];
+        assert!(!meta_scope_suggested(&files));
+    }
+
+    #[test]
+    fn meta_scope_not_suggested_for_single_scope_plus_root_file() {
+        let files = vec![
+            "README.md".to_string(),
+            "crates/api/src/main.rs".to_string(),
+        ];
+        assert!(!meta_scope_suggested(&files));
     }
 }

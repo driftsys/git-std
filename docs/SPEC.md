@@ -1124,7 +1124,9 @@ types = ["feat", "fix", "docs", "style",
          "refactor", "perf", "test",
          "chore", "ci", "build"]
 scopes = ["auth", "api", "ci", "deps"]         # "auto" | string[] | omit
-# "auto" discovers directory names from crates/*/, packages/*/, modules/*/
+# "auto" discovers directory names from crates/*/, packages/*/, modules/*/,
+# plus a meta-scope for root-only or cross-cutting commits (see default_scope)
+default_scope = "root"                         # meta-scope; falls back here when no git remote
 strict = true                                  # enforce types/scopes without --strict flag
 monorepo = false                               # per-package versioning
 
@@ -1160,21 +1162,22 @@ regex = '<version>(.*)</version>'
 
 **Defaults when `.git-std.toml` is absent:**
 
-| Field                       | Default                                                                                      |
-| --------------------------- | -------------------------------------------------------------------------------------------- |
-| `scheme`                    | `semver`                                                                                     |
-| `types`                     | `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, `revert` |
-| `scopes`                    | None (no scope validation)                                                                   |
-| `strict`                    | `false`                                                                                      |
-| `monorepo`                  | `false`                                                                                      |
-| `versioning.tag_prefix`     | `v`                                                                                          |
-| `versioning.prerelease_tag` | `rc`                                                                                         |
-| `versioning.calver_format`  | `YYYY.MM.PATCH`                                                                              |
-| `versioning.tag_template`   | `{name}@{version}`                                                                           |
-| `changelog.hidden`          | `chore`, `ci`, `build`, `style`, `test`                                                      |
-| `changelog.sections`        | Sensible defaults for each type                                                              |
-| `version_files`             | `[]` (empty — built-in files are always auto-detected)                                       |
-| `packages`                  | `[]` (auto-discovered from workspace manifests when `monorepo = true`)                       |
+| Field                       | Default                                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------- |
+| `scheme`                    | `semver`                                                                                      |
+| `types`                     | `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, `revert`  |
+| `scopes`                    | None (no scope validation)                                                                    |
+| `default_scope`             | `"root"` (meta-scope suggested for root-only or cross-cutting commits when `scopes = "auto"`) |
+| `strict`                    | `false`                                                                                       |
+| `monorepo`                  | `false`                                                                                       |
+| `versioning.tag_prefix`     | `v`                                                                                           |
+| `versioning.prerelease_tag` | `rc`                                                                                          |
+| `versioning.calver_format`  | `YYYY.MM.PATCH`                                                                               |
+| `versioning.tag_template`   | `{name}@{version}`                                                                            |
+| `changelog.hidden`          | `chore`, `ci`, `build`, `style`, `test`                                                       |
+| `changelog.sections`        | Sensible defaults for each type                                                               |
+| `version_files`             | `[]` (empty — built-in files are always auto-detected)                                        |
+| `packages`                  | `[]` (auto-discovered from workspace manifests when `monorepo = true`)                        |
 
 **Inferred (not configurable):**
 
@@ -1356,7 +1359,12 @@ git std lint --range main..HEAD --format json
    Three-way: not set (default, no validation),
    `scopes = "auto"` (discover from `crates/*/`, `packages/*/`,
    `modules/*/` directory names), or `scopes = ["auth", "api"]`
-   (explicit allowlist).
+   (explicit allowlist). In `"auto"` mode, a meta-scope
+   (`default_scope`, defaulting to `"root"`) is appended to the
+   discovered list and proactively suggested when staged changes
+   are root-only or span two or more discovered scopes — this
+   covers root-level and cross-cutting commits that don't map
+   cleanly to a single crate/package/module directory.
 
 3. **Monorepo version sync.** Post-bump, validate that
    workspace-inherited versions resolve correctly?

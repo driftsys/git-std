@@ -10,7 +10,7 @@ mod workspace;
 
 pub use load::load;
 pub(crate) use load::load_with_raw;
-pub use scope_hint::unmatched_scope_dir;
+pub use scope_hint::{meta_scope_suggested, unmatched_scope_dir};
 pub(crate) use version_files::resolve_custom_version_files;
 pub(crate) use workspace::discover_packages;
 
@@ -140,8 +140,11 @@ pub struct PackageConfig {
     pub changelog: Option<ChangelogConfig>,
 }
 
+/// Default fallback meta-scope name (see [`ProjectConfig::default_scope`]).
+pub const DEFAULT_META_SCOPE: &str = "root";
+
 /// Project configuration loaded from `.git-std.toml`.
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Serialize)]
 pub struct ProjectConfig {
     pub types: Vec<String>,
     pub scopes: ScopesConfig,
@@ -162,6 +165,29 @@ pub struct ProjectConfig {
     pub release_branch: Option<String>,
     /// Commit types that require a footer reference (e.g. `feat`, `fix`).
     pub refs_required: Vec<String>,
+    /// Fallback meta-scope used when `scopes = "auto"` (or `monorepo = true`)
+    /// discovery is active and there's no `origin` git remote to derive a
+    /// repo name from. Defaults to `"root"`.
+    pub default_scope: String,
+}
+
+impl Default for ProjectConfig {
+    fn default() -> Self {
+        Self {
+            types: Vec::new(),
+            scopes: ScopesConfig::default(),
+            strict: false,
+            scheme: Scheme::default(),
+            changelog: ChangelogConfig::default(),
+            versioning: VersioningConfig::default(),
+            version_files: Vec::new(),
+            monorepo: false,
+            packages: Vec::new(),
+            release_branch: None,
+            refs_required: Vec::new(),
+            default_scope: DEFAULT_META_SCOPE.to_string(),
+        }
+    }
 }
 
 impl ProjectConfig {
@@ -199,8 +225,15 @@ impl ProjectConfig {
     /// Resolve the effective scope list.
     ///
     /// Returns the explicit list, auto-discovered names, or an empty vec.
-    /// When `monorepo = true`, package names and the project name are always
-    /// appended to the scope list.
+    /// When `monorepo = true`, package names are always appended to the
+    /// scope list.
+    ///
+    /// When scopes are discovered rather than explicitly listed (`scopes =
+    /// "auto"`, or `monorepo = true`) and the result is non-empty, the
+    /// [meta-scope](Self::meta_scope) is appended too — an escape hatch for
+    /// commits that don't cleanly belong to one discovered scope (root-only
+    /// changes, or changes spanning multiple packages). Not applied to an
+    /// explicit `scopes = [...]` list, which is already a curated set.
     ///
     /// When `packages` is `Some`, uses the provided list instead of
     /// re-discovering from disk — avoids redundant filesystem scans.
@@ -209,6 +242,8 @@ impl ProjectConfig {
         repo_root: &Path,
         packages: Option<&[PackageConfig]>,
     ) -> Vec<String> {
+        let is_auto_discovery = matches!(self.scopes, ScopesConfig::Auto) || self.monorepo;
+
         let mut scopes = match &self.scopes {
             ScopesConfig::None if self.monorepo => discover_scopes(repo_root),
             ScopesConfig::None => return Vec::new(),
@@ -230,11 +265,32 @@ impl ProjectConfig {
                     scopes.push(pkg.name.clone());
                 }
             }
+        }
+
+        if is_auto_discovery && !scopes.is_empty() {
+            let meta = self.meta_scope(repo_root);
+            if !scopes.contains(&meta) {
+                scopes.push(meta);
+            }
+        }
+
+        if is_auto_discovery {
             scopes.sort();
             scopes.dedup();
         }
 
         scopes
+    }
+
+    /// Resolve the meta-scope: the repo name from the `origin` git remote,
+    /// or [`default_scope`](Self::default_scope) when there's no remote or
+    /// the URL can't be parsed.
+    ///
+    /// Deriving from the remote (rather than the local checkout directory
+    /// name) keeps the meta-scope stable across git worktrees, which this
+    /// project's own workflow relies on for feature branches.
+    pub fn meta_scope(&self, repo_root: &Path) -> String {
+        crate::git::repo_name_from_remote(repo_root).unwrap_or_else(|| self.default_scope.clone())
     }
 
     /// Resolve the effective package list.
@@ -257,31 +313,17 @@ impl ProjectConfig {
     /// Strict mode is enabled if either the `--strict` CLI flag is passed
     /// or `strict = true` is set in `.git-std.toml`.
     ///
-    /// When `scopes = "auto"`, scopes are discovered from the workspace
-    /// directory layout under `repo_root`. When `monorepo = true`, package
-    /// names are always included regardless of scope mode.
+    /// Scopes are resolved via [`resolved_scopes`](Self::resolved_scopes)
+    /// (explicit list, or discovered from the workspace directory layout /
+    /// monorepo packages, plus the meta-scope where applicable). A scope is
+    /// only required when the resolved list is non-empty.
     pub fn to_lint_config(&self, strict: bool, repo_root: &Path) -> standard_commit::LintConfig {
         if self.strict || strict {
-            let (scopes, require_scope) = if self.monorepo {
-                let resolved = self.resolved_scopes(repo_root, None);
-                if resolved.is_empty() {
-                    (None, false)
-                } else {
-                    (Some(resolved), true)
-                }
+            let resolved = self.resolved_scopes(repo_root, None);
+            let (scopes, require_scope) = if resolved.is_empty() {
+                (None, false)
             } else {
-                match &self.scopes {
-                    ScopesConfig::None => (None, false),
-                    ScopesConfig::Auto => {
-                        let discovered = discover_scopes(repo_root);
-                        if discovered.is_empty() {
-                            (None, false)
-                        } else {
-                            (Some(discovered), true)
-                        }
-                    }
-                    ScopesConfig::List(list) => (Some(list.clone()), true),
-                }
+                (Some(resolved), true)
             };
             // `chore(release)` is the standard commit message produced by
             // `git std bump`. Always allow it so the tool's own commits

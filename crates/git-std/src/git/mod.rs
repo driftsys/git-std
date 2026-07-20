@@ -14,7 +14,8 @@ pub use mutate::{
     is_working_tree_dirty, push_follow_tags, stage_files, stage_tracked_modified, workdir,
 };
 pub use query::{
-    commit_date, config_value, current_branch, detect_host, head_oid, resolve_rev, short_status,
-    staged_diff, staged_files, walk_commits, walk_commits_for_path, walk_range,
+    commit_date, config_value, current_branch, detect_host, head_oid, repo_name_from_remote,
+    resolve_rev, short_status, staged_diff, staged_files, walk_commits, walk_commits_for_path,
+    walk_range,
 };
 pub use tag::{collect_tags, find_latest_calver_tag, find_latest_version_tag};

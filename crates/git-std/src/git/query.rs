@@ -149,6 +149,33 @@ pub fn commit_date(dir: &Path, rev: &str) -> Result<String, GitError> {
     Ok(output[..10].to_string())
 }
 
+/// Parse the repo slug (final path segment) from a git remote URL.
+///
+/// Supports SSH (`git@host:owner/repo.git`) and HTTPS
+/// (`https://host/owner/repo`) forms, stripping a trailing `.git` and/or `/`
+/// if present. Returns `None` for an empty or path-less URL.
+fn repo_slug_from_url(url: &str) -> Option<String> {
+    let trimmed = url.trim();
+    let without_git = trimmed.strip_suffix(".git").unwrap_or(trimmed);
+    let without_slash = without_git.trim_end_matches('/');
+    let slug = without_slash.rsplit(['/', ':']).next()?;
+    if slug.is_empty() {
+        None
+    } else {
+        Some(slug.to_string())
+    }
+}
+
+/// Derive the repo name from the `origin` remote, stable across worktrees
+/// (unlike the local checkout directory name).
+///
+/// Returns `None` when there's no `origin` remote configured or the URL
+/// can't be parsed — callers should fall back to a configured default.
+pub fn repo_name_from_remote(dir: &Path) -> Option<String> {
+    let url = git(dir, &["remote", "get-url", "origin"]).ok()?;
+    repo_slug_from_url(&url)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -400,5 +427,74 @@ mod tests {
             "branch commit must be visible after merge"
         );
         assert_eq!(commits[0].1, "feat: core feature on branch");
+    }
+
+    #[test]
+    fn repo_slug_from_url_ssh() {
+        assert_eq!(
+            repo_slug_from_url("git@github.com:driftsys/git-std.git"),
+            Some("git-std".to_string())
+        );
+    }
+
+    #[test]
+    fn repo_slug_from_url_https() {
+        assert_eq!(
+            repo_slug_from_url("https://github.com/driftsys/git-std"),
+            Some("git-std".to_string())
+        );
+    }
+
+    #[test]
+    fn repo_slug_from_url_https_with_git_suffix() {
+        assert_eq!(
+            repo_slug_from_url("https://github.com/driftsys/git-std.git"),
+            Some("git-std".to_string())
+        );
+    }
+
+    #[test]
+    fn repo_slug_from_url_trailing_slash() {
+        assert_eq!(
+            repo_slug_from_url("https://github.com/driftsys/git-std/"),
+            Some("git-std".to_string())
+        );
+    }
+
+    #[test]
+    fn repo_slug_from_url_empty() {
+        assert_eq!(repo_slug_from_url(""), None);
+    }
+
+    #[test]
+    fn repo_slug_from_url_no_path() {
+        assert_eq!(repo_slug_from_url("git@github.com:"), None);
+    }
+
+    #[test]
+    fn repo_name_from_remote_reads_origin() {
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        git(
+            dir.path(),
+            &[
+                "remote",
+                "add",
+                "origin",
+                "git@github.com:driftsys/git-std.git",
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            repo_name_from_remote(dir.path()),
+            Some("git-std".to_string())
+        );
+    }
+
+    #[test]
+    fn repo_name_from_remote_none_without_remote() {
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        assert_eq!(repo_name_from_remote(dir.path()), None);
     }
 }

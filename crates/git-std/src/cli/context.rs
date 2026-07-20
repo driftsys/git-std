@@ -191,6 +191,10 @@ struct CommitConfig {
     /// Top-level directory of a staged file that doesn't match any resolved
     /// scope in `Auto` mode. `None` when scopes aren't `Auto` or everything matches.
     scope_hint: Option<String>,
+    /// Meta-scope suggestion for root-only or cross-cutting commits in `Auto`
+    /// mode. `None` when scopes aren't `Auto`, there's an unmatched scope dir
+    /// to flag instead, or the staged files cleanly match a single scope.
+    meta_scope_hint: Option<String>,
 }
 
 enum GitState {
@@ -315,12 +319,22 @@ fn build_commit_config(cfg: &ProjectConfig, repo_root: &Path, files: &[String]) 
         }
     };
 
-    let scope_hint = match &cfg.scopes {
+    let (scope_hint, meta_scope_hint) = match &cfg.scopes {
         ScopesConfig::Auto => {
             let resolved = cfg.resolved_scopes(repo_root, None);
-            config::unmatched_scope_dir(files, &resolved)
+            let scope_hint = config::unmatched_scope_dir(files, &resolved);
+            let meta = cfg.meta_scope(repo_root);
+            let meta_scope_hint = if scope_hint.is_none()
+                && resolved.iter().any(|s| s == &meta)
+                && config::meta_scope_suggested(files)
+            {
+                Some(meta)
+            } else {
+                None
+            };
+            (scope_hint, meta_scope_hint)
         }
-        ScopesConfig::None | ScopesConfig::List(_) => None,
+        ScopesConfig::None | ScopesConfig::List(_) => (None, None),
     };
 
     let refs_required = cfg.refs_required.clone();
@@ -332,6 +346,7 @@ fn build_commit_config(cfg: &ProjectConfig, repo_root: &Path, files: &[String]) 
         refs_required,
         suggested_type,
         scope_hint,
+        meta_scope_hint,
     }
 }
 
@@ -460,6 +475,11 @@ fn render_text(
             "⚠ Staged path '{dir}/' doesn't match any configured scope — consider adding it to `scopes` in `.git-std.toml`"
         );
     }
+    if let Some(meta) = &commit_cfg.meta_scope_hint {
+        println!(
+            "hint: staged files touch root-level or multiple scopes — consider scope `{meta}`"
+        );
+    }
 
     match state {
         GitState::NotBootstrapped => {
@@ -575,6 +595,7 @@ fn render_json(
             "scopes": commit_cfg.scopes_line,
             "refs_required": commit_cfg.refs_required,
             "scope_hint": commit_cfg.scope_hint,
+            "meta_scope_hint": commit_cfg.meta_scope_hint,
         },
         "staged_diff": staged_diff,
         "unstaged_files": unstaged_files,
@@ -703,6 +724,88 @@ mod tests {
         };
         let cc = build_commit_config(&cfg, dir.path(), &["crates/api/src/main.rs".into()]);
         assert!(cc.scope_hint.is_none());
+    }
+
+    #[test]
+    fn meta_scope_hint_none_when_scopes_not_configured() {
+        let cfg = config::ProjectConfig::default();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+        let cc = build_commit_config(&cfg, dir.path(), &["README.md".into()]);
+        assert!(cc.meta_scope_hint.is_none());
+    }
+
+    #[test]
+    fn meta_scope_hint_none_when_no_scopes_discovered() {
+        // Auto mode but nothing under crates/packages/modules — the
+        // meta-scope isn't appended to resolved_scopes, so it isn't a valid
+        // pick and shouldn't be hinted either.
+        let cfg = config::ProjectConfig {
+            scopes: config::ScopesConfig::Auto,
+            ..Default::default()
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let cc = build_commit_config(&cfg, dir.path(), &["README.md".into()]);
+        assert!(cc.meta_scope_hint.is_none());
+    }
+
+    #[test]
+    fn meta_scope_hint_some_for_root_only_files() {
+        let cfg = config::ProjectConfig {
+            scopes: config::ScopesConfig::Auto,
+            ..Default::default()
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+        let cc = build_commit_config(&cfg, dir.path(), &["README.md".into()]);
+        assert_eq!(cc.meta_scope_hint.as_deref(), Some("root"));
+    }
+
+    #[test]
+    fn meta_scope_hint_some_for_files_spanning_multiple_scopes() {
+        let cfg = config::ProjectConfig {
+            scopes: config::ScopesConfig::Auto,
+            ..Default::default()
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/auth")).unwrap();
+        let files = vec![
+            "crates/api/src/main.rs".to_string(),
+            "crates/auth/src/lib.rs".to_string(),
+        ];
+        let cc = build_commit_config(&cfg, dir.path(), &files);
+        assert_eq!(cc.meta_scope_hint.as_deref(), Some("root"));
+    }
+
+    #[test]
+    fn meta_scope_hint_none_for_single_matched_scope() {
+        let cfg = config::ProjectConfig {
+            scopes: config::ScopesConfig::Auto,
+            ..Default::default()
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+        let cc = build_commit_config(&cfg, dir.path(), &["crates/api/src/main.rs".into()]);
+        assert!(cc.meta_scope_hint.is_none());
+    }
+
+    #[test]
+    fn meta_scope_hint_none_when_scope_hint_takes_priority() {
+        let cfg = config::ProjectConfig {
+            scopes: config::ScopesConfig::Auto,
+            ..Default::default()
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/api")).unwrap();
+        let files = vec![
+            "README.md".to_string(),
+            "crates/api/src/main.rs".to_string(),
+            "somethingnew/x.rs".to_string(),
+        ];
+        let cc = build_commit_config(&cfg, dir.path(), &files);
+        assert_eq!(cc.scope_hint.as_deref(), Some("somethingnew"));
+        assert!(cc.meta_scope_hint.is_none());
     }
 
     #[test]

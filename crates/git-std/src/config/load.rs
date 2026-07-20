@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use super::{
-    ChangelogConfig, PackageConfig, ProjectConfig, Scheme, ScopesConfig, VersionFileConfig,
-    VersioningConfig,
+    ChangelogConfig, DEFAULT_META_SCOPE, PackageConfig, ProjectConfig, Scheme, ScopesConfig,
+    VersionFileConfig, VersioningConfig,
 };
 
 /// Config filename.
@@ -34,6 +34,7 @@ pub fn load(dir: &Path) -> ProjectConfig {
             packages: Vec::new(),
             release_branch: None,
             refs_required: Vec::new(),
+            default_scope: DEFAULT_META_SCOPE.to_string(),
         },
     }
 }
@@ -83,6 +84,7 @@ fn default_config() -> ProjectConfig {
         packages: Vec::new(),
         release_branch: None,
         refs_required: Vec::new(),
+        default_scope: DEFAULT_META_SCOPE.to_string(),
     }
 }
 
@@ -148,6 +150,11 @@ fn build_config(table: &toml::Table) -> ProjectConfig {
             .collect(),
         None => Vec::new(),
     };
+    let default_scope = table
+        .get("default_scope")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .unwrap_or_else(|| DEFAULT_META_SCOPE.to_string());
 
     // Validate calver_format when scheme is calver.
     let versioning = if scheme == Scheme::Calver {
@@ -179,6 +186,7 @@ fn build_config(table: &toml::Table) -> ProjectConfig {
         packages,
         release_branch,
         refs_required,
+        default_scope,
     }
 }
 
