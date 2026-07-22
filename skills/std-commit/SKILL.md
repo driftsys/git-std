@@ -1,4 +1,5 @@
 ---
+schema: 1
 name: std-commit
 description: Author a conventional commit for staged changes using git std — use when asked to "commit", "write a commit", or "commit my changes".
 ---
@@ -24,20 +25,33 @@ description: Author a conventional commit for staged changes using git std — u
   - Available **Types** from context (e.g., feat, fix, docs, test, chore)
   - Available **Scopes** from context
   - Whether scopes are `(required, strict)` — if so, `--scope` flag is mandatory
+  - Any `⚠ Staged path '<dir>/' doesn't match any configured scope` warning
+  - Any `hint: staged files touch root-level or multiple scopes — consider
+    scope '<meta-scope>'` hint
 
 **Step 3: Determine commit type and scope**
 
 - Use **only** the types and scopes from context — never invent either.
-- **Type selection**:
-  - If context shows `Suggested type`, present it: "Type appears to be
-    [suggestion] — confirm or pick another?"
-  - If `Suggested type` is a shortlist like "feat or fix", ask user to choose
-    by reading the diff
-  - Otherwise ask user to select from available types
+- Scopes are configurable in `.git-std.toml`. In `scopes = "auto"` mode, scopes
+  are discovered only from `crates/*`, `packages/*`, `modules/*` — a new
+  top-level folder outside those patterns won't appear as a scope on its own.
+  A meta-scope (`default_scope`, `"root"` unless overridden) is also appended
+  to the discovered list for root-only or cross-cutting commits.
+- If `--context` warned about an unmatched scope path, **don't silently fall
+  back** to a generic type/scope (e.g. `docs`/`chore`). Ask the user: "Staged
+  changes touch `<dir>/`, which isn't a configured scope. Add `<dir>` as a new
+  scope in `.git-std.toml` now, use an existing scope instead, or skip the
+  scope for this commit?" Only edit `.git-std.toml` if the user agrees.
+- If `--context` printed the meta-scope hint (staged files are root-only, or
+  span two or more discovered scopes), prefer the suggested meta-scope over
+  guessing a single scope from the most-changed path — ask the user to
+  confirm it rather than silently picking one of the touched scopes.
+- Ask user to select from available types
 - If scopes are configured, ask user to select or skip
 - For scope: match changed file paths against workspace package names if
   possible
-  - If diff spans multiple scopes, pick the most-changed one
+  - If diff spans multiple scopes, pick the most-changed one — unless the
+    meta-scope hint fired, in which case prefer the meta-scope
   - If scopes are `(required, strict)` and no scope determined, require user
     selection
 
@@ -69,6 +83,7 @@ description: Author a conventional commit for staged changes using git std — u
 
 - Construct the full `git std commit` command with all flags
 - Show the proposed commit to the user:
+
   ```
   Type:     <type>
   Scope:    <scope> (if applicable)
@@ -80,6 +95,7 @@ description: Author a conventional commit for staged changes using git std — u
   Command:
     git std commit <all flags>
   ```
+
 - Ask: "Proceed with this commit? (yes/no)"
 - **Do not run the command without explicit user approval**
 

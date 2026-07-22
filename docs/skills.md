@@ -2,8 +2,16 @@
 
 Agent skills for Claude Code, OpenCode, and GitHub Copilot.
 
-Skills are stored in `.agents/skills/` and symlinked into `.claude/skills/`
-for Claude Code compatibility.
+Skills are authored under `skills/` — the
+[`upskill`](https://github.com/driftsys/upskill) source-registry root — and
+generated into `.claude/skills/` and `.agents/skills/` via:
+
+```bash
+upskill add ./ --claude --opencode
+```
+
+(or `just skills`). Regenerate after any change to `skills/` and commit the
+generated output alongside the SSOT change.
 
 ## /std-commit
 
