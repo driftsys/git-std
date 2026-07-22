@@ -17,6 +17,10 @@ lint:
 audit:
     cargo audit
 
+# Regenerate .claude/skills and .agents/skills from the skills/ SSOT (upskill)
+skills:
+    upskill add ./ --claude --opencode
+
 # Run all checks (test + lint + audit)
 check: test test-install lint audit
 

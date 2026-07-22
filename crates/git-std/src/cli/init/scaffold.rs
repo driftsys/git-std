@@ -283,7 +283,7 @@ mod tests {
     #[test]
     fn std_commit_skill_has_frontmatter() {
         let s = include_str!("../../../../../skills/std-commit/SKILL.md");
-        assert!(s.starts_with("---\nname: std-commit\n"));
+        assert!(s.starts_with("---\nschema: 1\nname: std-commit\n"));
         assert!(s.contains("git std --context"));
         assert!(s.contains("git std commit"));
     }
@@ -309,7 +309,7 @@ mod tests {
     #[test]
     fn std_bump_skill_has_frontmatter() {
         let s = include_str!("../../../../../skills/std-bump/SKILL.md");
-        assert!(s.starts_with("---\nname: std-bump\n"));
+        assert!(s.starts_with("---\nschema: 1\nname: std-bump\n"));
         assert!(s.contains("git std bump --dry-run"));
         assert!(s.contains("--push"));
     }

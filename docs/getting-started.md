@@ -39,10 +39,12 @@ prompts which hooks to enable. Default: `pre-commit` and
 
 ## AI agent skills
 
-Install the `std-commit` and `std-bump` skills for your AI coding agent:
+Install the `std-commit` and `std-bump` skills for your AI coding agent with
+[`upskill`](https://github.com/driftsys/upskill) (`cargo install upskill` or
+see its install script):
 
 ```bash
-npx skills add driftsys/git-std
+upskill add driftsys/git-std
 ```
 
 ## Make a commit

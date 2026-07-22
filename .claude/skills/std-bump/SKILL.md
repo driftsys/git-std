@@ -1,5 +1,4 @@
 ---
-schema: 1
 name: std-bump
 description: Bump the project version using git std — use when asked to "bump", "release", "cut a release", or "tag a version".
 ---
