@@ -43,9 +43,18 @@ pub(super) fn fetch_staged(filter: &str) -> Vec<String> {
 
 /// Re-apply staged deletions after the stash dance.
 ///
-/// Runs `git rm --cached --quiet -- <files>` to restore the deletion state
-/// in the index without touching the working tree. This undoes the effect
-/// of `stash apply` which restores deleted files.
+/// Runs `git update-index --force-remove -- <files>` to restore the deletion
+/// state in the index without touching the working tree. This undoes the
+/// effect of `stash apply` which restores deleted files.
+///
+/// `update-index --force-remove` is used instead of `git rm --cached`
+/// because it operates on exact index paths rather than resolving each path
+/// against the working tree. `git rm --cached` refuses a path that used to
+/// be a file but is now a directory on disk (e.g. a deleted file replaced
+/// by a same-named directory in the same change) unless given `-r` — and
+/// `-r` would also recursively strip any unrelated staged additions nested
+/// under that directory (#533). `update-index --force-remove` has neither
+/// problem: it is a no-op when the path is already gone from the index.
 ///
 /// Returns `true` on success, `false` if the command fails. A failure means
 /// the user's `git rm` intent would be silently lost — callers must treat
@@ -55,7 +64,7 @@ pub(super) fn restage_deletions(files: &[String]) -> bool {
         return true;
     }
     let mut cmd = Command::new("git");
-    cmd.args(["rm", "--cached", "--quiet", "--force", "--"]);
+    cmd.args(["update-index", "--force-remove", "--"]);
     for f in files {
         cmd.arg(f);
     }
@@ -64,13 +73,13 @@ pub(super) fn restage_deletions(files: &[String]) -> bool {
         Ok(s) => {
             let code = s.code().unwrap_or(-1);
             ui::error(&format!(
-                "git rm --cached failed (exit {code}) — staged deletions may be lost"
+                "git update-index --force-remove failed (exit {code}) — staged deletions may be lost"
             ));
             false
         }
         Err(e) => {
             ui::error(&format!(
-                "git rm --cached failed after fix-mode stash dance: {e}"
+                "git update-index --force-remove failed after fix-mode stash dance: {e}"
             ));
             false
         }
