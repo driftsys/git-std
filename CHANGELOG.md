@@ -1,5 +1,78 @@
 # Changelog
 
+## [0.11.13] (2026-07-24)
+
+### Bug Fixes
+
+- **git-std:** make restage_deletions survive file-to-directory transitions
+  ([#535]) ([5c78799]), closes [#533]
+- **git-std:** preserve hash in footer issue references ([#531]) ([a49a30d]),
+  closes [#526]
+- **git-std:** keep hook stash after a failed apply ([#530]) ([0cd6f54]), closes
+  [#527]
+- **git-std:** fail init before mutating state when no TTY ([d9c38ee]), closes
+  [#504]
+- **git-std:** isolate pre-commit stash from the shared worktree stack
+  ([a6f8a7b]), closes [#511]
+- **git-std:** replace convco with git std lint for commit validation ([#514])
+  ([ee8a846])
+
+### Documentation
+
+- **git-std:** replace npx skills with upskill and fix its SSOT layout ([#532])
+  ([ee38701]), closes [#498]
+- **git-std:** clarify bump rules and --release-as escape hatch ([#520])
+  ([81d56e6]), refs [#518]
+- **git-std:** add glob version_files recipe ([#516]) ([4d39039])
+- **git-std:** hide internal SPEC from published book ([35af532])
+
+### Features
+
+- **git-std:** add root/cross-cutting meta-scope for commit scope discovery
+  ([#529]) ([ecd1d82]), closes [#524]
+- **git-std:** gate the first 0.x to 1.0 major version promotion ([#523])
+  ([ef0a513]), refs [#505]
+- **git-std:** surface unmatched scopes in context and commit prompt ([#522])
+  ([7cc93e4]), refs [#521]
+- **git-std:** support glob patterns in version_files paths ([#515]) ([6674a48])
+
+[0.11.13]: https://github.com/driftsys/git-std/compare/v0.11.12...v0.11.13
+[5c78799]: https://github.com/driftsys/git-std/commit/5c78799
+[#535]: https://github.com/driftsys/git-std/issues/535
+[#533]: https://github.com/driftsys/git-std/issues/533
+[a49a30d]: https://github.com/driftsys/git-std/commit/a49a30d
+[#531]: https://github.com/driftsys/git-std/issues/531
+[#526]: https://github.com/driftsys/git-std/issues/526
+[0cd6f54]: https://github.com/driftsys/git-std/commit/0cd6f54
+[#530]: https://github.com/driftsys/git-std/issues/530
+[#527]: https://github.com/driftsys/git-std/issues/527
+[d9c38ee]: https://github.com/driftsys/git-std/commit/d9c38ee
+[#504]: https://github.com/driftsys/git-std/issues/504
+[a6f8a7b]: https://github.com/driftsys/git-std/commit/a6f8a7b
+[#511]: https://github.com/driftsys/git-std/issues/511
+[ee8a846]: https://github.com/driftsys/git-std/commit/ee8a846
+[#514]: https://github.com/driftsys/git-std/issues/514
+[ee38701]: https://github.com/driftsys/git-std/commit/ee38701
+[#532]: https://github.com/driftsys/git-std/issues/532
+[#498]: https://github.com/driftsys/git-std/issues/498
+[81d56e6]: https://github.com/driftsys/git-std/commit/81d56e6
+[#520]: https://github.com/driftsys/git-std/issues/520
+[#518]: https://github.com/driftsys/git-std/issues/518
+[4d39039]: https://github.com/driftsys/git-std/commit/4d39039
+[#516]: https://github.com/driftsys/git-std/issues/516
+[35af532]: https://github.com/driftsys/git-std/commit/35af532
+[ecd1d82]: https://github.com/driftsys/git-std/commit/ecd1d82
+[#529]: https://github.com/driftsys/git-std/issues/529
+[#524]: https://github.com/driftsys/git-std/issues/524
+[ef0a513]: https://github.com/driftsys/git-std/commit/ef0a513
+[#523]: https://github.com/driftsys/git-std/issues/523
+[#505]: https://github.com/driftsys/git-std/issues/505
+[7cc93e4]: https://github.com/driftsys/git-std/commit/7cc93e4
+[#522]: https://github.com/driftsys/git-std/issues/522
+[#521]: https://github.com/driftsys/git-std/issues/521
+[6674a48]: https://github.com/driftsys/git-std/commit/6674a48
+[#515]: https://github.com/driftsys/git-std/issues/515
+
 ## [0.11.12] (2026-05-01)
 
 ### Bug Fixes
