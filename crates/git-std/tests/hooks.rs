@@ -624,6 +624,60 @@ fn hooks_run_fix_mode_preserves_staged_deletions() {
     );
 }
 
+/// #533 — Fix mode survives a staged file-to-directory replacement.
+///
+/// When a tracked file is deleted and a directory with the same name (and a
+/// new file inside it) is staged in its place, `restage_deletions` must not
+/// fail. Previously it ran `git rm --cached --force -- <path>` without `-r`,
+/// which errors with "appears as both a file and as a directory" once the
+/// deleted path now exists as a directory in the working tree.
+#[test]
+fn hooks_run_fix_mode_survives_file_to_directory_replacement() {
+    let dir = tempfile::tempdir().unwrap();
+    init_hooks_repo(dir.path());
+
+    // Commit "thing" as a plain file.
+    std::fs::write(dir.path().join("thing"), "old content\n").unwrap();
+    git(dir.path(), &["add", "thing"]);
+    git(dir.path(), &["commit", "-m", "initial"]);
+
+    // Replace "thing" (file) with "thing/" (a directory containing a file),
+    // staging both the deletion and the new nested addition.
+    std::fs::remove_file(dir.path().join("thing")).unwrap();
+    std::fs::create_dir(dir.path().join("thing")).unwrap();
+    std::fs::write(dir.path().join("thing").join("inner.txt"), "new content\n").unwrap();
+    git(dir.path(), &["add", "-A"]);
+
+    let hooks_dir = dir.path().join(".githooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    // A no-op formatter that succeeds without modifying files.
+    std::fs::write(hooks_dir.join("pre-commit.hooks"), "~ true\n").unwrap();
+
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hook", "run", "pre-commit"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // The old file path should still be staged as deleted, and the new
+    // nested file should still be staged as added.
+    let status_output = std::process::Command::new("git")
+        .args(["diff", "--cached", "--name-status"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let name_status = String::from_utf8_lossy(&status_output.stdout);
+    assert!(
+        name_status.contains("D\tthing") && !name_status.contains("D\tthing/inner.txt"),
+        "thing should still be staged as deleted, got:\n{name_status}"
+    );
+    assert!(
+        name_status.contains("A\tthing/inner.txt"),
+        "thing/inner.txt should still be staged as added, got:\n{name_status}"
+    );
+}
+
 /// #268 — Deleted files are not passed as $@ to fix commands.
 ///
 /// Files staged for deletion should not appear in the positional parameters
