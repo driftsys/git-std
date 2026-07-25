@@ -156,7 +156,7 @@ Consolidates hook setup and bootstrap scaffolding for maintainers.
 ```bash
 git std init              # scaffold everything interactively
 git std init --force      # overwrite existing files
-git std init --refresh    # update skills and merge config defaults
+git std init --refresh    # merge config defaults without overwriting hooks
 ```
 
 **What it does:**
@@ -168,16 +168,19 @@ git std init --refresh    # update skills and merge config defaults
 5. Generates `./bootstrap` script.
 6. Generates `.githooks/bootstrap.hooks`.
 7. Creates `.git-std.toml` with taplo schema directive (if absent).
-8. Scaffolds agent skills in `.agents/skills/` with `.claude/skills/` symlinks.
-9. Appends post-clone section to `README.md` and `AGENTS.md` (if found).
-10. Stages all created files.
+8. Appends post-clone section to `README.md` and `AGENTS.md` (if found).
+9. Stages all created files.
+
+To install AI agent skills for `git std`, use
+[`upskill`](https://github.com/driftsys/upskill) (`upskill add
+driftsys/git-std`) — `init` does not scaffold skills.
 
 **Flags:**
 
-| Flag        | Description                                          |
-| ----------- | ---------------------------------------------------- |
-| `--force`   | Overwrite existing files                             |
-| `--refresh` | Update skills and merge config defaults (skip hooks) |
+| Flag        | Description                                     |
+| ----------- | ----------------------------------------------- |
+| `--force`   | Overwrite existing files                        |
+| `--refresh` | Merge config defaults without overwriting hooks |
 
 **Exit codes:** `0` = success, `1` = error.
 
