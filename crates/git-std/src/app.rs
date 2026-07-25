@@ -186,7 +186,7 @@ pub enum Command {
         /// Overwrite existing files.
         #[arg(long)]
         force: bool,
-        /// Update skill files and merge config defaults without overwriting hooks.
+        /// Merge config defaults without overwriting hooks.
         #[arg(long)]
         refresh: bool,
     },

@@ -27,15 +27,32 @@ eval "$(git-std --completions zsh)"
 git-std --completions fish | source
 ```
 
-## Set up hooks
+## Set up git-std in your repo
+
+**Maintainer, one-time setup:**
 
 ```bash
-git std hook install
+git std init
 ```
 
-This sets `core.hooksPath`, writes shim scripts, and
-prompts which hooks to enable. Default: `pre-commit` and
-`commit-msg`.
+This scaffolds `.githooks/` (hook templates + shims, prompting which hooks
+to enable — default `pre-commit` and `commit-msg`), generates a
+`./bootstrap` script for contributors, creates `.git-std.toml`, and appends
+a post-clone reminder to `README.md`/`AGENTS.md`. Review the staged changes
+and commit them.
+
+**Contributor, after `git clone` or `git worktree add`:**
+
+```bash
+./bootstrap
+```
+
+This runs the environment checks and any project-specific bootstrap
+commands (via `git std bootstrap` under the hood).
+
+To set up only hooks without the rest of `init` — e.g. in a repo that
+already has a `.git-std.toml` and bootstrap script — run
+`git std hook install` directly.
 
 ## AI agent skills
 
