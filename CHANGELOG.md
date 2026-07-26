@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.14] (2026-07-26)
+
+### Documentation
+
+- **git-std:** explain git std init in onboarding docs ([#537]) ([74dfee4]),
+  closes [#536]
+
+[0.11.14]: https://github.com/driftsys/git-std/compare/v0.11.13...v0.11.14
+[74dfee4]: https://github.com/driftsys/git-std/commit/74dfee4
+[#537]: https://github.com/driftsys/git-std/issues/537
+[#536]: https://github.com/driftsys/git-std/issues/536
+
 ## [0.11.13] (2026-07-24)
 
 ### Bug Fixes
