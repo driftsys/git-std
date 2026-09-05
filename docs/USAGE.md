@@ -36,7 +36,17 @@ git std lint --range main..HEAD                   # all commits in a range
 | `--strict`        | Enforce types/scopes from `.git-std.toml`    |
 | `--format <fmt>`  | Output format: `text` (default) or `json`    |
 
-**Exit codes:** `0` = valid, `1` = invalid, `2` = I/O or usage error.
+**Exit codes:** `0` = valid, `1` = invalid, or an empty `--range` whose
+inverse direction has commits, `2` = I/O or usage error.
+
+An empty `--range` exits `0` — nothing to lint is not a failure. A range git
+cannot resolve exits `2`. An empty range that does not end at the current
+checkout, and whose inverse direction has commits, exits `1` with a hint naming
+the inverse range, rather than passing silently. `<base>..HEAD` always exits
+`0` when empty, so the gate stays green on a checkout that is behind its base.
+
+With `--format json`, both empty cases write `[]` to stdout and the exit code
+carries the verdict, so a machine consumer always has an array to parse.
 
 **Examples:**
 

@@ -1,0 +1,1 @@
+[{"valid":false,"errors":["Missing type in the commit summary, expected `type: description`"]},{"valid":true,"type":"fix","description":"valid one","breaking":false,"errors":[]}]

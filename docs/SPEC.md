@@ -288,7 +288,38 @@ Validate one or more commit messages against the conventional commit specificati
 | `--strict`        | Enforce: type must be known, scope must be known (if defined), scope required |
 | `--format <fmt>`  | Output format: `text` (default), `json`                                       |
 
-**Exit codes:** `0` = all valid, `1` = one or more invalid.
+**Exit codes:** `0` = all valid, `1` = one or more invalid, or the `--range`
+is empty while its inverse direction has commits, `2` = usage or I/O error
+(unresolvable range, unreadable `--file`, or no input given).
+
+An empty `--range` is a no-op: there is nothing to lint, so no commit
+violates the convention and the command exits `0`. This makes
+`git std lint --range main..HEAD` safe to run on `main` itself, where the
+range is empty whenever `HEAD` is at `main`.
+
+Endpoints written in the wrong order produce an empty range too. When the
+right endpoint is not the current checkout and the inverse direction has
+commits, `lint` exits `1` and names the inverse range, so a commit gate
+cannot pass having validated nothing:
+
+```text
+$ git std lint --range HEAD..main
+warning: range 'HEAD..main' is empty
+  hint: did you mean 'main..HEAD'?
+```
+
+The endpoint order is what separates this from an ordinary empty range. In
+git, "the endpoints are reversed" and "the right endpoint is behind the left
+one" are the same state, so the two cannot be told apart by inspecting the
+commits. A range that ends at the current checkout — `main..HEAD`, or the
+`main..` shorthand for it — is the gate form, and an empty result there means
+the checkout carries no commits of its own. That is an honest answer to the
+question asked, so it exits `0`. A worktree branched from an older `main`
+therefore still passes the gate.
+
+With `--format json`, both empty cases write `[]` to stdout and report the
+verdict through the exit code, so a machine consumer always has an array to
+parse. An unresolvable range still writes nothing to stdout and exits `2`.
 
 **Output on failure:**
 
@@ -1301,10 +1332,16 @@ git std hook install
 
 ### 4.7 CI Integration
 
+Run these only where the base revision is defined. Outside a merge request or
+pull request the variable expands to nothing, the range collapses to `..HEAD`,
+and the job passes having validated no commits.
+
 ```yaml
 # GitLab CI
 lint:commits:
   stage: build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   script:
     - git std lint --range $CI_MERGE_REQUEST_DIFF_BASE_SHA..HEAD
 ```
@@ -1312,6 +1349,7 @@ lint:commits:
 ```yaml
 # GitHub Actions
 - name: Validate commits
+  if: github.event_name == 'pull_request'
   run: git std lint --range ${{ github.event.pull_request.base.sha }}..${{ github.sha }}
 ```
 
