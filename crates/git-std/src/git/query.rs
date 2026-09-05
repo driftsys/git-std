@@ -78,6 +78,15 @@ pub fn walk_commits(
     Ok(parse_nul_delimited_log(&output))
 }
 
+/// Return `true` when `range` contains at least one commit.
+///
+/// Cheaper than [`walk_range`] when only the presence of commits matters: git
+/// stops at the first commit instead of reading every message in the range.
+pub fn range_has_commits(dir: &Path, range: &str) -> Result<bool, GitError> {
+    let output = git(dir, &["rev-list", "--max-count=1", range, "--"])?;
+    Ok(!output.trim().is_empty())
+}
+
 /// Walk commits in a revision range string (e.g. `v1.0.0..v2.0.0`).
 pub fn walk_range(dir: &Path, range: &str) -> Result<Vec<(String, String)>, GitError> {
     let output = git(

@@ -98,3 +98,108 @@ fn range_invalid_range_exits_2() {
         .assert()
         .code(2);
 }
+
+// ── empty range is a no-op (#545) ──────────────────────────────
+
+#[test]
+fn range_empty_exits_0() {
+    let dir = tempfile::tempdir().unwrap();
+    make_test_repo(dir.path());
+
+    create_commit(dir.path(), "feat: initial commit", "hello");
+
+    git_std()
+        .args(["lint", "--range", "HEAD..HEAD"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout("")
+        .stderr(contains("no commits in range 'HEAD..HEAD'"));
+}
+
+#[test]
+fn range_empty_json_outputs_empty_array() {
+    let dir = tempfile::tempdir().unwrap();
+    make_test_repo(dir.path());
+
+    create_commit(dir.path(), "feat: initial commit", "hello");
+
+    git_std()
+        .args(["lint", "--range", "HEAD..HEAD", "--format", "json"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout("[]\n")
+        // JSON mode is machine output: an empty range reports nothing as an error.
+        .stderr("");
+}
+
+#[test]
+fn range_reversed_json_still_emits_array() {
+    let dir = tempfile::tempdir().unwrap();
+    make_test_repo(dir.path());
+
+    create_commit(dir.path(), "feat: initial commit", "hello");
+    create_commit(dir.path(), "fix: second commit", "world");
+
+    git_std()
+        .args(["lint", "--range", "HEAD..HEAD~1", "--format", "json"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        // Machine output stays a valid array even when the range is rejected.
+        .stdout("[]\n")
+        .stderr(contains("warning: range 'HEAD..HEAD~1' is empty"))
+        .stderr(contains("did you mean 'HEAD~1..HEAD'?"));
+}
+
+#[test]
+fn range_reversed_text_writes_nothing_to_stdout() {
+    let dir = tempfile::tempdir().unwrap();
+    make_test_repo(dir.path());
+
+    create_commit(dir.path(), "feat: initial commit", "hello");
+    create_commit(dir.path(), "fix: second commit", "world");
+
+    git_std()
+        .args(["lint", "--range", "HEAD..HEAD~1"])
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stdout("")
+        .stderr(contains("did you mean 'HEAD~1..HEAD'?"));
+}
+
+#[test]
+fn range_without_separator_lints_all_reachable_commits() {
+    let dir = tempfile::tempdir().unwrap();
+    make_test_repo(dir.path());
+
+    create_commit(dir.path(), "feat: initial commit", "hello");
+    create_commit(dir.path(), "fix: second commit", "world");
+
+    // Unlike `changelog --range`, a range need not contain '..'.
+    git_std()
+        .args(["lint", "--range", "HEAD"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("2/2 valid"));
+}
+
+#[test]
+fn range_with_omitted_endpoint_lints_commits() {
+    let dir = tempfile::tempdir().unwrap();
+    make_test_repo(dir.path());
+
+    create_commit(dir.path(), "feat: initial commit", "hello");
+    create_commit(dir.path(), "fix: second commit", "world");
+
+    // git reads an omitted endpoint as HEAD, so `<ref>..` is a real range.
+    git_std()
+        .args(["lint", "--range", "HEAD~1.."])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("1/1 valid"));
+}

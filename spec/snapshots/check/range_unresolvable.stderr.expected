@@ -1,0 +1,1 @@
+error: invalid range 'nosuchref..HEAD': fatal: bad revision 'nosuchref..HEAD'

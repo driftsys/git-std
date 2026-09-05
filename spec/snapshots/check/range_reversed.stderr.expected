@@ -1,0 +1,2 @@
+warning: range 'HEAD..HEAD~1' is empty
+  hint: did you mean 'HEAD~1..HEAD'?

@@ -130,7 +130,11 @@ pub fn run_file(path: &Path, lint_config: Option<&LintConfig>, format: OutputFor
     run(&message, lint_config, format)
 }
 
-/// Validate all commits in a git revision range. Returns 0 if all valid, 1 if any invalid.
+/// Validate all commits in a git revision range.
+///
+/// Returns 0 if every commit is valid or the range is empty, 1 if any commit is
+/// invalid or the range is empty while its inverse direction has commits, and 2
+/// if the range is malformed or cannot be resolved.
 pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFormat) -> i32 {
     let dir = std::path::Path::new(".");
 
@@ -143,8 +147,7 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
     };
 
     if commits.is_empty() {
-        ui::error(&format!("no commits in range '{range}'"));
-        return 2;
+        return run_empty_range(dir, range, format);
     }
 
     if format == OutputFormat::Json {
@@ -217,6 +220,89 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
     }
 
     if failures > 0 { 1 } else { 0 }
+}
+
+/// Report a revision range that contains no commits. Returns the exit code.
+///
+/// Nothing to lint is not a failure, so an empty range returns 0 — `main..HEAD`
+/// is empty on `main` itself, which is an ordinary state.
+///
+/// When the inverse direction has commits the range returns 1 instead, because
+/// returning 0 would let a commit gate pass having validated nothing. That
+/// condition covers endpoints written in the wrong order and a left endpoint
+/// that is simply ahead of the right one; the two are the same state in git, so
+/// the hint names the inverse range as a suggestion rather than a diagnosis.
+fn run_empty_range(dir: &Path, range: &str, format: OutputFormat) -> i32 {
+    if format == OutputFormat::Json {
+        // Machine output stays a valid array even when an empty range is rejected.
+        // No commits means no verdict to report, so the exit code below carries it.
+        let _ = run_range_json(&[], None);
+    }
+
+    match inverse_range_with_commits(dir, range) {
+        Some(inverse) => {
+            ui::warning(&format!("range '{range}' is empty"));
+            ui::hint(&format!("did you mean '{inverse}'?"));
+            1
+        }
+        None => {
+            if format != OutputFormat::Json {
+                ui::info(&format!("no commits in range '{range}'"));
+            }
+            0
+        }
+    }
+}
+
+/// Return `range` with its endpoints swapped, when that inverse direction has
+/// commits, which is what a range written backwards looks like.
+///
+/// Returns `None` when the range ends at the commit the working tree is on, by
+/// any name — `HEAD`, `@`, a branch, or a tag. `<base>..HEAD` is the gate form,
+/// and an empty result there means the checkout carries nothing of its own, as in
+/// a worktree branched from an older `main`. In git that is the same state as
+/// reversed endpoints, so only the endpoint order separates them, and a caller
+/// who put the checkout on the right asked a question an empty answer answers
+/// honestly.
+///
+/// Returns `None` in three further cases. An inverse that resolves but has no
+/// commits is an ordinary empty range. A range with no `..` separator cannot be
+/// inverted at all. An inverse git cannot resolve covers the symmetric-difference
+/// form `a...b`, which splits into `a` and `.b` and inverts to `.b..a` — never a
+/// valid ref, since a ref cannot start with a dot. Reporting that last form as
+/// empty rather than reversed is the right answer: a symmetric difference is
+/// empty in both directions.
+fn inverse_range_with_commits(dir: &Path, range: &str) -> Option<String> {
+    let (from, to) = range.split_once("..")?;
+
+    if names_head(dir, to) {
+        return None;
+    }
+
+    let inverse = format!("{to}..{from}");
+    match crate::git::range_has_commits(dir, &inverse) {
+        Ok(true) => Some(inverse),
+        _ => None,
+    }
+}
+
+/// Return `true` when `spec` names the commit the working tree is on, whatever
+/// kind of ref points at it.
+///
+/// Both sides are peeled to a commit with `^{commit}`, because an annotated tag
+/// resolves to a tag object rather than to the commit it points at, and
+/// `git std bump` creates annotated tags. An omitted endpoint counts, because
+/// git reads one as `HEAD`. A spec git cannot resolve does not, so an unusual
+/// endpoint keeps the reversed check.
+fn names_head(dir: &Path, spec: &str) -> bool {
+    let spec = if spec.is_empty() { "HEAD" } else { spec };
+    match (
+        crate::git::resolve_rev(dir, &format!("{spec}^{{commit}}")),
+        crate::git::resolve_rev(dir, "HEAD^{commit}"),
+    ) {
+        (Ok(endpoint), Ok(head)) => endpoint == head,
+        _ => false,
+    }
 }
 
 /// Run range lint with JSON output — outputs a JSON array.
