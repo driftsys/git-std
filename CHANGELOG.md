@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.11.15] (2026-09-05)
+
+### Bug Fixes
+
+- **git-std:** treat an empty lint range as a no-op ([5d62e44]), closes [#545]
+
+[0.11.15]: https://github.com/driftsys/git-std/compare/v0.11.14...v0.11.15
+[5d62e44]: https://github.com/driftsys/git-std/commit/5d62e44
+[#545]: https://github.com/driftsys/git-std/issues/545
+
 ## [0.11.14] (2026-07-26)
 
 ### Documentation
