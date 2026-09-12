@@ -36,6 +36,11 @@ curl -fsSL https://raw.githubusercontent.com/driftsys/git-std/main/install.sh | 
 cargo install git-std
 ```
 
+Pinned automation should download a target-specific GitHub Release archive and
+verify its checksum, Sigstore signature, SPDX SBOM, and provenance bundle. See
+[Release integrity](docs/RELEASE-INTEGRITY.md). The install script and Cargo
+remain convenient standalone installation flows.
+
 ## Quick start
 
 ```bash
@@ -82,6 +87,8 @@ MIT
 
 - [User guide](https://driftsys.github.io/git-std/) (mdbook)
 - [Specification](docs/SPEC.md)
+- [Versioned CLI contracts](docs/CLI-CONTRACTS.md)
+- [Release integrity](docs/RELEASE-INTEGRITY.md)
 - [API docs](https://docs.rs/git-std) (docs.rs)
 
 ## Staying in 0.x until you mean to ship 1.0

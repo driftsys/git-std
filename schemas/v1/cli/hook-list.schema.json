@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://driftsys.github.io/git-std/schemas/v1/cli/hook-list.schema.json",
+  "title": "git std hook list JSON",
+  "oneOf": [
+    {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["schema_version", "tool_version", "name", "enabled", "mode", "commands"],
+        "properties": {
+          "schema_version": { "const": "1.0.0" },
+          "tool_version": { "type": "string" },
+          "name": { "type": "string" },
+          "enabled": { "type": "boolean" },
+          "mode": { "enum": ["collect", "fail-fast"] },
+          "commands": { "type": "array" }
+        },
+        "additionalProperties": true
+      }
+    },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "required": ["schema_version", "tool_version", "status", "exit_code", "diagnostics"],
+      "properties": {
+        "schema_version": { "const": "1.0.0" },
+        "tool_version": { "type": "string" },
+        "status": { "const": "error" },
+        "exit_code": { "type": "integer", "enum": [1, 2] },
+        "diagnostics": { "type": "array", "minItems": 1 }
+      },
+      "additionalProperties": true
+    }
+  }
+}

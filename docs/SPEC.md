@@ -163,6 +163,21 @@ checksums, and publishes the install script. The
 `.git-std.toml` in the repo is the reference
 configuration.
 
+Every archive produced by the enhanced release workflow has a checksum,
+keyless Sigstore signature, SPDX 2.3 SBOM, and GitHub build-provenance bundle.
+The exact asset contract, released-version coverage, and local, hosted, and
+real-release verification levels are specified in
+[Release integrity](RELEASE-INTEGRITY.md).
+
+### 1.8 Machine contracts
+
+The versioned schemas and compatibility rules for `version`, `bump`, `lint`,
+`hook list`, `hook run`, `doctor`, and `registry` are normative in
+[CLI contracts](CLI-CONTRACTS.md). JSON/SARIF stdout is one parseable document
+on both success and failure. Rule findings use exit 1; usage and operational
+failures use exit 2. Single-version bump dry-runs expose a content-derived plan
+ID that apply can require with `--expect-plan`.
+
 ---
 
 ## Part 2 — Feature Specification

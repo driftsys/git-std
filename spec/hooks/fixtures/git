@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${FAIL_GIT_OPERATION:-}" in
+    unstage)
+        if [[ "${1:-}" == "restore" && "${2:-}" == "--staged" ]]; then
+            exit 88
+        fi
+        ;;
+    stash-apply)
+        if [[ "${1:-}" == "stash" && "${2:-}" == "apply" ]]; then
+            exit 88
+        fi
+        ;;
+    stash-push)
+        if [[ "${1:-}" == "stash" && "${2:-}" == "push" ]]; then
+            exit 88
+        fi
+        ;;
+    stash-drop)
+        if [[ "${1:-}" == "stash" && "${2:-}" == "drop" ]]; then
+            exit 88
+        fi
+        ;;
+    add)
+        if [[ "${1:-}" == "add" ]]; then
+            exit 88
+        fi
+        ;;
+    update-index)
+        if [[ "${1:-}" == "update-index" ]]; then
+            exit 88
+        fi
+        ;;
+    second-add)
+        if [[ "${1:-}" == "add" ]]; then
+            count=0
+            [[ -f "$GIT_WRAPPER_STATE" ]] && count="$(cat "$GIT_WRAPPER_STATE")"
+            count=$((count + 1))
+            printf '%s\n' "$count" > "$GIT_WRAPPER_STATE"
+            [[ "$count" -lt 2 ]] || exit 88
+        fi
+        ;;
+    staged-query)
+        if [[ "${1:-}" == "diff" && "${2:-}" == "--cached" ]]; then
+            exit 88
+        fi
+        ;;
+    deletion-query)
+        if [[ "${1:-}" == "diff" && "${2:-}" == "--cached" && " $* " == *" --diff-filter=D "* ]]; then
+            exit 88
+        fi
+        ;;
+    unstaged-query)
+        if [[ "${1:-}" == "diff" && "${2:-}" == "--name-only" ]]; then
+            exit 88
+        fi
+        ;;
+    stash-push-and-rollback)
+        if [[ "${1:-}" == "stash" && "${2:-}" == "push" ]] || [[ "${1:-}" == "add" ]]; then
+            exit 88
+        fi
+        ;;
+esac
+
+exec "$REAL_GIT" "$@"

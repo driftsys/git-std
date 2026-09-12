@@ -5,6 +5,7 @@ use clap::{CommandFactory, Parser};
 pub mod app;
 mod cli;
 mod config;
+mod contract;
 pub mod ecosystem;
 mod git;
 pub mod ui;
@@ -30,7 +31,30 @@ fn main() {
         return;
     }
 
-    let cli = Cli::parse();
+    let raw_args: Vec<std::ffi::OsString> = std::env::args_os().collect();
+    let cli = match Cli::try_parse_from(&raw_args) {
+        Ok(cli) => cli,
+        Err(error) => {
+            let exit_code = error.exit_code();
+            let message = error.to_string();
+            if exit_code != 0 {
+                match requested_machine_format(&raw_args) {
+                    Some("sarif") if raw_args.iter().any(|arg| arg == "lint") => {
+                        cli::lint::run_usage_error_sarif(&message);
+                    }
+                    Some("json") => {
+                        contract::print_json_error(contract::Diagnostic::operational(
+                            "GITSTD-INVALID-ARGUMENT",
+                            &message,
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+            let _ = error.print();
+            std::process::exit(exit_code);
+        }
+    };
 
     // Configure yansi colour output based on --color flag.
     match cli.color {
@@ -69,7 +93,37 @@ fn main() {
         }
     };
 
-    cli::update_check::maybe_spawn_background_check();
+    let is_machine_contract = matches!(
+        &command,
+        Command::Bump { dry_run: true, .. }
+            | Command::Bump {
+                format: OutputFormat::Json,
+                ..
+            }
+            | Command::Registry { .. }
+            | Command::Doctor {
+                format: OutputFormat::Json,
+            }
+            | Command::Version {
+                format: OutputFormat::Json,
+                ..
+            }
+            | Command::Lint {
+                format: LintOutputFormat::Json | LintOutputFormat::Sarif,
+                ..
+            }
+            | Command::Hook {
+                subcommand: HookCommand::Run {
+                    format: OutputFormat::Json,
+                    ..
+                } | HookCommand::List {
+                    format: OutputFormat::Json,
+                },
+            }
+    );
+    if !is_machine_contract {
+        cli::update_check::maybe_spawn_background_check();
+    }
 
     let code = match command {
         Command::Lint {
@@ -96,11 +150,22 @@ fn main() {
             } else if let Some(message) = message {
                 cli::lint::run(&message, lint_ref, format)
             } else {
-                ui::error("no input provided");
-                ui::info("usage: git std lint <message>");
-                ui::info("       git std lint --file <path>");
-                ui::info("       git std lint --range <from..to>");
-                2
+                match format {
+                    LintOutputFormat::Json => {
+                        contract::print_json_error(contract::Diagnostic::operational(
+                            "GITSTD-INVALID-ARGUMENT",
+                            "no lint input provided",
+                        ))
+                    }
+                    LintOutputFormat::Sarif => cli::lint::run_no_input(format),
+                    LintOutputFormat::Text => {
+                        ui::error("no input provided");
+                        ui::info("usage: git std lint <message>");
+                        ui::info("       git std lint --file <path>");
+                        ui::info("       git std lint --range <from..to>");
+                        2
+                    }
+                }
             }
         }
         Command::Commit {
@@ -168,6 +233,7 @@ fn main() {
             packages,
             push,
             yes,
+            expect_plan,
         } => {
             let project_config = config::load(&std::env::current_dir().unwrap_or_default());
             let stable = stable.map(|s| if s.is_empty() { None } else { Some(s) });
@@ -188,6 +254,7 @@ fn main() {
                 packages,
                 push,
                 yes,
+                expect_plan,
             };
             cli::bump::run(&project_config, &opts)
         }
@@ -202,6 +269,12 @@ fn main() {
         Command::Doctor { format } => {
             let cwd = std::env::current_dir().unwrap_or_default();
             cli::doctor::run(&cwd, format)
+        }
+        Command::Registry { format } => {
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let root = git::workdir(&cwd).unwrap_or(cwd);
+            let project_config = config::load(&root);
+            cli::registry::run(&project_config, format)
         }
         Command::Version {
             describe,
@@ -224,4 +297,28 @@ fn main() {
 
     cli::update_check::print_update_hint();
     std::process::exit(code);
+}
+
+fn requested_machine_format(args: &[std::ffi::OsString]) -> Option<&'static str> {
+    for (index, argument) in args.iter().enumerate() {
+        let argument = argument.to_string_lossy();
+        if let Some(value) = argument.strip_prefix("--format=") {
+            return match value {
+                "json" => Some("json"),
+                "sarif" => Some("sarif"),
+                _ => None,
+            };
+        }
+        if argument == "--format" {
+            return args
+                .get(index + 1)
+                .and_then(|value| value.to_str())
+                .and_then(|value| match value {
+                    "json" => Some("json"),
+                    "sarif" => Some("sarif"),
+                    _ => None,
+                });
+        }
+    }
+    None
 }

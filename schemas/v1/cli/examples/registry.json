@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0.0",
+  "tool_version": "0.11.15",
+  "status": "success",
+  "facts": {
+    "rules": "static",
+    "diagnostics": "static",
+    "effective_convention": "resolved for current project"
+  },
+  "rules": [
+    { "id": "conventional-header", "code": "GITSTD-COMMIT-PARSE", "explanation": "Conventional header required.", "configurable": false }
+  ],
+  "diagnostics": [
+    { "code": "GITSTD-COMMIT-PARSE", "class": "finding", "explanation": "Conventional header required." }
+  ],
+  "effective_convention": { "strict": false, "types": null, "scopes": null, "max_header_length": 100, "require_scope": false }
+}

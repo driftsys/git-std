@@ -1,4 +1,14 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+
+/// Observable repository state used to prove a command was non-mutating.
+#[derive(Debug, PartialEq, Eq)]
+pub struct RepoState {
+    head: String,
+    tags: String,
+    status: String,
+    files: BTreeMap<PathBuf, Vec<u8>>,
+}
 
 /// Fluent builder for test git repositories.
 ///
@@ -156,9 +166,68 @@ impl TestRepo {
         self.dir.path()
     }
 
+    /// Run git in the fixture and return trimmed stdout.
+    #[allow(dead_code)]
+    pub fn git(&self, args: &[&str]) -> String {
+        git(self.path(), args)
+    }
+
+    /// Write a fixture file, creating its parent directory when necessary.
+    #[allow(dead_code)]
+    pub fn write(&self, path: &str, content: &str) {
+        let path = self.path().join(path);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).expect("failed to create fixture directory");
+        }
+        std::fs::write(path, content).expect("failed to write fixture file");
+    }
+
+    /// Read a fixture file as UTF-8.
+    #[allow(dead_code)]
+    pub fn read(&self, path: &str) -> String {
+        std::fs::read_to_string(self.path().join(path)).expect("failed to read fixture file")
+    }
+
+    /// Capture Git facts and all non-Git fixture bytes in deterministic order.
+    #[allow(dead_code)]
+    pub fn snapshot_state(&self) -> RepoState {
+        let mut files = BTreeMap::new();
+        collect_files(self.path(), self.path(), &mut files);
+        RepoState {
+            head: git(self.path(), &["rev-parse", "HEAD"]),
+            tags: git(self.path(), &["tag", "--list"]),
+            status: git(self.path(), &["status", "--porcelain=v1"]),
+            files,
+        }
+    }
+
     /// Return the path to the `git-std` binary built by cargo.
     pub fn bin_path() -> PathBuf {
         assert_cmd::cargo::cargo_bin("git-std")
+    }
+}
+
+fn collect_files(root: &Path, dir: &Path, files: &mut BTreeMap<PathBuf, Vec<u8>>) {
+    let mut entries: Vec<_> = std::fs::read_dir(dir)
+        .expect("failed to read fixture directory")
+        .map(|entry| entry.expect("failed to read fixture entry"))
+        .collect();
+    entries.sort_by_key(std::fs::DirEntry::file_name);
+
+    for entry in entries {
+        let path = entry.path();
+        let relative = path.strip_prefix(root).expect("fixture path below root");
+        if relative.starts_with(".git") {
+            continue;
+        }
+        if path.is_dir() {
+            collect_files(root, &path, files);
+        } else {
+            files.insert(
+                relative.to_path_buf(),
+                std::fs::read(path).expect("failed to read fixture bytes"),
+            );
+        }
     }
 }
 

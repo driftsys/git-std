@@ -34,6 +34,8 @@ single, fast binary — zero runtime dependencies.
   with `upskill add driftsys/git-std`
 - **CI-ready** — JSON output, non-zero exit codes, no
   interactive prompts in pipelines
+- **Versioned automation contracts** — JSON Schemas, stable diagnostics, SARIF,
+  and guarded bump apply
 
 ## Quick start
 

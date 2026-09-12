@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ $# -eq 8 ]]
+[[ "$1" == "verify-blob" ]]
+[[ "$2" == "--bundle" ]]
+[[ "$3" == "$EXPECTED_ARCHIVE.sigstore.json" ]]
+[[ "$4" == "--certificate-identity-regexp" ]]
+[[ "$5" == '^https://github.com/driftsys/git-std/.github/workflows/release.yml@refs/' ]]
+[[ "$6" == "--certificate-oidc-issuer" ]]
+[[ "$7" == "https://token.actions.githubusercontent.com" ]]
+[[ "$8" == "$EXPECTED_ARCHIVE" ]]
+printf '%s\n' cosign >> "$VERIFIER_LOG"
+jq -e '.testVerification == "valid"' "$3" >/dev/null

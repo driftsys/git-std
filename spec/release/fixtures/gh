@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ $# -eq 9 ]]
+[[ "$1" == "attestation" ]]
+[[ "$2" == "verify" ]]
+[[ "$3" == "$EXPECTED_ARCHIVE" ]]
+[[ "$4" == "--repo" ]]
+[[ "$5" == "driftsys/git-std" ]]
+[[ "$6" == "--bundle" ]]
+[[ "$7" == "$EXPECTED_ARCHIVE.provenance.sigstore.json" ]]
+[[ "$8" == "--signer-workflow" ]]
+[[ "$9" == "driftsys/git-std/.github/workflows/release.yml" ]]
+printf '%s\n' gh >> "$VERIFIER_LOG"
+jq -e '.testVerification == "valid"' "$7" >/dev/null

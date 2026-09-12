@@ -1,12 +1,13 @@
 use yansi::Paint;
 
+use crate::app::OutputFormat;
 use crate::config::{ProjectConfig, Scheme};
 use crate::git;
 use crate::ui;
 
 use super::apply::finalize_bump;
 use super::detect::today_calver_date;
-use super::lifecycle::run_lifecycle_hook;
+use super::error::machine_or_human_error;
 use super::{BumpOptions, FinalizeContext};
 
 /// Parse a `--release-as` value as a semver bump level.
@@ -32,16 +33,19 @@ pub(super) fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         Ok(Some((oid, ver))) => Some((oid, ver)),
         Ok(None) => None,
         Err(e) => {
-            ui::error(&e.to_string());
-            return 1;
+            return machine_or_human_error(opts, "GITSTD-GIT-OPERATION", e.to_string(), 2);
         }
     };
 
     let head_oid = match git::head_oid(dir) {
         Ok(oid) => oid,
         Err(e) => {
-            ui::error(&format!("cannot resolve HEAD: {e}"));
-            return 1;
+            return machine_or_human_error(
+                opts,
+                "GITSTD-GIT-OPERATION",
+                format!("cannot resolve HEAD: {e}"),
+                2,
+            );
         }
     };
 
@@ -49,8 +53,7 @@ pub(super) fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let raw_commits = match git::walk_commits(dir, &head_oid, tag_oid) {
         Ok(c) => c,
         Err(e) => {
-            ui::error(&e.to_string());
-            return 1;
+            return machine_or_human_error(opts, "GITSTD-GIT-OPERATION", e.to_string(), 2);
         }
     };
 
@@ -60,15 +63,23 @@ pub(super) fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         .any(|c| c.is_breaking);
 
     if has_breaking && !opts.force {
-        ui::error("breaking change not allowed on patch-only branch (use --force to override)");
-        return 1;
+        return machine_or_human_error(
+            opts,
+            "GITSTD-BUMP-POLICY",
+            "breaking change not allowed on patch-only branch (use --force to override)",
+            1,
+        );
     }
 
     if let Some(ref forced) = opts.release_as
         && parse_release_level(forced).is_some_and(|l| l != standard_version::BumpLevel::Patch)
     {
-        ui::error("patch-only scheme does not support --release-as minor or --release-as major");
-        return 1;
+        return machine_or_human_error(
+            opts,
+            "GITSTD-INVALID-ARGUMENT",
+            "patch-only scheme does not support --release-as minor or --release-as major",
+            2,
+        );
     }
 
     let cur_ver = current_version
@@ -78,21 +89,17 @@ pub(super) fn run_patch(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
 
     let new_version = semver::Version::new(cur_ver.major, cur_ver.minor, cur_ver.patch + 1);
 
-    ui::blank();
-    ui::info(&format!(
-        "{} (patch)",
-        format!("{cur_ver} \u{2192} {new_version}").bold(),
-    ));
+    if opts.format != OutputFormat::Json {
+        ui::blank();
+        ui::info(&format!(
+            "{} (patch)",
+            format!("{cur_ver} \u{2192} {new_version}").bold(),
+        ));
+    }
 
     let prev_ver_str = current_version.as_ref().map(|(_, v)| v.to_string());
 
     let new_version_str = new_version.to_string();
-
-    if !opts.dry_run
-        && let Err(code) = run_lifecycle_hook("post-version", &[&new_version_str])
-    {
-        return code;
-    }
 
     let ctx = FinalizeContext {
         new_version: new_version_str,
@@ -111,30 +118,41 @@ pub(super) fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let calver_format = &config.versioning.calver_format;
 
     if opts.prerelease.is_some() {
-        ui::error("--prerelease is not supported with scheme = \"calver\"");
-        return 1;
+        return machine_or_human_error(
+            opts,
+            "GITSTD-INVALID-ARGUMENT",
+            "--prerelease is not supported with scheme = \"calver\"",
+            2,
+        );
     }
 
     if let Some(ref forced) = opts.release_as
         && parse_release_level(forced).is_some()
     {
-        ui::error("--release-as patch/minor/major is not supported with scheme = \"calver\"");
-        return 1;
+        return machine_or_human_error(
+            opts,
+            "GITSTD-INVALID-ARGUMENT",
+            "--release-as patch/minor/major is not supported with scheme = \"calver\"",
+            2,
+        );
     }
 
     let current_tag = match git::find_latest_calver_tag(dir, tag_prefix) {
         Ok(v) => v,
         Err(e) => {
-            ui::error(&e.to_string());
-            return 1;
+            return machine_or_human_error(opts, "GITSTD-GIT-OPERATION", e.to_string(), 2);
         }
     };
 
     let head_oid = match git::head_oid(dir) {
         Ok(oid) => oid,
         Err(e) => {
-            ui::error(&format!("cannot resolve HEAD: {e}"));
-            return 1;
+            return machine_or_human_error(
+                opts,
+                "GITSTD-GIT-OPERATION",
+                format!("cannot resolve HEAD: {e}"),
+                2,
+            );
         }
     };
 
@@ -142,8 +160,7 @@ pub(super) fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let raw_commits = match git::walk_commits(dir, &head_oid, tag_oid) {
         Ok(c) => c,
         Err(e) => {
-            ui::error(&e.to_string());
-            return 1;
+            return machine_or_human_error(opts, "GITSTD-GIT-OPERATION", e.to_string(), 2);
         }
     };
 
@@ -156,30 +173,24 @@ pub(super) fn run_calver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         match standard_version::calver::next_version(calver_format, date, None) {
             Ok(v) => v,
             Err(e) => {
-                ui::error(&e.to_string());
-                return 1;
+                return machine_or_human_error(opts, "GITSTD-BUMP-PLAN", e.to_string(), 2);
             }
         }
     } else {
         match standard_version::calver::next_version(calver_format, date, prev_ver) {
             Ok(v) => v,
             Err(e) => {
-                ui::error(&e.to_string());
-                return 1;
+                return machine_or_human_error(opts, "GITSTD-BUMP-PLAN", e.to_string(), 2);
             }
         }
     };
 
-    ui::blank();
-    ui::info(&format!(
-        "{} (calver)",
-        format!("{} \u{2192} {new_version}", prev_ver.unwrap_or("none")).bold(),
-    ));
-
-    if !opts.dry_run
-        && let Err(code) = run_lifecycle_hook("post-version", &[&new_version])
-    {
-        return code;
+    if opts.format != OutputFormat::Json {
+        ui::blank();
+        ui::info(&format!(
+            "{} (calver)",
+            format!("{} \u{2192} {new_version}", prev_ver.unwrap_or("none")).bold(),
+        ));
     }
 
     let ctx = FinalizeContext {
@@ -202,8 +213,7 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         Ok(Some((oid, ver))) => Some((oid, ver)),
         Ok(None) => None,
         Err(e) => {
-            ui::error(&e.to_string());
-            return 1;
+            return machine_or_human_error(opts, "GITSTD-GIT-OPERATION", e.to_string(), 2);
         }
     };
 
@@ -211,8 +221,12 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let head_oid = match git::head_oid(dir) {
         Ok(oid) => oid,
         Err(e) => {
-            ui::error(&format!("cannot resolve HEAD: {e}"));
-            return 1;
+            return machine_or_human_error(
+                opts,
+                "GITSTD-GIT-OPERATION",
+                format!("cannot resolve HEAD: {e}"),
+                2,
+            );
         }
     };
 
@@ -220,8 +234,7 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     let raw_commits = match git::walk_commits(dir, &head_oid, tag_oid) {
         Ok(c) => c,
         Err(e) => {
-            ui::error(&e.to_string());
-            return 1;
+            return machine_or_human_error(opts, "GITSTD-GIT-OPERATION", e.to_string(), 2);
         }
     };
 
@@ -249,8 +262,12 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
             match semver::Version::parse(forced) {
                 Ok(v) => v,
                 Err(e) => {
-                    ui::error(&format!("invalid --release-as version '{forced}': {e}"));
-                    return 1;
+                    return machine_or_human_error(
+                        opts,
+                        "GITSTD-INVALID-ARGUMENT",
+                        format!("invalid --release-as version '{forced}': {e}"),
+                        2,
+                    );
                 }
             }
         }
@@ -269,6 +286,17 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
                     );
                     ui::detail("no bump-worthy commits found");
                     ui::blank();
+                    if opts.format == OutputFormat::Json {
+                        println!(
+                            "{}",
+                            serde_json::json!({
+                                "schema_version": crate::contract::ContractMetadata::current().schema_version,
+                                "tool_version": crate::contract::ContractMetadata::current().tool_version,
+                                "status": "skipped",
+                                "reason": "no bump-worthy commits found"
+                            })
+                        );
+                    }
                     return 0;
                 }
                 // --force: allow bump even with no bump-worthy commits (defaults to patch)
@@ -276,12 +304,14 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
             }
         };
 
-        ui::blank();
-        ui::heading(
-            "Analysing commits since ",
-            &format!("{}...", cur_ver_str.bold()),
-        );
-        print_summary(&summary);
+        if opts.format != OutputFormat::Json {
+            ui::blank();
+            ui::heading(
+                "Analysing commits since ",
+                &format!("{}...", cur_ver_str.bold()),
+            );
+            print_summary(&summary);
+        }
 
         if let Some(ref pre_tag) = opts.prerelease {
             let tag = if pre_tag.is_empty() {
@@ -296,12 +326,16 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
     };
 
     if super::crosses_first_major_boundary(&cur_ver, &new_version) && !opts.first_major_release {
-        ui::error(&format!(
-            "bump would promote {cur_ver} to {new_version} \u{2014} this is a deliberate \
-             API-stability commitment, not a routine bump (re-run with \
-             --first-major-release to confirm)"
-        ));
-        return 1;
+        return machine_or_human_error(
+            opts,
+            "GITSTD-BUMP-POLICY",
+            format!(
+                "bump would promote {cur_ver} to {new_version} \u{2014} this is a deliberate \
+                 API-stability commitment, not a routine bump (re-run with \
+                 --first-major-release to confirm)"
+            ),
+            1,
+        );
     }
 
     let bump_reason = if opts.first_release {
@@ -337,20 +371,16 @@ pub(super) fn run_semver(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         "forced patch (no commits)".to_string()
     };
 
-    ui::blank();
-    ui::info(&format!(
-        "{} ({bump_reason})",
-        format!("{cur_ver} \u{2192} {new_version}").bold(),
-    ));
+    if opts.format != OutputFormat::Json {
+        ui::blank();
+        ui::info(&format!(
+            "{} ({bump_reason})",
+            format!("{cur_ver} \u{2192} {new_version}").bold(),
+        ));
+    }
 
     let prev_ver_str = current_version.as_ref().map(|(_, v)| v.to_string());
     let new_version_str = new_version.to_string();
-
-    if !opts.dry_run
-        && let Err(code) = run_lifecycle_hook("post-version", &[&new_version_str])
-    {
-        return code;
-    }
 
     let ctx = FinalizeContext {
         new_version: new_version_str,

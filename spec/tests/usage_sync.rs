@@ -108,3 +108,48 @@ fn usage_md_documents_all_flags() {
 
     assert!(errors.is_empty(), "\n{errors}");
 }
+
+#[test]
+fn integration_contract_docs_cover_public_surfaces_and_verification_levels() {
+    let docs_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs");
+    let cli =
+        std::fs::read_to_string(docs_root.join("CLI-CONTRACTS.md")).expect("CLI contract guide");
+    for required in [
+        "git std version --format json",
+        "git std bump --dry-run --format json",
+        "--expect-plan",
+        "git std lint --format sarif",
+        "git std hook list --format json",
+        "git std hook run",
+        "git std doctor --format json",
+        "git std registry --format json",
+        "schemas/v1/cli",
+        "exit 0",
+        "exit 1",
+        "exit 2",
+    ] {
+        assert!(cli.contains(required), "CLI contract docs omit {required}");
+    }
+
+    let release = std::fs::read_to_string(docs_root.join("RELEASE-INTEGRITY.md"))
+        .expect("release integrity guide");
+    for required in [
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-musl",
+        "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+        ".tar.gz.sha256",
+        ".tar.gz.sigstore.json",
+        ".tar.gz.spdx.json",
+        ".tar.gz.provenance.sigstore.json",
+        "Local verification",
+        "Hosted verification",
+        "Real-release verification",
+    ] {
+        assert!(
+            release.contains(required),
+            "release integrity docs omit {required}"
+        );
+    }
+}

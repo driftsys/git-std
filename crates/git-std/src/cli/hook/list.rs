@@ -4,6 +4,7 @@ use yansi::Paint;
 use standard_githooks::{HookCommand, HookMode, KNOWN_HOOKS, Prefix, default_mode};
 
 use crate::app::OutputFormat;
+use crate::contract::ContractMetadata;
 use crate::ui;
 
 use super::{is_enabled, read_and_parse_hooks};
@@ -20,6 +21,8 @@ struct HookCommandJson {
 /// JSON output schema for a single hook.
 #[derive(Serialize)]
 struct HookJson {
+    #[serde(flatten)]
+    metadata: ContractMetadata,
     name: String,
     enabled: bool,
     mode: &'static str,
@@ -39,7 +42,7 @@ fn prefix_label(prefix: Prefix) -> &'static str {
 ///
 /// Shows all known hooks with enabled/disabled status and their commands.
 pub fn list(format: OutputFormat) -> i32 {
-    let hooks_dir = match super::hooks_dir() {
+    let hooks_dir = match super::hooks_dir_for(format) {
         Ok(d) => d,
         Err(code) => return code,
     };
@@ -144,6 +147,7 @@ fn list_json(hooks_dir: &std::path::Path) -> i32 {
             let mode = default_mode(hook_name);
 
             HookJson {
+                metadata: ContractMetadata::current(),
                 name: hook_name.to_string(),
                 enabled,
                 mode: match mode {
