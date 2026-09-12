@@ -9,6 +9,60 @@ use crate::ui;
 
 pub struct Rust;
 
+/// Discover workspace manifests that the native writer updates.
+pub(super) fn detect_workspace_manifests(root: &Path) -> Vec<standard_version::DetectedFile> {
+    let Ok(content) = std::fs::read_to_string(root.join("Cargo.toml")) else {
+        return Vec::new();
+    };
+    let Ok(document) = toml::from_str::<toml::Value>(&content) else {
+        return Vec::new();
+    };
+    let Some(members) = document
+        .get("workspace")
+        .and_then(|workspace| workspace.get("members"))
+        .and_then(toml::Value::as_array)
+    else {
+        return Vec::new();
+    };
+
+    let mut detected = Vec::new();
+    if preview_workspace_manifest(&content, "__git_std_preview_version__")
+        .is_some_and(|updated| updated != content)
+    {
+        detected.push(standard_version::DetectedFile {
+            path: root.join("Cargo.toml"),
+            name: CargoVersionFile.name().to_string(),
+            old_version: CargoVersionFile.read_version(&content).unwrap_or_default(),
+        });
+    }
+    for member in members.iter().filter_map(toml::Value::as_str) {
+        let pattern = root.join(member).join("Cargo.toml");
+        let Ok(entries) = glob::glob(&pattern.to_string_lossy()) else {
+            continue;
+        };
+        for path in entries.flatten() {
+            let Ok(content) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            if is_publish_false(&content) {
+                continue;
+            }
+            if !CargoVersionFile.detect(&content) {
+                continue;
+            }
+            if let Some(old_version) = CargoVersionFile.read_version(&content) {
+                detected.push(standard_version::DetectedFile {
+                    path,
+                    name: CargoVersionFile.name().to_string(),
+                    old_version,
+                });
+            }
+        }
+    }
+    detected.sort_by(|left, right| left.path.cmp(&right.path));
+    detected
+}
+
 /// Native workspace-aware version writer.
 ///
 /// Handles both:
@@ -79,11 +133,12 @@ fn workspace_native_write(root: &Path, new_version: &str) -> WriteOutcome {
     if let Some(updated) = update_workspace_deps(&root_content_after, &parsed, new_version) {
         if std::fs::write(&root_cargo, &updated).is_err() {
             ui::warning(&format!("{}: failed to write", root_cargo.display()));
-        } else if results.is_empty() {
-            // Ensure the root manifest path is tracked even when
-            // [workspace.package] has no version field.
+        } else if !results.iter().any(|result| result.path == root_cargo) {
+            // Ensure the root manifest path is tracked even when another
+            // workspace member was also updated and [workspace.package] has
+            // no version field.
             results.push(UpdateResult {
-                path: root_cargo,
+                path: root_cargo.clone(),
                 name: CargoVersionFile.name().to_string(),
                 old_version: String::new(),
                 new_version: new_version.to_string(),
@@ -97,6 +152,24 @@ fn workspace_native_write(root: &Path, new_version: &str) -> WriteOutcome {
     } else {
         WriteOutcome::Fallback { results }
     }
+}
+
+/// Preview the root Cargo manifest bytes produced by the workspace writer.
+pub(crate) fn preview_workspace_manifest(content: &str, new_version: &str) -> Option<String> {
+    let parsed: toml::Value = toml::from_str(content).ok()?;
+    let has_members = parsed
+        .get("workspace")
+        .and_then(|workspace| workspace.get("members"))
+        .and_then(toml::Value::as_array)
+        .is_some_and(|members| !members.is_empty());
+    if !has_members {
+        return CargoVersionFile.write_version(content, new_version).ok();
+    }
+
+    let version_updated = CargoVersionFile
+        .write_version(content, new_version)
+        .unwrap_or_else(|_| content.to_string());
+    Some(update_workspace_deps(&version_updated, &parsed, new_version).unwrap_or(version_updated))
 }
 
 /// Rewrite `version = "..."` values inside `[workspace.dependencies]` for

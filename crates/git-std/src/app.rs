@@ -10,6 +10,17 @@ pub enum OutputFormat {
     Json,
 }
 
+/// Output format for commit diagnostics.
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+pub enum LintOutputFormat {
+    /// Human-readable text (default).
+    Text,
+    /// Versioned git-std JSON.
+    Json,
+    /// SARIF 2.1.0 JSON.
+    Sarif,
+}
+
 /// When to enable coloured output.
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub enum ColorWhen {
@@ -103,7 +114,7 @@ pub enum Command {
         strict: bool,
         /// Output format.
         #[arg(long, default_value = "text")]
-        format: OutputFormat,
+        format: LintOutputFormat,
     },
     /// Version bump, changelog, commit, and tag.
     Bump {
@@ -159,6 +170,9 @@ pub enum Command {
         /// Skip branch confirmation prompt (also: GIT_STD_YES=1).
         #[arg(short = 'y', long)]
         yes: bool,
+        /// Apply only when current inputs reproduce this dry-run plan ID.
+        #[arg(long, value_name = "PLAN_ID", conflicts_with = "dry_run")]
+        expect_plan: Option<String>,
     },
     /// Generate a changelog (incremental by default, --full to regenerate).
     Changelog {
@@ -250,6 +264,12 @@ pub enum Command {
     Doctor {
         /// Output format.
         #[arg(long, default_value = "text")]
+        format: OutputFormat,
+    },
+    /// Inspect stable rule and diagnostic definitions.
+    Registry {
+        /// Output format.
+        #[arg(long, default_value = "json")]
         format: OutputFormat,
     },
     /// Query the current project version.

@@ -28,6 +28,8 @@ impl Default for LintConfig {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("{message}")]
 pub struct LintError {
+    /// Stable diagnostic code for this failed rule.
+    pub code: &'static str,
     /// Human-readable description of the error.
     pub message: String,
 }
@@ -43,6 +45,7 @@ pub fn lint(message: &str, config: &LintConfig) -> Vec<LintError> {
         Ok(c) => c,
         Err(e) => {
             errors.push(LintError {
+                code: crate::rules::PARSE_CODE,
                 message: e.to_string(),
             });
             return errors;
@@ -61,6 +64,7 @@ fn check_header_length(message: &str, max: usize, errors: &mut Vec<LintError>) {
         && header.len() > max
     {
         errors.push(LintError {
+            code: crate::rules::HEADER_LENGTH_CODE,
             message: format!(
                 "header is {} characters, exceeds maximum of {max}",
                 header.len()
@@ -78,6 +82,7 @@ fn check_type(
         && !allowed.iter().any(|t| t == &commit.r#type)
     {
         errors.push(LintError {
+            code: crate::rules::TYPE_CODE,
             message: format!(
                 "type '{}' is not in the allowed list: {}",
                 commit.r#type,
@@ -95,6 +100,7 @@ fn check_scope(
 ) {
     if require_scope && commit.scope.is_none() {
         errors.push(LintError {
+            code: crate::rules::SCOPE_REQUIRED_CODE,
             message: "scope is required".to_string(),
         });
     }
@@ -103,6 +109,7 @@ fn check_scope(
         && !allowed.iter().any(|s| s == scope)
     {
         errors.push(LintError {
+            code: crate::rules::SCOPE_CODE,
             message: format!(
                 "scope '{scope}' is not in the allowed list: {}",
                 allowed.join(", ")

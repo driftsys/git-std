@@ -4,7 +4,7 @@ assemble:
 
 # Run tests
 test:
-    cargo test
+    CARGO_RUSTC_CURRENT_DIR="$(pwd)" cargo test
 
 # Lint and format check
 lint:
@@ -22,11 +22,15 @@ skills:
     upskill add ./ --claude --opencode
 
 # Run all checks (test + lint + audit)
-check: test test-install lint audit
+check: test test-install test-release lint audit
 
 # Test install.sh functions (detect_target, sha256_check, URL patterns)
 test-install:
     bash tools/bash_unit spec/install/install_test.sh
+
+# Verify release packaging, metadata, and tamper rejection locally
+test-release:
+    bash tools/bash_unit spec/release/release_test.sh
 
 # Assemble + check
 build: assemble check

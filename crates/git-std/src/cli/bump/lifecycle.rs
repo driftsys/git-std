@@ -1,6 +1,7 @@
 use standard_githooks::Prefix;
 
-use crate::cli::hook::exec_sh;
+use crate::app::OutputFormat;
+use crate::cli::hook::{exec_sh, exec_sh_capture};
 use crate::{git, ui};
 
 /// Run a bump lifecycle hook file (`.githooks/<hook>.hooks`).
@@ -15,7 +16,11 @@ use crate::{git, ui};
 ///
 /// `extra_args` are passed as positional arguments after the command
 /// (used by `post-version` to pass the new version string).
-pub(super) fn run_lifecycle_hook(hook_name: &str, extra_args: &[&str]) -> Result<(), i32> {
+pub(super) fn run_lifecycle_hook(
+    hook_name: &str,
+    extra_args: &[&str],
+    format: OutputFormat,
+) -> Result<(), i32> {
     // Honour the same skip-all-hooks escape hatch as `git std hook run`.
     if let Ok(val) = std::env::var("GIT_STD_SKIP_HOOKS")
         && (val == "1" || val.eq_ignore_ascii_case("true"))
@@ -53,7 +58,17 @@ pub(super) fn run_lifecycle_hook(hook_name: &str, extra_args: &[&str]) -> Result
     }
 
     for cmd in &commands {
-        let exit_code = exec_sh(&cmd.command, extra_args);
+        let (exit_code, captured) = if format == OutputFormat::Json {
+            let (code, output) = exec_sh_capture(&cmd.command, extra_args);
+            (code, Some(output))
+        } else {
+            (exec_sh(&cmd.command, extra_args), None)
+        };
+        if let Some(output) = captured
+            && !output.is_empty()
+        {
+            ui::detail(&output);
+        }
         let success = exit_code == Some(0);
         let is_advisory = cmd.prefix == Prefix::Advisory;
 
