@@ -1,9 +1,50 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+use snapbox::Data;
 use snapbox::cmd::Command;
 use snapbox::file;
 use support::TestRepo;
+
+fn workspace_root() -> std::path::PathBuf {
+    let root = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .expect("git repository root");
+    assert!(root.status.success());
+    String::from_utf8(root.stdout)
+        .expect("repository root must be UTF-8")
+        .trim()
+        .into()
+}
+
+fn workspace_git_std_version(root: &std::path::Path) -> String {
+    let metadata = std::process::Command::new("cargo")
+        .args(["metadata", "--no-deps", "--format-version", "1"])
+        .current_dir(root)
+        .output()
+        .expect("workspace metadata");
+    assert!(metadata.status.success());
+
+    let document: serde_json::Value =
+        serde_json::from_slice(&metadata.stdout).expect("workspace metadata must be JSON");
+    document["packages"]
+        .as_array()
+        .expect("workspace packages")
+        .iter()
+        .find(|package| package["name"] == "git-std")
+        .and_then(|package| package["version"].as_str())
+        .expect("git-std package version")
+        .to_owned()
+}
+
+fn current_version_snapshot(path: &str) -> Data {
+    let root = workspace_root();
+    let expected = std::fs::read_to_string(root.join(path))
+        .expect("CLI JSON snapshot must contain text")
+        .replace("[VERSION]", &workspace_git_std_version(&root));
+    Data::text(expected).raw()
+}
 
 /// Run a git command in `dir`, failing the test with git's own stderr if it errors.
 fn run_git(dir: &std::path::Path, args: &[&str]) {
@@ -21,7 +62,11 @@ fn run_git(dir: &std::path::Path, args: &[&str]) {
 
 #[test]
 fn trycmd_lint() {
-    trycmd::TestCases::new().case("tests/cmd/lint/*.toml");
+    let root = workspace_root();
+    trycmd::TestCases::new()
+        .insert_var("[VERSION]", workspace_git_std_version(&root))
+        .expect("valid tool version substitution")
+        .case("tests/cmd/lint/*.toml");
 }
 
 /// `lint --range` with a mix of valid and invalid commits reports both and exits 1.
@@ -118,9 +163,9 @@ fn lint_strict_json_rejects_unknown_type() {
         .current_dir(repo.path())
         .assert()
         .code(1)
-        .stdout_eq(file![
-            "../snapshots/check/strict_json_rejects_unknown_type.stdout.expected"
-        ]);
+        .stdout_eq(current_version_snapshot(
+            "spec/snapshots/check/strict_json_rejects_unknown_type.stdout.expected",
+        ));
 }
 
 /// `lint --format json` with an invalid message returns structured errors.
@@ -130,9 +175,9 @@ fn lint_json_invalid_message() {
         .args(["lint", "--format", "json", "bad message"])
         .assert()
         .code(1)
-        .stdout_eq(file![
-            "../snapshots/check/json_invalid_message.stdout.expected"
-        ]);
+        .stdout_eq(current_version_snapshot(
+            "spec/snapshots/check/json_invalid_message.stdout.expected",
+        ));
 }
 
 /// An empty `lint --range` is a no-op: nothing to lint is not a failure (#545).
@@ -192,7 +237,9 @@ fn lint_range_json_reports_each_commit() {
         .current_dir(repo.path())
         .assert()
         .code(1)
-        .stdout_eq(file!["../snapshots/check/range_json.stdout.expected"]);
+        .stdout_eq(current_version_snapshot(
+            "spec/snapshots/check/range_json.stdout.expected",
+        ));
 }
 
 /// Endpoints in the wrong order also produce an empty range — that is a failure,
