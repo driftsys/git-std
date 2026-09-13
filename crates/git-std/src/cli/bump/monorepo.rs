@@ -9,6 +9,7 @@ use yansi::Paint;
 use crate::app::OutputFormat;
 use crate::config::deps::{self, DependencyGraph};
 use crate::config::{PackageConfig, ProjectConfig, Scheme};
+use crate::contract::ContractMetadata;
 use crate::git;
 use crate::ui;
 
@@ -54,6 +55,9 @@ struct PackagePlanJson {
 /// JSON schema for the full monorepo bump plan.
 #[derive(Serialize)]
 struct MonorepoPlanJson {
+    #[serde(flatten)]
+    metadata: ContractMetadata,
+    status: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     root_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -562,6 +566,9 @@ fn plan_root(config: &ProjectConfig, dir: &Path) -> Option<RootPlan> {
 /// JSON output schema for the monorepo bump result.
 #[derive(Serialize)]
 struct MonorepoBumpResultJson {
+    #[serde(flatten)]
+    metadata: ContractMetadata,
+    status: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     root_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -873,6 +880,8 @@ fn emit_result(
             None
         };
         let result = MonorepoBumpResultJson {
+            metadata: ContractMetadata::current(),
+            status: "applied",
             root_version: root_plan.as_ref().map(|r| r.new_version.clone()),
             root_previous_version: root_plan.as_ref().and_then(|r| r.prev_version.clone()),
             root_tag: if !opts.no_commit && !opts.no_tag {
@@ -978,6 +987,8 @@ fn print_plan_text(
 /// Print the monorepo bump plan as JSON.
 fn print_plan_json(root_plan: &Option<RootPlan>, package_plans: &[PackageBumpPlan]) {
     let result = MonorepoPlanJson {
+        metadata: ContractMetadata::current(),
+        status: "planned",
         root_version: root_plan.as_ref().map(|r| r.new_version.clone()),
         root_previous_version: root_plan.as_ref().and_then(|r| r.prev_version.clone()),
         root_tag: root_plan.as_ref().map(|r| r.tag.clone()),

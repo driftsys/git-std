@@ -37,6 +37,7 @@ mod format;
 mod lint;
 mod parse;
 mod process;
+pub mod rules;
 
 pub use format::format;
 pub use lint::{LintConfig, LintError, lint};

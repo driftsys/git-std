@@ -3,13 +3,22 @@ use std::path::Path;
 use serde::Serialize;
 use yansi::Paint;
 
-use crate::app::OutputFormat;
+use crate::app::LintOutputFormat;
+use crate::contract::{ContractMetadata, Diagnostic, print_json_error};
 use crate::ui;
 use standard_commit::LintConfig;
+
+mod diagnostics;
+mod sarif;
+
+use diagnostics::{lint_diagnostic, lint_diagnostics, parse_diagnostic};
 
 /// JSON output schema for a single commit lint result.
 #[derive(Serialize)]
 struct LintResult {
+    #[serde(flatten)]
+    metadata: ContractMetadata,
+    status: &'static str,
     valid: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     r#type: Option<String>,
@@ -20,13 +29,17 @@ struct LintResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     breaking: Option<bool>,
     errors: Vec<String>,
+    diagnostics: Vec<Diagnostic>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     skipped: bool,
 }
 
 /// Run the `lint` subcommand with an inline message. Returns the exit code.
-pub fn run(message: &str, lint_config: Option<&LintConfig>, format: OutputFormat) -> i32 {
-    if format == OutputFormat::Json {
+pub fn run(message: &str, lint_config: Option<&LintConfig>, format: LintOutputFormat) -> i32 {
+    if format == LintOutputFormat::Sarif {
+        return run_sarif(message, lint_config);
+    }
+    if format == LintOutputFormat::Json {
         return run_json(message, lint_config);
     }
 
@@ -56,6 +69,23 @@ pub fn run(message: &str, lint_config: Option<&LintConfig>, format: OutputFormat
     }
 }
 
+/// Emit an operational machine document for a missing lint input.
+pub fn run_no_input(format: LintOutputFormat) -> i32 {
+    let message = "no lint input provided";
+    match format {
+        LintOutputFormat::Json => {
+            print_json_error(Diagnostic::operational("GITSTD-INVALID-ARGUMENT", message))
+        }
+        LintOutputFormat::Sarif => sarif::emit_operational("GITSTD-INVALID-ARGUMENT", message),
+        LintOutputFormat::Text => 2,
+    }
+}
+
+/// Emit SARIF for a command-line parsing failure.
+pub fn run_usage_error_sarif(message: &str) -> i32 {
+    sarif::emit_operational("GITSTD-INVALID-ARGUMENT", message)
+}
+
 /// Run lint with JSON output.
 fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
     let result = if let Some(config) = lint_config {
@@ -64,12 +94,15 @@ fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
             build_valid_result(message)
         } else {
             LintResult {
+                metadata: ContractMetadata::current(),
+                status: "finding",
                 valid: false,
                 r#type: None,
                 scope: None,
                 description: None,
                 breaking: None,
                 errors: errors.iter().map(|e| e.to_string()).collect(),
+                diagnostics: errors.iter().map(lint_diagnostic).collect(),
                 skipped: false,
             }
         }
@@ -77,12 +110,15 @@ fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
         match standard_commit::parse(message) {
             Ok(_) => build_valid_result(message),
             Err(e) => LintResult {
+                metadata: ContractMetadata::current(),
+                status: "finding",
                 valid: false,
                 r#type: None,
                 scope: None,
                 description: None,
                 breaking: None,
                 errors: vec![e.to_string()],
+                diagnostics: vec![parse_diagnostic(&e)],
                 skipped: false,
             },
         }
@@ -93,37 +129,57 @@ fn run_json(message: &str, lint_config: Option<&LintConfig>) -> i32 {
     code
 }
 
+fn run_sarif(message: &str, lint_config: Option<&LintConfig>) -> i32 {
+    let diagnostics = lint_diagnostics(message, lint_config);
+    sarif::emit_findings(&diagnostics)
+}
+
 /// Build a valid LintResult by parsing the commit message.
 fn build_valid_result(message: &str) -> LintResult {
     match standard_commit::parse(message) {
         Ok(commit) => LintResult {
+            metadata: ContractMetadata::current(),
+            status: "success",
             valid: true,
             r#type: Some(commit.r#type),
             scope: commit.scope,
             description: Some(commit.description),
             breaking: Some(commit.is_breaking),
             errors: vec![],
+            diagnostics: vec![],
             skipped: false,
         },
         Err(_) => LintResult {
+            metadata: ContractMetadata::current(),
+            status: "success",
             valid: true,
             r#type: None,
             scope: None,
             description: None,
             breaking: None,
             errors: vec![],
+            diagnostics: vec![],
             skipped: false,
         },
     }
 }
 
 /// Read a commit message from a file, strip comment lines, and validate.
-pub fn run_file(path: &Path, lint_config: Option<&LintConfig>, format: OutputFormat) -> i32 {
+pub fn run_file(path: &Path, lint_config: Option<&LintConfig>, format: LintOutputFormat) -> i32 {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
-            ui::error(&format!("cannot read {}: {e}", path.display()));
-            return 2;
+            let message = format!("cannot read {}: {e}", path.display());
+            return match format {
+                LintOutputFormat::Json => {
+                    print_json_error(Diagnostic::operational("GITSTD-IO-READ", message))
+                }
+                LintOutputFormat::Sarif => sarif::emit_operational("GITSTD-IO-READ", &message),
+                LintOutputFormat::Text => {
+                    ui::error(&message);
+                    2
+                }
+            };
         }
     };
     let message = strip_comments(&content);
@@ -135,14 +191,25 @@ pub fn run_file(path: &Path, lint_config: Option<&LintConfig>, format: OutputFor
 /// Returns 0 if every commit is valid or the range is empty, 1 if any commit is
 /// invalid or the range is empty while its inverse direction has commits, and 2
 /// if the range is malformed or cannot be resolved.
-pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFormat) -> i32 {
+pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: LintOutputFormat) -> i32 {
     let dir = std::path::Path::new(".");
 
     let commits = match crate::git::walk_range(dir, range) {
         Ok(c) => c,
         Err(e) => {
-            ui::error(&format!("invalid range '{range}': {e}"));
-            return 2;
+            let message = format!("invalid range '{range}': {e}");
+            return match format {
+                LintOutputFormat::Json => {
+                    print_json_error(Diagnostic::operational("GITSTD-GIT-OPERATION", message))
+                }
+                LintOutputFormat::Sarif => {
+                    sarif::emit_operational("GITSTD-GIT-OPERATION", &message)
+                }
+                LintOutputFormat::Text => {
+                    ui::error(&message);
+                    2
+                }
+            };
         }
     };
 
@@ -150,8 +217,11 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
         return run_empty_range(dir, range, format);
     }
 
-    if format == OutputFormat::Json {
+    if format == LintOutputFormat::Json {
         return run_range_json(&commits, lint_config);
+    }
+    if format == LintOutputFormat::Sarif {
+        return run_range_sarif(&commits, lint_config);
     }
 
     let total = commits.len();
@@ -214,7 +284,9 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
     let valid_count = checked - failures;
     ui::blank();
     if skipped > 0 {
-        eprintln!("{valid_count}/{checked} valid  ({skipped} skipped)");
+        ui::print(&format!(
+            "{valid_count}/{checked} valid  ({skipped} skipped)"
+        ));
     } else {
         ui::summary_counts(valid_count, checked);
     }
@@ -224,33 +296,35 @@ pub fn run_range(range: &str, lint_config: Option<&LintConfig>, format: OutputFo
 
 /// Report a revision range that contains no commits. Returns the exit code.
 ///
-/// Nothing to lint is not a failure, so an empty range returns 0 — `main..HEAD`
-/// is empty on `main` itself, which is an ordinary state.
-///
-/// When the inverse direction has commits the range returns 1 instead, because
-/// returning 0 would let a commit gate pass having validated nothing. That
-/// condition covers endpoints written in the wrong order and a left endpoint
-/// that is simply ahead of the right one; the two are the same state in git, so
-/// the hint names the inverse range as a suggestion rather than a diagnosis.
-fn run_empty_range(dir: &Path, range: &str, format: OutputFormat) -> i32 {
-    if format == OutputFormat::Json {
-        // Machine output stays a valid array even when an empty range is rejected.
-        // No commits means no verdict to report, so the exit code below carries it.
-        let _ = run_range_json(&[], None);
-    }
-
+/// An ordinary empty range succeeds. When its inverse has commits, it returns
+/// finding exit 1 so a commit gate cannot pass after validating nothing.
+fn run_empty_range(dir: &Path, range: &str, format: LintOutputFormat) -> i32 {
     match inverse_range_with_commits(dir, range) {
         Some(inverse) => {
             ui::warning(&format!("range '{range}' is empty"));
             ui::hint(&format!("did you mean '{inverse}'?"));
-            1
-        }
-        None => {
-            if format != OutputFormat::Json {
-                ui::info(&format!("no commits in range '{range}'"));
+            match format {
+                LintOutputFormat::Json => {
+                    // Preserve the established range-array contract; the process
+                    // exit code carries the rejected-empty-range verdict.
+                    let _ = run_range_json(&[], None);
+                    1
+                }
+                LintOutputFormat::Sarif => sarif::emit_findings(&[Diagnostic::operational(
+                    "GITSTD-LINT-EMPTY-RANGE",
+                    format!("range '{range}' is empty; inverse '{inverse}' contains commits"),
+                )]),
+                LintOutputFormat::Text => 1,
             }
-            0
         }
+        None => match format {
+            LintOutputFormat::Json => run_range_json(&[], None),
+            LintOutputFormat::Sarif => sarif::emit_findings(&[]),
+            LintOutputFormat::Text => {
+                ui::info(&format!("no commits in range '{range}'"));
+                0
+            }
+        },
     }
 }
 
@@ -313,12 +387,15 @@ fn run_range_json(commits: &[(String, String)], lint_config: Option<&LintConfig>
     for (_oid, message) in commits {
         if standard_commit::is_process_commit(message) {
             results.push(LintResult {
+                metadata: ContractMetadata::current(),
+                status: "success",
                 valid: true,
                 r#type: None,
                 scope: None,
                 description: None,
                 breaking: None,
                 errors: vec![],
+                diagnostics: vec![],
                 skipped: true,
             });
             continue;
@@ -330,12 +407,15 @@ fn run_range_json(commits: &[(String, String)], lint_config: Option<&LintConfig>
                 build_valid_result(message)
             } else {
                 LintResult {
+                    metadata: ContractMetadata::current(),
+                    status: "finding",
                     valid: false,
                     r#type: None,
                     scope: None,
                     description: None,
                     breaking: None,
                     errors: errors.iter().map(|e| e.to_string()).collect(),
+                    diagnostics: errors.iter().map(lint_diagnostic).collect(),
                     skipped: false,
                 }
             }
@@ -343,12 +423,15 @@ fn run_range_json(commits: &[(String, String)], lint_config: Option<&LintConfig>
             match standard_commit::parse(message) {
                 Ok(_) => build_valid_result(message),
                 Err(e) => LintResult {
+                    metadata: ContractMetadata::current(),
+                    status: "finding",
                     valid: false,
                     r#type: None,
                     scope: None,
                     description: None,
                     breaking: None,
                     errors: vec![e.to_string()],
+                    diagnostics: vec![parse_diagnostic(&e)],
                     skipped: false,
                 },
             }
@@ -362,6 +445,15 @@ fn run_range_json(commits: &[(String, String)], lint_config: Option<&LintConfig>
 
     println!("{}", serde_json::to_string(&results).unwrap());
     if any_invalid { 1 } else { 0 }
+}
+
+fn run_range_sarif(commits: &[(String, String)], lint_config: Option<&LintConfig>) -> i32 {
+    let diagnostics: Vec<Diagnostic> = commits
+        .iter()
+        .filter(|(_, message)| !standard_commit::is_process_commit(message))
+        .flat_map(|(_, message)| lint_diagnostics(message, lint_config))
+        .collect();
+    sarif::emit_findings(&diagnostics)
 }
 
 /// Strip lines starting with `#` (git comment convention).

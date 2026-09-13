@@ -1,5 +1,8 @@
 # API Reference
 
+Machine consumers should use the [versioned CLI contracts](CLI-CONTRACTS.md).
+Release consumers should follow the [release-integrity checks](RELEASE-INTEGRITY.md).
+
 `git-std` is built on five crates. The four library crates
 implement domain logic only — no CLI, no git operations, no
 terminal output.

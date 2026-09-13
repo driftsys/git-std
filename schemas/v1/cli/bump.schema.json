@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://driftsys.github.io/git-std/schemas/v1/cli/bump.schema.json",
+  "title": "git std bump JSON",
+  "type": "object",
+  "required": ["schema_version", "tool_version", "status"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "tool_version": { "type": "string" },
+    "status": { "enum": ["planned", "applied", "skipped", "error"] },
+    "exit_code": { "type": "integer", "enum": [1, 2] },
+    "plan_id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "inputs": { "$ref": "#/$defs/inputs" },
+    "effects": { "type": "array", "items": { "$ref": "#/$defs/effect" } },
+    "fidelity": {
+      "type": "object",
+      "required": ["exact", "limitations"],
+      "properties": {
+        "exact": { "type": "boolean" },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "version": { "type": "string" },
+    "version_observations": { "type": "array" },
+    "version_mismatches": { "type": "array" },
+    "diagnostics": { "type": "array" },
+    "reason": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["status"],
+        "properties": { "status": { "enum": ["planned", "applied"] } }
+      },
+      "then": {
+        "required": ["plan_id", "inputs", "effects", "fidelity", "version", "version_observations", "version_mismatches"]
+      }
+    },
+    {
+      "if": {
+        "required": ["status"],
+        "properties": { "status": { "const": "skipped" } }
+      },
+      "then": { "required": ["reason"] }
+    },
+    {
+      "if": {
+        "required": ["status"],
+        "properties": { "status": { "const": "error" } }
+      },
+      "then": { "required": ["exit_code", "diagnostics"] }
+    }
+  ],
+  "additionalProperties": true,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "inputs": {
+      "type": "object",
+      "required": ["head", "branch", "tags_sha256", "remotes_sha256", "effective_date", "config_sha256", "path_sha256", "tools", "options", "files"],
+      "properties": {
+        "head": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+        "branch": { "type": "string" },
+        "tags_sha256": { "$ref": "#/$defs/sha256" },
+        "remotes_sha256": { "$ref": "#/$defs/sha256" },
+        "effective_date": { "type": "string", "format": "date" },
+        "config_sha256": { "$ref": "#/$defs/sha256" },
+        "path_sha256": { "$ref": "#/$defs/sha256" },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "path"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "path": {
+                "oneOf": [
+                  { "type": "null" },
+                  { "type": "string", "pattern": "^(?:/|[A-Za-z]:[\\\\/]|\\\\\\\\).+" }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "options": {
+          "type": "object",
+          "required": ["version", "prerelease", "release_as", "first_release", "first_major_release", "no_tag", "no_commit", "skip_changelog", "sign", "force", "stable", "minor", "packages", "push", "skip_hooks"],
+          "properties": {
+            "version": { "type": "string", "minLength": 1 },
+            "prerelease": { "type": ["string", "null"] },
+            "release_as": { "type": ["string", "null"] },
+            "first_release": { "type": "boolean" },
+            "first_major_release": { "type": "boolean" },
+            "no_tag": { "type": "boolean" },
+            "no_commit": { "type": "boolean" },
+            "skip_changelog": { "type": "boolean" },
+            "sign": { "type": "boolean" },
+            "force": { "type": "boolean" },
+            "stable": { "type": ["string", "null"] },
+            "minor": { "type": "boolean" },
+            "packages": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "push": { "type": ["string", "null"] },
+            "skip_hooks": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "sha256": { "$ref": "#/$defs/sha256" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "effect": {
+      "type": "object",
+      "required": ["kind", "target", "fidelity"],
+      "properties": {
+        "kind": { "enum": ["version_file", "lock_sync", "changelog", "hook", "commit", "tag", "push"] },
+        "target": { "type": "string" },
+        "fidelity": { "enum": ["exact", "runtime", "conditional", "opaque"] },
+        "before_sha256": { "$ref": "#/$defs/sha256" },
+        "after_sha256": { "$ref": "#/$defs/sha256" },
+        "reason": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["fidelity"],
+            "properties": { "fidelity": { "const": "exact" } }
+          },
+          "then": { "required": ["after_sha256"] }
+        }
+      ],
+      "additionalProperties": true
+    }
+  }
+}

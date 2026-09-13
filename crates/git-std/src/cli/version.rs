@@ -8,6 +8,7 @@ use std::path::Path;
 
 use crate::app::OutputFormat;
 use crate::config::{ProjectConfig, Scheme};
+use crate::contract::{ContractMetadata, Diagnostic, print_json_error};
 use crate::git;
 use crate::ui;
 
@@ -45,12 +46,10 @@ fn run_semver(config: &ProjectConfig, opts: &VersionOptions, dir: &Path) -> i32 
     let current = match git::find_latest_version_tag(dir, tag_prefix) {
         Ok(Some((oid, ver))) => (oid, ver),
         Ok(None) => {
-            ui::error("no version tag found");
-            return 1;
+            return print_error(opts, "GITSTD-VERSION-NO-TAG", "no version tag found");
         }
         Err(e) => {
-            ui::error(&e.to_string());
-            return 1;
+            return print_error(opts, "GITSTD-GIT-OPERATION", e.to_string());
         }
     };
 
@@ -61,8 +60,7 @@ fn run_semver(config: &ProjectConfig, opts: &VersionOptions, dir: &Path) -> i32 
         match build_describe(dir, tag_oid, &version_str) {
             Ok(s) => Some(s),
             Err(e) => {
-                ui::error(&e);
-                return 1;
+                return print_error(opts, "GITSTD-GIT-OPERATION", e);
             }
         }
     } else {
@@ -73,8 +71,7 @@ fn run_semver(config: &ProjectConfig, opts: &VersionOptions, dir: &Path) -> i32 
         match compute_next_semver(dir, cur_ver, tag_oid) {
             Ok((n, l)) => (Some(n), Some(l)),
             Err(e) => {
-                ui::error(&e);
-                return 1;
+                return print_error(opts, "GITSTD-GIT-OPERATION", e);
             }
         }
     } else {
@@ -119,12 +116,10 @@ fn run_calver(config: &ProjectConfig, opts: &VersionOptions, dir: &Path) -> i32 
     let current = match git::find_latest_calver_tag(dir, tag_prefix) {
         Ok(Some((oid, ver))) => (oid, ver),
         Ok(None) => {
-            ui::error("no version tag found");
-            return 1;
+            return print_error(opts, "GITSTD-VERSION-NO-TAG", "no version tag found");
         }
         Err(e) => {
-            ui::error(&e.to_string());
-            return 1;
+            return print_error(opts, "GITSTD-GIT-OPERATION", e.to_string());
         }
     };
 
@@ -134,8 +129,7 @@ fn run_calver(config: &ProjectConfig, opts: &VersionOptions, dir: &Path) -> i32 
         match build_describe(dir, tag_oid, cur_ver) {
             Ok(s) => Some(s),
             Err(e) => {
-                ui::error(&e);
-                return 1;
+                return print_error(opts, "GITSTD-GIT-OPERATION", e);
             }
         }
     } else {
@@ -146,8 +140,7 @@ fn run_calver(config: &ProjectConfig, opts: &VersionOptions, dir: &Path) -> i32 
         match compute_next_calver(config, cur_ver) {
             Ok(n) => Some(n),
             Err(e) => {
-                ui::error(&e);
-                return 1;
+                return print_error(opts, "GITSTD-INVALID-ARGUMENT", e);
             }
         }
     } else {
@@ -158,8 +151,7 @@ fn run_calver(config: &ProjectConfig, opts: &VersionOptions, dir: &Path) -> i32 
         match calver_code(cur_ver) {
             Ok(c) => Some(c),
             Err(e) => {
-                ui::error(&e);
-                return 1;
+                return print_error(opts, "GITSTD-INVALID-ARGUMENT", e);
             }
         }
     } else {
@@ -443,6 +435,9 @@ fn print_json(
     code: Option<u64>,
 ) {
     let obj = serde_json::json!({
+        "schema_version": ContractMetadata::current().schema_version,
+        "tool_version": ContractMetadata::current().tool_version,
+        "status": "success",
         "version": version,
         "describe": describe,
         "next": next,
@@ -450,6 +445,16 @@ fn print_json(
         "code": code,
     });
     println!("{obj}");
+}
+
+fn print_error(opts: &VersionOptions, code: &'static str, message: impl Into<String>) -> i32 {
+    let message = message.into();
+    if opts.format == OutputFormat::Json {
+        print_json_error(Diagnostic::operational(code, message))
+    } else {
+        ui::error(&message);
+        1
+    }
 }
 
 // ---------------------------------------------------------------------------

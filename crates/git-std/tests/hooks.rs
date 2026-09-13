@@ -1126,7 +1126,7 @@ fn hooks_run_fix_mode_rejects_staged_submodules() {
         .args(["--color", "never", "hook", "run", "pre-commit"])
         .current_dir(dir.path())
         .assert()
-        .code(1);
+        .code(2);
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
 

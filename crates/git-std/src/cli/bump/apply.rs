@@ -1,39 +1,17 @@
-use serde::Serialize;
 use standard_changelog::VersionRelease;
 use yansi::Paint;
 
 use crate::app::OutputFormat;
 use crate::config::ProjectConfig;
+use crate::contract::ContractMetadata;
 use crate::git;
 use crate::ui;
 
+use super::error::{lifecycle_failure, machine_or_human_error, plan_diverged};
 use super::lifecycle::run_lifecycle_hook;
+use super::result::{BumpResultJson, UpdatedFileJson};
+use super::version_facts::collect_version_facts;
 use super::{BumpOptions, FinalizeContext};
-
-/// JSON output schema for a version file update.
-#[derive(Serialize)]
-struct UpdatedFileJson {
-    path: String,
-    old_version: String,
-    new_version: String,
-}
-
-/// JSON output schema for the bump result.
-#[derive(Serialize)]
-struct BumpResultJson {
-    version: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    previous_version: Option<String>,
-    tag: Option<String>,
-    updated_files: Vec<UpdatedFileJson>,
-    synced_locks: Vec<String>,
-    changelog: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    commit: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pushed_to: Option<String>,
-    dry_run: bool,
-}
 
 /// Build a `VersionRelease` from raw commits for changelog generation.
 pub(super) fn build_version_release(
@@ -71,22 +49,50 @@ pub(super) fn finalize_bump(
     let workdir = match git::workdir(dir) {
         Ok(w) => w,
         Err(_) => {
-            ui::error("bare repository not supported");
-            return 1;
+            return machine_or_human_error(
+                opts,
+                "GITSTD-GIT-OPERATION",
+                "bare repository not supported",
+                2,
+            );
         }
     };
     let workdir = workdir.as_path();
 
     let custom_files: Vec<standard_version::CustomVersionFile> =
         crate::config::resolve_custom_version_files(workdir, &config.version_files);
+    let detected = crate::ecosystem::dry_run_version_files(workdir, &custom_files);
+    let lock_files = crate::ecosystem::dry_run_lock_file_names(workdir);
+    let changelog_after = planned_changelog(dir, workdir, config, opts, ctx);
+    let has_changelog = changelog_after.is_some();
+    let canonical = ctx.prev_version.unwrap_or(new_version);
+    let facts = collect_version_facts(workdir, canonical, &detected);
+    let mut contract = match super::contract::build_contract(
+        workdir,
+        config,
+        opts,
+        new_version,
+        &detected,
+        &lock_files,
+        changelog_after.as_deref().map(str::as_bytes),
+    ) {
+        Ok(contract) => contract,
+        Err(error) => return machine_or_human_error(opts, "GITSTD-BUMP-PLAN", error, 2),
+    };
+
+    if let Some(expected) = &opts.expect_plan
+        && expected != &contract.plan_id
+    {
+        return plan_diverged(opts, expected, &contract.plan_id);
+    }
 
     // --- Dry run: print plan and exit ---
     if opts.dry_run {
-        let detected = crate::ecosystem::dry_run_version_files(workdir, &custom_files);
-        let lock_files = crate::ecosystem::dry_run_lock_file_names(workdir);
-
         if opts.format == OutputFormat::Json {
             let result = BumpResultJson {
+                metadata: ContractMetadata::current(),
+                status: "planned",
+                contract,
                 version: new_version.clone(),
                 previous_version: ctx.prev_version.map(String::from),
                 tag: if !opts.no_commit && !opts.no_tag {
@@ -107,8 +113,8 @@ pub(super) fn finalize_bump(
                         new_version: new_version.clone(),
                     })
                     .collect(),
-                synced_locks: lock_files,
-                changelog: !opts.skip_changelog,
+                synced_locks: lock_files.clone(),
+                changelog: has_changelog,
                 commit: if !opts.no_commit {
                     Some(format!("chore(release): {new_version}"))
                 } else {
@@ -119,6 +125,10 @@ pub(super) fn finalize_bump(
                 } else {
                     None
                 },
+                version_observations: facts.observations,
+                version_mismatches: facts.mismatches,
+                commit_oid: None,
+                tag_oid: None,
                 dry_run: true,
             };
             println!("{}", serde_json::to_string(&result).unwrap());
@@ -141,7 +151,7 @@ pub(super) fn finalize_bump(
         }
         crate::ecosystem::dry_run_lock_sync(workdir);
 
-        if !opts.skip_changelog {
+        if has_changelog {
             ui::info(&format!(
                 "Would update: CHANGELOG.md         prepend {tag_prefix}{new_version} section"
             ));
@@ -171,33 +181,54 @@ pub(super) fn finalize_bump(
 
     // --- Actual execution ---
 
+    if let Err(code) = run_lifecycle_hook("pre-bump", &[], opts.format) {
+        return lifecycle_failure(opts, "pre-bump", code);
+    }
+
+    // A pre-bump hook is opaque and may have changed a declared input. Recheck
+    // a guarded apply before git-std performs its own writes.
+    if opts.expect_plan.is_some() {
+        let current_detected = crate::ecosystem::dry_run_version_files(workdir, &custom_files);
+        let current_locks = crate::ecosystem::dry_run_lock_file_names(workdir);
+        let current = match super::contract::build_contract(
+            workdir,
+            config,
+            opts,
+            new_version,
+            &current_detected,
+            &current_locks,
+            changelog_after.as_deref().map(str::as_bytes),
+        ) {
+            Ok(contract) => contract,
+            Err(error) => return machine_or_human_error(opts, "GITSTD-BUMP-PLAN", error, 2),
+        };
+        let expected = opts.expect_plan.as_deref().expect("checked above");
+        if current.plan_id != expected {
+            return plan_diverged(opts, expected, &current.plan_id);
+        }
+        contract = current;
+    }
+
     // Update all detected version files and sync ecosystem lock files.
     let bump_result = crate::ecosystem::run_bump(workdir, new_version, &custom_files);
     let version_results = bump_result.update_results;
     let extra_modified = bump_result.modified_paths;
     let synced_locks = bump_result.synced_locks;
 
+    if let Err(code) = run_lifecycle_hook("post-version", &[new_version], opts.format) {
+        return lifecycle_failure(opts, "post-version", code);
+    }
+
     // Generate/update changelog.
-    if !opts.skip_changelog {
-        let changelog_config = config.to_changelog_config();
-        let host = git::detect_host(dir);
+    if let Some(output) = &changelog_after {
         let changelog_path = workdir.join("CHANGELOG.md");
-
-        let release = build_version_release(
-            ctx.raw_commits,
-            new_version,
-            ctx.prev_version,
-            &changelog_config,
-        );
-
-        if let Some(release) = release {
-            let existing = std::fs::read_to_string(&changelog_path).unwrap_or_default();
-            let output =
-                standard_changelog::prepend_release(&existing, &release, &changelog_config, &host);
-            if let Err(e) = std::fs::write(&changelog_path, &output) {
-                ui::error(&format!("cannot write CHANGELOG.md: {e}"));
-                return 1;
-            }
+        if let Err(e) = std::fs::write(&changelog_path, output) {
+            return machine_or_human_error(
+                opts,
+                "GITSTD-IO-WRITE",
+                format!("cannot write CHANGELOG.md: {e}"),
+                2,
+            );
         }
     }
 
@@ -217,7 +248,7 @@ pub(super) fn finalize_bump(
         }
     }
 
-    if !opts.skip_changelog && opts.format != OutputFormat::Json {
+    if has_changelog && opts.format != OutputFormat::Json {
         ui::blank();
         ui::info("Changelog:");
         ui::item(
@@ -227,10 +258,8 @@ pub(super) fn finalize_bump(
     }
 
     // post-changelog hook: runs after CHANGELOG.md is written, before staging/commit.
-    if !opts.skip_changelog
-        && let Err(code) = run_lifecycle_hook("post-changelog", &[])
-    {
-        return code;
+    if has_changelog && let Err(code) = run_lifecycle_hook("post-changelog", &[], opts.format) {
+        return lifecycle_failure(opts, "post-changelog", code);
     }
 
     // Create commit.
@@ -251,7 +280,7 @@ pub(super) fn finalize_bump(
             }
         }
         let mut paths_to_stage: Vec<&str> = rel_paths.iter().map(|s| s.as_str()).collect();
-        if !opts.skip_changelog {
+        if has_changelog {
             paths_to_stage.push("CHANGELOG.md");
         }
         // Stage all successfully synced lock files.
@@ -260,20 +289,27 @@ pub(super) fn finalize_bump(
         }
 
         if let Err(e) = git::stage_files(workdir, &paths_to_stage) {
-            ui::error(&format!("cannot stage files: {e}"));
-            return 1;
+            return machine_or_human_error(
+                opts,
+                "GITSTD-GIT-OPERATION",
+                format!("cannot stage files: {e}"),
+                2,
+            );
         }
 
         let commit_msg = format!("chore(release): {new_version}");
 
         if opts.sign {
-            if let Err(e) = git::create_signed_commit(dir, &commit_msg) {
-                ui::error(&e.to_string());
-                return 1;
+            if let Err(e) = git::create_signed_commit_only(workdir, &commit_msg, &paths_to_stage) {
+                return machine_or_human_error(opts, "GITSTD-GIT-OPERATION", e.to_string(), 2);
             }
-        } else if let Err(e) = git::create_commit(dir, &commit_msg) {
-            ui::error(&format!("cannot create commit: {e}"));
-            return 1;
+        } else if let Err(e) = git::create_commit_only(workdir, &commit_msg, &paths_to_stage) {
+            return machine_or_human_error(
+                opts,
+                "GITSTD-GIT-OPERATION",
+                format!("cannot create commit: {e}"),
+                2,
+            );
         }
 
         ui::blank();
@@ -289,12 +325,15 @@ pub(super) fn finalize_bump(
 
         if opts.sign {
             if let Err(e) = git::create_signed_tag(dir, &tag_name, &tag_msg) {
-                ui::error(&e.to_string());
-                return 1;
+                return machine_or_human_error(opts, "GITSTD-GIT-OPERATION", e.to_string(), 2);
             }
         } else if let Err(e) = git::create_annotated_tag(dir, &tag_name, &tag_msg) {
-            ui::error(&format!("cannot create tag: {e}"));
-            return 1;
+            return machine_or_human_error(
+                opts,
+                "GITSTD-GIT-OPERATION",
+                format!("cannot create tag: {e}"),
+                2,
+            );
         }
 
         if opts.format != OutputFormat::Json {
@@ -309,8 +348,12 @@ pub(super) fn finalize_bump(
         if opts.no_commit || opts.no_tag {
             ui::warning("--push skipped: incompatible with --no-commit or --no-tag");
         } else if let Err(e) = git::push_follow_tags(dir, remote) {
-            ui::error(&format!("cannot push to {remote}: {e}"));
-            return 1;
+            return machine_or_human_error(
+                opts,
+                "GITSTD-GIT-OPERATION",
+                format!("cannot push to {remote}: {e}"),
+                2,
+            );
         } else if opts.format != OutputFormat::Json {
             ui::info(&format!("Pushed to {remote}"));
         }
@@ -319,9 +362,9 @@ pub(super) fn finalize_bump(
     // post-bump hook: runs after commit+tag are created (and after push if --push).
     // Skipped when --no-commit is set (nothing was committed or tagged).
     if !opts.no_commit
-        && let Err(code) = run_lifecycle_hook("post-bump", &[])
+        && let Err(code) = run_lifecycle_hook("post-bump", &[], opts.format)
     {
-        return code;
+        return lifecycle_failure(opts, "post-bump", code);
     }
 
     if opts.format == OutputFormat::Json {
@@ -336,6 +379,9 @@ pub(super) fn finalize_bump(
             None
         };
         let result = BumpResultJson {
+            metadata: ContractMetadata::current(),
+            status: "applied",
+            contract,
             version: new_version.clone(),
             previous_version: ctx.prev_version.map(String::from),
             tag: tag_name,
@@ -353,10 +399,18 @@ pub(super) fn finalize_bump(
                 })
                 .collect(),
             synced_locks: synced_locks.clone(),
-            changelog: !opts.skip_changelog,
+            changelog: has_changelog,
             commit: commit_msg,
             pushed_to: if !opts.no_commit && !opts.no_tag {
                 opts.push.clone()
+            } else {
+                None
+            },
+            version_observations: facts.observations,
+            version_mismatches: facts.mismatches,
+            commit_oid: (!opts.no_commit).then(|| git::head_oid(dir).ok()).flatten(),
+            tag_oid: if !opts.no_commit && !opts.no_tag {
+                git::resolve_rev(dir, &format!("{tag_prefix}{new_version}")).ok()
             } else {
                 None
             },
@@ -372,4 +426,30 @@ pub(super) fn finalize_bump(
     }
 
     0
+}
+
+fn planned_changelog(
+    dir: &std::path::Path,
+    workdir: &std::path::Path,
+    config: &ProjectConfig,
+    opts: &BumpOptions,
+    ctx: &FinalizeContext<'_>,
+) -> Option<String> {
+    if opts.skip_changelog {
+        return None;
+    }
+    let changelog_config = config.to_changelog_config();
+    let release = build_version_release(
+        ctx.raw_commits,
+        &ctx.new_version,
+        ctx.prev_version,
+        &changelog_config,
+    )?;
+    let existing = std::fs::read_to_string(workdir.join("CHANGELOG.md")).unwrap_or_default();
+    Some(standard_changelog::prepend_release(
+        &existing,
+        &release,
+        &changelog_config,
+        &git::detect_host(dir),
+    ))
 }

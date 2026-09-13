@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0.0",
+  "tool_version": "0.11.15",
+  "status": "planned",
+  "plan_id": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "inputs": {
+    "head": "0000000000000000000000000000000000000000",
+    "branch": "main",
+    "tags_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "remotes_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "effective_date": "2026-09-12",
+    "config_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "path_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "tools": [
+      { "name": "cargo", "path": "/usr/bin/cargo" }
+    ],
+    "options": {
+      "version": "1.3.0",
+      "prerelease": null,
+      "release_as": null,
+      "first_release": false,
+      "first_major_release": false,
+      "no_tag": false,
+      "no_commit": false,
+      "skip_changelog": false,
+      "sign": false,
+      "force": false,
+      "stable": null,
+      "minor": false,
+      "packages": [],
+      "push": null,
+      "skip_hooks": false
+    },
+    "files": []
+  },
+  "effects": [
+    {
+      "kind": "version_file",
+      "target": "Cargo.toml",
+      "fidelity": "exact",
+      "after_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    { "kind": "commit", "target": "chore(release): 1.3.0", "fidelity": "runtime" },
+    { "kind": "tag", "target": "v1.3.0", "fidelity": "runtime" }
+  ],
+  "fidelity": { "exact": true, "limitations": [] },
+  "version": "1.3.0",
+  "version_observations": [],
+  "version_mismatches": []
+}

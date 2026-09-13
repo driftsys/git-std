@@ -1,13 +1,18 @@
 mod apply;
+mod contract;
 pub(crate) mod detect;
+mod error;
 mod lifecycle;
 pub(crate) mod monorepo;
 mod plan;
+mod result;
 mod stable;
+mod version_facts;
 
 use std::io::IsTerminal;
 
 use crate::app::OutputFormat;
+use crate::contract::{Diagnostic, print_json_error};
 use crate::{git, ui};
 
 /// Options for the bump subcommand.
@@ -55,6 +60,8 @@ pub struct BumpOptions {
     pub push: Option<String>,
     /// Skip the branch confirmation prompt (`--yes` / `-y` / `GIT_STD_YES=1`).
     pub yes: bool,
+    /// Expected dry-run identity required before any built-in mutation.
+    pub expect_plan: Option<String>,
 }
 
 /// Context passed from the version-computation phase to the shared finalize logic.
@@ -82,6 +89,19 @@ pub(super) fn crosses_first_major_boundary(
 
 /// Run the bump subcommand. Returns the exit code.
 pub fn run(config: &crate::config::ProjectConfig, opts: &BumpOptions) -> i32 {
+    if opts.stable.is_some() && opts.format == OutputFormat::Json {
+        return unsupported_contract(
+            opts,
+            "--stable does not expose the versioned JSON bump contract",
+        );
+    }
+    if opts.expect_plan.is_some() && config.monorepo {
+        return unsupported_contract(
+            opts,
+            "--expect-plan is supported only when monorepo = false",
+        );
+    }
+
     // Branch guard: warn and prompt when bumping on a non-release branch.
     // Skipped for --dry-run (read-only), --yes, and GIT_STD_YES=1.
     if !opts.dry_run && !opts.yes {
@@ -99,6 +119,16 @@ pub fn run(config: &crate::config::ProjectConfig, opts: &BumpOptions) -> i32 {
                         || (config.release_branch.is_none() && branch == "master");
 
                     if !on_release {
+                        if opts.format == OutputFormat::Json {
+                            return error::machine_or_human_error(
+                                opts,
+                                "GITSTD-BUMP-BRANCH",
+                                format!(
+                                    "current branch '{branch}' is not release branch '{release}'"
+                                ),
+                                1,
+                            );
+                        }
                         ui::warning(&format!("you are on branch '{branch}', not '{release}'"));
                         ui::warning(
                             "bumping here will create a version commit and tag on this branch",
@@ -125,14 +155,6 @@ pub fn run(config: &crate::config::ProjectConfig, opts: &BumpOptions) -> i32 {
         }
     }
 
-    // pre-bump gate: runs before version detection, non-zero exit aborts bump.
-    // Skipped for --dry-run.
-    if !opts.dry_run
-        && let Err(code) = lifecycle::run_lifecycle_hook("pre-bump", &[])
-    {
-        return code;
-    }
-
     if opts.stable.is_some() {
         return stable::run_stable(config, opts);
     }
@@ -140,6 +162,15 @@ pub fn run(config: &crate::config::ProjectConfig, opts: &BumpOptions) -> i32 {
         return monorepo::plan_monorepo_bump(config, opts, &opts.packages);
     }
     plan::dispatch(config, opts)
+}
+
+fn unsupported_contract(opts: &BumpOptions, message: &str) -> i32 {
+    if opts.format == OutputFormat::Json {
+        print_json_error(Diagnostic::operational("GITSTD-INVALID-ARGUMENT", message))
+    } else {
+        ui::error(message);
+        2
+    }
 }
 
 #[cfg(test)]

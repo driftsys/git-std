@@ -24,12 +24,16 @@ inquire = "0.9"
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.11"
 standard-changelog.workspace = true
 standard-commit.workspace = true
 standard-githooks.workspace = true
 standard-version.workspace = true
 toml = "1.1"
 yansi = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [build-dependencies]
 clap_mangen = "0.3"
@@ -38,6 +42,7 @@ clap_complete = "4"
 
 [dev-dependencies]
 assert_cmd = "2.2.0"
+jsonschema = "0.56"
 predicates = "3.1.4"
 serde_json = "1"
 tempfile = "3"

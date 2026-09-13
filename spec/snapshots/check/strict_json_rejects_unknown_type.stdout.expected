@@ -1,1 +1,1 @@
-{"valid":false,"errors":["type 'docs' is not in the allowed list: feat, fix"]}
+{"schema_version":"1.0.0","tool_version":"0.11.15","status":"finding","valid":false,"errors":["type 'docs' is not in the allowed list: feat, fix"],"diagnostics":[{"code":"GITSTD-COMMIT-TYPE","severity":"error","message":"type 'docs' is not in the allowed list: feat, fix"}]}

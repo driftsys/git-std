@@ -14,6 +14,8 @@ mod project;
 mod python;
 mod rust;
 
+pub(crate) use rust::preview_workspace_manifest;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -420,6 +422,9 @@ pub fn dry_run_version_files(root: &Path, custom_files: &[CustomVersionFile]) ->
         if !eco.is_fallback() && results.len() > before {
             any_specific_detected = true;
         }
+        if eco.name() == "rust" {
+            results.extend(rust::detect_workspace_manifests(root));
+        }
     }
 
     // Append custom [[version_files]] via regex engine.
@@ -449,6 +454,8 @@ pub fn dry_run_version_files(root: &Path, custom_files: &[CustomVersionFile]) ->
         });
     }
 
+    results.sort_by(|left, right| left.path.cmp(&right.path));
+    results.dedup_by(|left, right| left.path == right.path);
     results
 }
 

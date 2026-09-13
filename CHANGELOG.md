@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **git-std:** publish v1 CLI schemas, structured diagnostics, SARIF lint, and
+  the effective rule registry ([#554], [#555])
+- **git-std:** bind bump apply to deterministic plans with explicit effect
+  fidelity, version mismatches, and runtime Git identifiers ([#554])
+- **release:** add per-archive Sigstore signatures, SPDX SBOMs, GitHub build
+  provenance, and offline tamper verification ([#556])
+
+[#554]: https://github.com/driftsys/git-std/issues/554
+[#555]: https://github.com/driftsys/git-std/issues/555
+[#556]: https://github.com/driftsys/git-std/issues/556
+
 ## [0.11.15] (2026-09-05)
 
 ### Bug Fixes

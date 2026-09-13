@@ -36,9 +36,27 @@ pub fn create_commit(dir: &Path, message: &str) -> Result<(), GitError> {
     git_ok(dir, &["commit", "-m", message])
 }
 
+/// Create a new commit containing only the given paths.
+pub fn create_commit_only(dir: &Path, message: &str, paths: &[&str]) -> Result<(), GitError> {
+    let mut args = vec!["commit", "--only", "-m", message, "--"];
+    args.extend(paths);
+    git_ok(dir, &args)
+}
+
 /// Create a GPG-signed commit.
 pub fn create_signed_commit(dir: &Path, message: &str) -> Result<(), GitError> {
     git_ok(dir, &["commit", "-S", "-m", message])
+}
+
+/// Create a GPG-signed commit containing only the given paths.
+pub fn create_signed_commit_only(
+    dir: &Path,
+    message: &str,
+    paths: &[&str],
+) -> Result<(), GitError> {
+    let mut args = vec!["commit", "--only", "-S", "-m", message, "--"];
+    args.extend(paths);
+    git_ok(dir, &args)
 }
 
 /// Create a GPG-signed commit, optionally amending the previous one.

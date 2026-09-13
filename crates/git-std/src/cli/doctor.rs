@@ -11,6 +11,7 @@ use standard_githooks::{HookCommand, KNOWN_HOOKS, Prefix};
 
 use crate::app::OutputFormat;
 use crate::config::{self, ScopesConfig};
+use crate::contract::{ContractMetadata, Diagnostic, Severity, print_json_error};
 use crate::git::workdir;
 use crate::ui;
 
@@ -390,7 +391,11 @@ pub fn run(cwd: &Path, format: OutputFormat) -> i32 {
     let root = match workdir(cwd) {
         Ok(p) => p,
         Err(e) => {
-            ui::error(&format!("not a git repository: {e}"));
+            let message = format!("not a git repository: {e}");
+            if format == OutputFormat::Json {
+                return print_json_error(Diagnostic::operational("GITSTD-GIT-OPERATION", message));
+            }
+            ui::error(&message);
             return 2;
         }
     };
@@ -561,8 +566,20 @@ fn render_json(
         .map(|h| serde_json::Value::String(h.0.clone()))
         .collect();
 
+    let diagnostics: Vec<Diagnostic> = hints
+        .iter()
+        .map(|hint| Diagnostic {
+            code: "GITSTD-DOCTOR-CHECK-FAILED",
+            severity: Severity::Warning,
+            message: hint.0.clone(),
+        })
+        .collect();
+
     let output = serde_json::json!({
+        "schema_version": ContractMetadata::current().schema_version,
+        "tool_version": ContractMetadata::current().tool_version,
         "status": if has_problems { "fail" } else { "pass" },
+        "diagnostics": diagnostics,
         "sections": {
             "status": status_json,
             "hooks": hooks_json,

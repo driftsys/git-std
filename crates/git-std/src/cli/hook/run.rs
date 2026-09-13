@@ -1,6 +1,3 @@
-use std::process::Command;
-
-use serde::Serialize;
 use yansi::Paint;
 
 use standard_githooks::{HookCommand, HookMode, Prefix, default_mode, substitute_msg};
@@ -8,8 +5,10 @@ use standard_githooks::{HookCommand, HookMode, Prefix, default_mode, substitute_
 use crate::app::OutputFormat;
 use crate::ui;
 
-use super::read_and_parse_hooks;
-use super::stash;
+use super::output::{CommandExecutionJson, emit_json_result, format_display, print_failure_hints};
+use super::read_and_parse_hooks_for;
+use super::setup::HookRunSetup;
+use super::{failure, setup, stash};
 
 /// The result of executing a single hook command.
 struct CommandResult {
@@ -17,57 +16,6 @@ struct CommandResult {
     exit_code: Option<i32>,
     /// Whether this command was advisory.
     advisory: bool,
-}
-
-/// JSON output schema for a single executed command.
-#[derive(Serialize)]
-struct CommandExecutionJson {
-    command: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    glob: Option<String>,
-    exit_code: Option<i32>,
-    success: bool,
-    advisory: bool,
-    skipped: bool,
-}
-
-/// JSON output schema for the hooks run result.
-#[derive(Serialize)]
-struct HooksRunResultJson {
-    hook: String,
-    commands: Vec<CommandExecutionJson>,
-    passed: usize,
-    failed: usize,
-    advisory_warnings: usize,
-    skipped: usize,
-}
-
-/// Print contextual hints after a hook failure.
-///
-/// Shows how to skip the current hook, how to skip all hooks, and how
-/// to disable a specific command in the `.hooks` file.
-fn print_failure_hints(hook: &str) {
-    let skip_flag = match hook {
-        "pre-commit" | "commit-msg" => "git commit --no-verify",
-        "pre-push" => "git push --no-verify",
-        _ => &format!(
-            "GIT_STD_SKIP_HOOKS=1 git {}",
-            hook.trim_start_matches("pre-").trim_start_matches("post-")
-        ),
-    };
-    ui::hint(&format!("to skip this hook:    {skip_flag}"));
-    ui::hint("to skip all hooks:    GIT_STD_SKIP_HOOKS=1 git ...");
-    ui::hint(&format!(
-        "to disable a command: comment it out in .githooks/{hook}.hooks"
-    ));
-}
-
-/// Format a command's display text, appending the glob pattern if present.
-fn format_display(command_text: &str, glob: Option<&str>) -> String {
-    match glob {
-        Some(g) => format!("{command_text} ({g})"),
-        None => command_text.to_string(),
-    }
 }
 
 /// Execute a single hook command, optionally printing its result line.
@@ -103,9 +51,8 @@ fn execute_and_print(
         let code = super::exec_sh(&command_text, staged_files);
         (code, String::new())
     } else {
-        // JSON / quiet mode: no spinner, no output capture or display.
-        let code = super::exec_sh(&command_text, staged_files);
-        (code, String::new())
+        // JSON / quiet mode: capture child streams so stdout remains one JSON document.
+        super::exec_sh_capture(&command_text, staged_files)
     };
 
     let success = exit_code == Some(0);
@@ -160,15 +107,7 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
         && (val == "1" || val.eq_ignore_ascii_case("true"))
     {
         if format == OutputFormat::Json {
-            let result = HooksRunResultJson {
-                hook: hook.to_string(),
-                commands: vec![],
-                passed: 0,
-                failed: 0,
-                advisory_warnings: 0,
-                skipped: 0,
-            };
-            println!("{}", serde_json::to_string(&result).unwrap());
+            return emit_json_result(hook, &[], false);
         } else {
             ui::info(&format!(
                 "{} hooks skipped (GIT_STD_SKIP_HOOKS)",
@@ -178,16 +117,19 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
         return 0;
     }
 
-    let hooks_dir = match super::hooks_dir() {
+    let hooks_dir = match super::hooks_dir_for(format) {
         Ok(d) => d,
         Err(code) => return code,
     };
 
-    let commands = match read_and_parse_hooks(&hooks_dir, hook) {
+    let commands = match read_and_parse_hooks_for(&hooks_dir, hook, format) {
         Ok(c) => c,
         Err(code) => return code,
     };
     if commands.is_empty() {
+        if format == OutputFormat::Json {
+            return emit_json_result(hook, &[], false);
+        }
         return 0;
     }
 
@@ -196,96 +138,17 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
     // Determine the msg_path from args (first argument after --)
     let msg_path = args.first().map(|s| s.as_str()).unwrap_or("");
 
-    // For pre-commit: fetch staged files for $@ passing, stash dance, and glob filtering.
-    let staged_files: Vec<String> = if hook == "pre-commit" {
-        stash::fetch_staged("ACMR")
-    } else {
-        Vec::new()
+    let HookRunSetup {
+        staged_files,
+        file_list,
+        use_stash_dance,
+        staged_rename_targets,
+        staged_deletions,
+        hook_stash,
+    } = match setup::prepare(hook, &commands, format) {
+        Ok(setup) => setup,
+        Err(code) => return code,
     };
-
-    // Collect file list for glob filtering (lazy -- only fetched if needed).
-    // For pre-commit, reuse the already-fetched staged files to avoid a duplicate git call.
-    let file_list: Option<Vec<String>> = if commands.iter().any(|c| c.glob.is_some()) {
-        if hook == "pre-commit" {
-            Some(staged_files.clone())
-        } else {
-            stash::fetch_tracked_files()
-        }
-    } else {
-        None
-    };
-
-    // Determine whether we need the stash dance.
-    // Only applies for pre-commit hooks that contain at least one `~` command.
-    let has_fix_commands = commands.iter().any(|c| c.prefix == Prefix::Fix);
-    let use_stash_dance = hook == "pre-commit" && has_fix_commands;
-
-    // For non-pre-commit hooks, warn about `~` commands and treat them as `!`.
-    if hook != "pre-commit" && has_fix_commands {
-        ui::warning("~ prefix is only supported in pre-commit — treating as !");
-    }
-
-    // Reject submodule entries when fix mode is active (#283).
-    // The stash dance does not handle submodule state correctly.
-    if use_stash_dance && stash::has_staged_submodules() {
-        ui::error("fix mode (~) does not support submodule entries");
-        ui::hint(
-            "remove ~ prefix from commands in .githooks/pre-commit.hooks, \
-             or unstage the submodule",
-        );
-        return 1;
-    }
-
-    // Temporarily unstage renames before the stash dance to prevent corruption
-    // (#387). git stash apply incorrectly splits renames into separate staged
-    // additions and unstaged deletions. We unstage them before stash, then
-    // re-stage after, so they bypass the stash corruption entirely.
-    let staged_rename_targets = if use_stash_dance {
-        stash::fetch_staged_rename_targets()
-    } else {
-        Vec::new()
-    };
-
-    if use_stash_dance && !stash::unstage_renames(&staged_rename_targets) {
-        ui::error("failed to unstage renames before stash dance");
-        print_failure_hints(hook);
-        return 1;
-    }
-
-    // Capture files staged for deletion before the stash dance.
-    // The stash dance restores deleted files to disk; we must re-delete them
-    // in the index afterwards to preserve the user's `git rm` intent (#268).
-    let staged_deletions: Vec<String> = if use_stash_dance {
-        stash::fetch_staged("D")
-    } else {
-        Vec::new()
-    };
-
-    // Perform the stash dance if needed.
-    // `hook_stash` holds the SHA of the stash this hook created, or `None`
-    // when nothing was stashed. It is used to apply and drop only the
-    // hook's own stash, never one left on the shared stack by another
-    // worktree (#511).
-    let hook_stash = if use_stash_dance {
-        stash::stash_push()
-        // If stash_push returns None (nothing to stash or error), we skip
-        // the stash dance but still run commands normally.
-    } else {
-        None
-    };
-
-    if let Some(ref stash_sha) = hook_stash
-        && !stash::stash_apply(stash_sha)
-    {
-        ui::error("stash apply failed — working tree has conflicting unstaged changes");
-        ui::hint(&format!(
-            "your original changes are preserved in the stash ({stash_sha}) — resolve \
-             the conflict, inspect it with `git stash show -p {stash_sha}`, then drop it \
-             from `git stash list` once recovered"
-        ));
-        print_failure_hints(hook);
-        return 1;
-    }
 
     let mut results: Vec<CommandResult> = Vec::new();
     let mut json_results: Vec<CommandExecutionJson> = Vec::new();
@@ -361,20 +224,27 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
         if failed && effective_mode == HookMode::FailFast {
             // Re-stage formatted files and clean up stash before returning.
             if use_stash_dance {
-                if !stash::restage_files(&staged_files)
-                    || !stash::restage_deletions(&staged_deletions)
-                {
+                let restaged = stash::restage_files(&staged_files)
+                    .and_then(|()| stash::restage_deletions(&staged_deletions));
+                if let Err(message) = restaged {
                     // Already returning 1 for the fail-fast failure, but
                     // ensure the stash is cleaned up before returning.
-                    if let Some(ref stash_sha) = hook_stash {
-                        stash::stash_drop(stash_sha);
+                    if let Some(ref stash_sha) = hook_stash
+                        && let Err(code) = failure::drop_stash(format, stash_sha)
+                    {
+                        return code;
                     }
-                    ui::blank();
-                    print_failure_hints(hook);
-                    return 1;
+                    let code = failure::emit(format, message);
+                    if format != OutputFormat::Json {
+                        ui::blank();
+                        print_failure_hints(hook);
+                    }
+                    return code;
                 }
-                if let Some(ref stash_sha) = hook_stash {
-                    stash::stash_drop(stash_sha);
+                if let Some(ref stash_sha) = hook_stash
+                    && let Err(code) = failure::drop_stash(format, stash_sha)
+                {
+                    return code;
                 }
             }
 
@@ -419,49 +289,55 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
         // This always runs when fix-mode is active, whether or not a stash
         // was created (no stash means no unstaged changes to protect, but
         // re-staging is still needed to pick up formatter output).
-        if !stash::restage_files(&staged_files) || !stash::restage_deletions(&staged_deletions) {
-            if let Some(ref stash_sha) = hook_stash {
-                stash::stash_drop(stash_sha);
+        let restaged = stash::restage_files(&staged_files)
+            .and_then(|()| stash::restage_deletions(&staged_deletions));
+        if let Err(message) = restaged {
+            if let Some(ref stash_sha) = hook_stash
+                && let Err(code) = failure::drop_stash(format, stash_sha)
+            {
+                return code;
             }
-            print_failure_hints(hook);
-            return 1;
+            let code = failure::emit(format, message);
+            if format != OutputFormat::Json {
+                print_failure_hints(hook);
+            }
+            return code;
         }
 
         if let Some(ref stash_sha) = hook_stash {
             // Warn about any unstaged files that the formatter also touched.
             // These are files in `git diff --name-only` that were NOT in
             // the original staged set.
-            let now_unstaged = stash::fetch_unstaged_files();
+            let now_unstaged = match stash::fetch_unstaged_files() {
+                Ok(files) => files,
+                Err(message) => {
+                    return cleanup_after_inspection_failure(
+                        format,
+                        message,
+                        stash_sha,
+                        &staged_rename_targets,
+                    );
+                }
+            };
             for file in &now_unstaged {
-                if !staged_files.contains(file) {
+                if format != OutputFormat::Json && !staged_files.contains(file) {
                     ui::warning(&format!("{file}: unstaged changes were also formatted"));
                 }
             }
 
-            stash::stash_drop(stash_sha);
+            if let Err(code) = failure::drop_stash(format, stash_sha) {
+                return code;
+            }
         }
 
         // Re-stage renamed files after the stash dance completes.
         // They were unstaged before to prevent stash corruption (#387).
-        if !staged_rename_targets.is_empty() {
-            let mut cmd = Command::new("git");
-            cmd.args(["add", "--"]);
-            for f in &staged_rename_targets {
-                cmd.arg(f);
+        if let Err(message) = stash::restage_renames(&staged_rename_targets) {
+            let code = failure::emit(format, message);
+            if format != OutputFormat::Json {
+                print_failure_hints(hook);
             }
-            match cmd.status() {
-                Ok(s) if !s.success() => {
-                    ui::error("failed to re-stage renamed files after formatting");
-                    print_failure_hints(hook);
-                    return 1;
-                }
-                Err(e) => {
-                    ui::error(&format!("failed to re-stage renamed files: {e}"));
-                    print_failure_hints(hook);
-                    return 1;
-                }
-                _ => {}
-            }
+            return code;
         }
     }
 
@@ -506,39 +382,18 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
     }
 }
 
-fn emit_json_result(hook: &str, json_results: &[CommandExecutionJson], has_failure: bool) -> i32 {
-    let passed = json_results
-        .iter()
-        .filter(|r| r.success && !r.skipped)
-        .count();
-    let failed = json_results
-        .iter()
-        .filter(|r| !r.success && !r.advisory && !r.skipped)
-        .count();
-    let advisory_warnings = json_results
-        .iter()
-        .filter(|r| !r.success && r.advisory && !r.skipped)
-        .count();
-    let skipped = json_results.iter().filter(|r| r.skipped).count();
-
-    let result = HooksRunResultJson {
-        hook: hook.to_string(),
-        commands: json_results
-            .iter()
-            .map(|r| CommandExecutionJson {
-                command: r.command.clone(),
-                glob: r.glob.clone(),
-                exit_code: r.exit_code,
-                success: r.success,
-                advisory: r.advisory,
-                skipped: r.skipped,
-            })
-            .collect(),
-        passed,
-        failed,
-        advisory_warnings,
-        skipped,
-    };
-    println!("{}", serde_json::to_string(&result).unwrap());
-    if has_failure { 1 } else { 0 }
+fn cleanup_after_inspection_failure(
+    format: OutputFormat,
+    original: String,
+    stash_sha: &str,
+    rename_targets: &[String],
+) -> i32 {
+    let mut failures = vec![original];
+    if let Err(message) = stash::stash_drop(stash_sha) {
+        failures.push(message);
+    }
+    if let Err(message) = stash::restage_renames(rename_targets) {
+        failures.push(message);
+    }
+    failure::emit(format, failures.join("; "))
 }

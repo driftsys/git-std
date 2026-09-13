@@ -1,6 +1,9 @@
 mod enable;
+mod failure;
 mod list;
+mod output;
 mod run;
+mod setup;
 mod stash;
 
 pub use enable::{disable, enable};
@@ -12,6 +15,10 @@ use std::process::Command;
 
 use standard_githooks::HookCommand;
 
+use crate::{
+    app::OutputFormat,
+    contract::{Diagnostic, print_json_error},
+};
 use crate::{git, ui};
 
 /// Execute a shell command via `sh -c`, passing extra positional args.
@@ -68,6 +75,21 @@ pub(super) fn hooks_dir() -> Result<PathBuf, i32> {
     }
 }
 
+pub(super) fn hooks_dir_for(format: OutputFormat) -> Result<PathBuf, i32> {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    match git::workdir(&cwd) {
+        Ok(root) => Ok(root.join(".githooks")),
+        Err(_) if format == OutputFormat::Json => Err(print_json_error(Diagnostic::operational(
+            "GITSTD-GIT-OPERATION",
+            "not inside a git repository",
+        ))),
+        Err(_) => {
+            ui::error("not inside a git repository");
+            Err(1)
+        }
+    }
+}
+
 /// Returns true if a hook's shim is currently active (named exactly as the hook).
 pub(super) fn is_enabled(hooks_dir: &Path, hook_name: &str) -> bool {
     hooks_dir.join(hook_name).exists()
@@ -90,4 +112,25 @@ pub(super) fn read_and_parse_hooks(
         }
     };
     Ok(standard_githooks::parse(&content))
+}
+
+pub(super) fn read_and_parse_hooks_for(
+    hooks_dir: &Path,
+    hook_name: &str,
+    format: OutputFormat,
+) -> Result<Vec<HookCommand>, i32> {
+    let hooks_file = hooks_dir.join(format!("{hook_name}.hooks"));
+    match std::fs::read_to_string(&hooks_file) {
+        Ok(content) => Ok(standard_githooks::parse(&content)),
+        Err(error) if format == OutputFormat::Json => {
+            Err(print_json_error(Diagnostic::operational(
+                "GITSTD-IO-READ",
+                format!("cannot read {}: {error}", hooks_file.display()),
+            )))
+        }
+        Err(error) => {
+            ui::error(&format!("cannot read {}: {error}", hooks_file.display()));
+            Err(2)
+        }
+    }
 }

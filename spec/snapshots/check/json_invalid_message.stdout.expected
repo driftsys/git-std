@@ -1,1 +1,1 @@
-{"valid":false,"errors":["Missing type in the commit summary, expected `type: description`"]}
+{"schema_version":"1.0.0","tool_version":"0.11.15","status":"finding","valid":false,"errors":["Missing type in the commit summary, expected `type: description`"],"diagnostics":[{"code":"GITSTD-COMMIT-PARSE","severity":"error","message":"Missing type in the commit summary, expected `type: description`"}]}

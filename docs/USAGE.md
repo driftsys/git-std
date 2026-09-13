@@ -29,12 +29,12 @@ git std lint --range main..HEAD                   # all commits in a range
 
 **Flags:**
 
-| Flag              | Description                                  |
-| ----------------- | -------------------------------------------- |
-| `--file <path>`   | Read message from file                       |
-| `--range <range>` | Validate all commits in a git revision range |
-| `--strict`        | Enforce types/scopes from `.git-std.toml`    |
-| `--format <fmt>`  | Output format: `text` (default) or `json`    |
+| Flag              | Description                                         |
+| ----------------- | --------------------------------------------------- |
+| `--file <path>`   | Read message from file                              |
+| `--range <range>` | Validate all commits in a git revision range        |
+| `--strict`        | Enforce types/scopes from `.git-std.toml`           |
+| `--format <fmt>`  | Output format: `text` (default), `json`, or `sarif` |
 
 **Exit codes:** `0` = valid, `1` = invalid, or an empty `--range` whose
 inverse direction has commits, `2` = I/O or usage error.
@@ -62,6 +62,9 @@ git std lint --strict --range main..HEAD
 
 # As a commit-msg hook
 git std lint --file "$1"
+
+# SARIF 2.1.0 with stable rule IDs
+git std lint "feat: add login" --format sarif
 ```
 
 ## `git std commit`
@@ -113,8 +116,16 @@ update version files, generate changelog, commit, and tag.
 | `--package <name>`      | Filter bump to specific package(s) (monorepo only, repeatable)                                                         |
 | `--push [remote]`       | Push commit and tags after release (default remote: `origin`)                                                          |
 | `--yes` / `-y`          | Skip branch confirmation prompt                                                                                        |
+| `--expect-plan <id>`    | Apply only if current inputs reproduce a prior dry-run plan ID                                                         |
 
 **Exit codes:** `0` = success, `1` = error.
+
+For a guarded single-version apply (`monorepo = false`):
+
+```bash
+plan_id="$(git std bump --dry-run --format json | jq -r .plan_id)"
+git std bump --expect-plan "$plan_id" --format json --yes
+```
 
 ### Monorepo bump
 
@@ -331,6 +342,18 @@ Output goes to stdout. No `v` prefix.
 | `--format <fmt>` | Output format: `text` (default), `json`                               |
 
 **Exit codes:** `0` = success, `1` = error.
+
+## `git std registry`
+
+Inspect stable lint rules, diagnostic codes, explanations, and the effective
+project convention used by machine integrations:
+
+```bash
+git std registry --format json
+```
+
+See [CLI contracts](CLI-CONTRACTS.md) for schemas, exit classes, compatibility,
+and bump plan fidelity.
 
 ## `--completions <shell>`
 

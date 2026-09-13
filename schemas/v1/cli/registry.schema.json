@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://driftsys.github.io/git-std/schemas/v1/cli/registry.schema.json",
+  "title": "git std registry JSON",
+  "type": "object",
+  "required": ["schema_version", "tool_version", "status", "facts", "rules", "diagnostics", "effective_convention"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "tool_version": { "type": "string" },
+    "status": { "const": "success" },
+    "facts": {
+      "type": "object",
+      "required": ["rules", "diagnostics", "effective_convention"],
+      "properties": {
+        "rules": { "const": "static" },
+        "diagnostics": { "const": "static" },
+        "effective_convention": { "const": "resolved for current project" }
+      },
+      "additionalProperties": false
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "code", "explanation", "configurable"]
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": { "type": "object", "required": ["code", "class", "explanation"] }
+    },
+    "effective_convention": { "type": "object" }
+  },
+  "additionalProperties": true
+}
