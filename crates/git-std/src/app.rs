@@ -227,14 +227,17 @@ pub enum Command {
     ///   post-bump           runs after commit + tag (use for publish, notify)
     ///
     /// Hook commands are defined in `.githooks/<hook>.hooks` — one command per
-    /// line. Each line may start with an optional sigil:
+    /// line. Each line may start with an optional execution-mode prefix:
     ///
     ///   !  required   — run the command; abort the hook on non-zero exit
     ///   ~  fix        — stash unstaged changes, run, re-stage result, restore
     ///   ?  advisory   — run the command; warn on failure, never abort
     ///
-    /// Lines without a sigil use the hook's default mode (fail-fast for most
+    /// Lines without a prefix use the hook's default mode (fail-fast for most
     /// git hooks, advisory for bootstrap).
+    ///
+    /// For pre-push, `[delete]` may follow the optional prefix. It marks a
+    /// command that also runs during deletion-only pushes.
     ///
     /// A glob pattern at the end of a line restricts the command to matching
     /// files only (populated as $@ when the hook is invoked by git):
@@ -252,6 +255,7 @@ pub enum Command {
     ///
     ///   ! cargo test --workspace
     ///   ! npx markdownlint "**/*.md"
+    ///   ! [delete] ./scripts/check-ref-policy.sh
     ///
     /// Examples (.githooks/commit-msg.hooks):
     ///

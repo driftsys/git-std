@@ -6,7 +6,7 @@
 
   pre-push (fail-fast mode) [disabled]:
     ! cargo build --workspace
-    ! cargo test --workspace
+    ! [delete] check-ref-policy
 
   post-commit (collect mode) [disabled]:
     (no commands)

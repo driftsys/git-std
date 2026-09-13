@@ -13,7 +13,9 @@ run git operations, or produce terminal output.
 ## Main entry points
 
 - `parse` — parse hook file content into a list of commands
+- `split_delete_marker` — identify the optional pre-push delete marker
 - `matches_any` — check if staged files match a glob pattern
+- `is_deletion_only` — classify Git's `pre-push` ref input
 - `default_mode` — get the default execution mode for a hook
 - `substitute_msg` — replace `{msg}` tokens in commands
 - `generate_shim` — generate a shim script for a hook
@@ -21,15 +23,18 @@ run git operations, or produce terminal output.
 ## Hook file format
 
 Each `.githooks/<hook>.hooks` file contains one command per
-line with an optional prefix and trailing glob:
+line with an optional prefix, delete marker, and trailing glob:
 
 ```text
 # Comment
-[prefix]command [arguments] [glob]
+[prefix] [delete] command [arguments] [glob]
 ```
 
 Prefixes: _(none)_ = hook default, `!` = fail fast,
 `?` = advisory.
+
+For `pre-push`, unmarked commands skip deletion-only pushes. Add `[delete]`
+after the optional prefix when a command should also run for them.
 
 ## Part of git-std
 

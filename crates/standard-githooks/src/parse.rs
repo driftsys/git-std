@@ -26,7 +26,8 @@ pub enum Prefix {
 pub struct HookCommand {
     /// The execution mode prefix (`!`, `?`, or none).
     pub prefix: Prefix,
-    /// The command text (executable and arguments, without prefix or glob).
+    /// The command text (without prefix or glob), possibly beginning with a
+    /// marker interpreted by the caller.
     pub command: String,
     /// Optional trailing glob pattern that restricts the command to matching
     /// staged or tracked files.
@@ -76,7 +77,6 @@ fn parse_line(line: &str) -> Option<HookCommand> {
 
     let (prefix, rest) = extract_prefix(line);
     let rest = rest.trim();
-
     let (command, glob) = extract_glob(rest);
 
     Some(HookCommand {
@@ -96,6 +96,20 @@ fn extract_prefix(line: &str) -> (Prefix, &str) {
         (Prefix::Fix, rest)
     } else {
         (Prefix::Default, line)
+    }
+}
+
+/// Split an optional `[delete]` marker from parsed command text.
+///
+/// The marker follows the hook command's optional execution-mode prefix, which
+/// [`parse`] removes before storing [`HookCommand::command`].
+pub fn split_delete_marker(command: &str) -> (bool, &str) {
+    if let Some(rest) = command.strip_prefix("[delete]")
+        && (rest.is_empty() || rest.starts_with(char::is_whitespace))
+    {
+        (true, rest.trim_start())
+    } else {
+        (false, command)
     }
 }
 
@@ -466,5 +480,43 @@ cargo test --workspace --lib *.rs
         assert_eq!(commands[0].prefix, Prefix::FailFast);
         assert_eq!(commands[1].prefix, Prefix::Fix);
         assert_eq!(commands[2].prefix, Prefix::Advisory);
+    }
+
+    #[test]
+    fn delete_marker_is_parsed_after_the_failure_prefix() {
+        let commands = parse("! [delete] check-ref-policy\n");
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].prefix, Prefix::FailFast);
+        let (has_delete_marker, command) = split_delete_marker(&commands[0].command);
+        assert!(has_delete_marker);
+        assert_eq!(command, "check-ref-policy");
+        assert_eq!(commands[0].glob, None);
+    }
+
+    #[test]
+    fn delete_marker_is_parsed_with_default_and_advisory_prefixes() {
+        let commands = parse("[delete] default-check\n? [delete] advisory-check\n");
+
+        assert_eq!(commands[0].prefix, Prefix::Default);
+        assert_eq!(
+            split_delete_marker(&commands[0].command),
+            (true, "default-check")
+        );
+        assert_eq!(commands[1].prefix, Prefix::Advisory);
+        assert_eq!(
+            split_delete_marker(&commands[1].command),
+            (true, "advisory-check")
+        );
+    }
+
+    #[test]
+    fn hook_command_keeps_its_public_field_shape() {
+        let command = HookCommand {
+            prefix: Prefix::Default,
+            command: "check".to_string(),
+            glob: None,
+        };
+
+        assert_eq!(command.command, "check");
     }
 }

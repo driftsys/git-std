@@ -43,6 +43,14 @@ pub fn generate_hooks_template(hook_name: &str) -> String {
     } else {
         ""
     };
+    let delete_line = if hook_name == "pre-push" {
+        "#\n\
+         # Commands are skipped when a push contains only ref deletions.\n\
+         # Add [delete] after the prefix to also run on deletion-only pushes:\n\
+         #   ! [delete] check-ref-policy\n"
+    } else {
+        ""
+    };
 
     let default_commands = if hook_name == "commit-msg" {
         "! git std lint --file {msg}\n"
@@ -59,6 +67,7 @@ pub fn generate_hooks_template(hook_name: &str) -> String {
          #   !  check     run command, block commit on failure\n\
          {fix_line}\
          #   ?  advisory  run command, never block commit\n\
+         {delete_line}\
          #\n\
          # $@ contains the list of staged files — commands can use or ignore it.\n\
          #\n\
@@ -117,6 +126,13 @@ mod tests {
     fn non_commit_msg_template_has_no_default_commands() {
         let t = generate_hooks_template("pre-push");
         assert!(!t.contains("git std lint"));
+    }
+
+    #[test]
+    fn pre_push_template_explains_the_delete_marker() {
+        let template = generate_hooks_template("pre-push");
+        assert!(template.contains("Commands are skipped when a push contains only ref deletions."));
+        assert!(template.contains("! [delete] check-ref-policy"));
     }
 
     #[test]

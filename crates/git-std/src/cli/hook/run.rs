@@ -1,6 +1,11 @@
+use std::io::{IsTerminal, Read};
+
 use yansi::Paint;
 
-use standard_githooks::{HookCommand, HookMode, Prefix, default_mode, substitute_msg};
+use standard_githooks::{
+    HookCommand, HookMode, Prefix, default_mode, is_deletion_only, split_delete_marker,
+    substitute_msg,
+};
 
 use crate::app::OutputFormat;
 use crate::ui;
@@ -32,6 +37,7 @@ fn execute_and_print(
     cmd: &HookCommand,
     msg_path: &str,
     staged_files: &[String],
+    stdin: Option<&[u8]>,
     quiet: bool,
 ) -> (CommandResult, bool) {
     let command_text = substitute_msg(&cmd.command, msg_path);
@@ -42,17 +48,24 @@ fn execute_and_print(
     // On non-TTY (tests, CI), let output inherit so it's visible.
     let (exit_code, captured) = if !quiet && ui::is_tty() {
         // TTY: use spinner and capture output to show only on failure
-        ui::spin_while(&display, || {
-            super::exec_sh_capture(&command_text, staged_files)
+        ui::spin_while(&display, || match stdin {
+            Some(stdin) => super::exec_sh_capture_with_stdin(&command_text, staged_files, stdin),
+            None => super::exec_sh_capture(&command_text, staged_files),
         })
     } else if !quiet {
         // Non-TTY: show pending, let output inherit, print result
         ui::pending_non_tty(&display);
-        let code = super::exec_sh(&command_text, staged_files);
+        let code = match stdin {
+            Some(stdin) => super::exec_sh_with_stdin(&command_text, staged_files, stdin),
+            None => super::exec_sh(&command_text, staged_files),
+        };
         (code, String::new())
     } else {
         // JSON / quiet mode: capture child streams so stdout remains one JSON document.
-        super::exec_sh_capture(&command_text, staged_files)
+        match stdin {
+            Some(stdin) => super::exec_sh_capture_with_stdin(&command_text, staged_files, stdin),
+            None => super::exec_sh_capture(&command_text, staged_files),
+        }
     };
 
     let success = exit_code == Some(0);
@@ -135,6 +148,11 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
 
     let mode = default_mode(hook);
 
+    let pre_push_input = read_pre_push_input(hook);
+    let is_deletion_only = pre_push_input
+        .as_deref()
+        .is_some_and(|input| is_deletion_only(&String::from_utf8_lossy(input)));
+
     // Determine the msg_path from args (first argument after --)
     let msg_path = args.first().map(|s| s.as_str()).unwrap_or("");
 
@@ -156,7 +174,22 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
 
     let is_json = format == OutputFormat::Json;
 
-    for cmd in &commands {
+    for (command_index, cmd) in commands.iter().enumerate() {
+        let (has_delete_marker, command_text) = split_delete_marker(&cmd.command);
+        if is_deletion_only && !has_delete_marker {
+            if is_json {
+                json_results.push(CommandExecutionJson {
+                    command: command_text.to_string(),
+                    glob: cmd.glob.clone(),
+                    exit_code: None,
+                    success: false,
+                    advisory: cmd.prefix == Prefix::Advisory,
+                    skipped: true,
+                });
+            }
+            continue;
+        }
+
         // Glob filtering: skip command if glob doesn't match any files.
         if let Some(ref glob) = cmd.glob
             && let Some(ref files) = file_list
@@ -165,7 +198,7 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
             if !standard_githooks::matches_any(glob, &refs) {
                 if is_json {
                     json_results.push(CommandExecutionJson {
-                        command: cmd.command.clone(),
+                        command: command_text.to_string(),
                         glob: cmd.glob.clone(),
                         exit_code: None,
                         success: false,
@@ -197,17 +230,23 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
         // Build a temporary cmd view with the resolved prefix for execute_and_print.
         let resolved_cmd = HookCommand {
             prefix: effective_prefix,
-            command: cmd.command.clone(),
+            command: command_text.to_string(),
             glob: cmd.glob.clone(),
         };
 
-        let (result, failed) = execute_and_print(&resolved_cmd, msg_path, &staged_files, is_json);
+        let (result, failed) = execute_and_print(
+            &resolved_cmd,
+            msg_path,
+            &staged_files,
+            pre_push_input.as_deref(),
+            is_json,
+        );
         if failed {
             has_failure = true;
         }
 
         if is_json {
-            let command_text = substitute_msg(&cmd.command, msg_path);
+            let command_text = substitute_msg(command_text, msg_path);
             json_results.push(CommandExecutionJson {
                 command: command_text,
                 glob: cmd.glob.clone(),
@@ -249,11 +288,12 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
             }
 
             // Print remaining commands as skipped
-            let remaining = commands.len() - results.len();
+            let remaining = commands.len() - command_index - 1;
             if is_json {
                 // Add remaining commands as skipped
-                for remaining_cmd in commands.iter().skip(results.len()) {
-                    let command_text = substitute_msg(&remaining_cmd.command, msg_path);
+                for remaining_cmd in commands.iter().skip(command_index + 1) {
+                    let (_, remaining_text) = split_delete_marker(&remaining_cmd.command);
+                    let command_text = substitute_msg(remaining_text, msg_path);
                     json_results.push(CommandExecutionJson {
                         command: command_text,
                         glob: remaining_cmd.glob.clone(),
@@ -380,6 +420,16 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
     } else {
         0
     }
+}
+
+fn read_pre_push_input(hook: &str) -> Option<Vec<u8>> {
+    if hook != "pre-push" || std::io::stdin().is_terminal() {
+        return None;
+    }
+
+    let mut input = Vec::new();
+    std::io::stdin().read_to_end(&mut input).ok()?;
+    Some(input)
 }
 
 fn cleanup_after_inspection_failure(

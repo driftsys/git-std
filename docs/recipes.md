@@ -340,7 +340,12 @@ issues before CI does.
 ! cargo test --workspace
 ! cargo clippy --workspace -- -D warnings
 ! git std lint --range origin/main..HEAD
+! [delete] ./scripts/check-ref-policy.sh
 ```
+
+Deletion-only pushes skip the first three checks. The `[delete]` command also
+runs for those pushes, which is useful for local ref policy checks. Normal and
+mixed pushes run all four commands.
 
 ### Managing hooks
 
