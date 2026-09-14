@@ -804,12 +804,16 @@ Execute all commands in `.githooks/<hook>.hooks`.
 **Execution model:**
 
 1. Read `.githooks/<hook>.hooks`, skip blank lines and `#` comments.
-2. Parse prefix, command, and optional trailing glob per line.
-3. If glob present: check staged files (pre-commit) or
+2. Parse prefix, optional `[delete]` marker, command, and optional trailing glob
+   per line.
+3. For `pre-push`, read the ref updates from standard input. When every update
+   deletes a ref, skip commands without `[delete]`. A mixed push runs all
+   commands. Replay the complete input to every command that runs.
+4. If glob present: check staged files (pre-commit) or
    tracked files (other hooks) against glob. Skip
    silently if no match.
-4. Execute command via `sh -c`.
-5. Apply prefix rule to the exit code.
+5. Execute command via `sh -c`.
+6. Apply prefix rule to the exit code.
 
 Arguments after `--` are passed to each command. The
 `{msg}` token is substituted with the commit message
@@ -863,6 +867,7 @@ $ git std hook list
   pre-push (fail-fast mode):
     ! cargo build --workspace
     ! cargo test --workspace
+    ! [delete] ./scripts/check-ref-policy.sh
 
   commit-msg (fail-fast mode):
     ! git std lint --file {msg}
@@ -870,14 +875,20 @@ $ git std hook list
 
 ### 2.6 Hooks File Format
 
-`.githooks/<hook-name>.hooks` — one command per line, optional prefix and glob.
+`.githooks/<hook-name>.hooks` — one command per line, optional prefix, delete
+marker, and glob.
 
 ```text
 # Comment
-[prefix]command [arguments] [glob]
+[prefix] [delete] command [arguments] [glob]
 ```
 
 **Prefixes:** _(none)_ = hook default, `!` = fail fast, `?` = advisory.
+
+**Delete marker:** `[delete]` means a `pre-push` command also runs when the push
+contains only ref deletions. Commands without the marker skip deletion-only
+pushes. Normal and mixed pushes run every command. The marker has no filtering
+effect on other hook types.
 
 **Globs** (optional, end of line): restrict command to
 matching staged/tracked files. Git pathspec syntax. No

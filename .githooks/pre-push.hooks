@@ -6,6 +6,10 @@
 #   !  required   abort push on failure
 #   ?  advisory   warn on failure, never abort
 #
+# Commands are skipped when a push contains only ref deletions.
+# Add [delete] after the prefix to also run on deletion-only pushes:
+#   ! [delete] ./scripts/check-ref-policy.sh
+#
 # Examples:
 #   ! cargo test --workspace
 #   ! npx markdownlint "**/*.md"

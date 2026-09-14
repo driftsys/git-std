@@ -1,0 +1,4 @@
+  > tee ordinary-input >/dev/null
+  [..] tee ordinary-input >/dev/null
+  > tee delete-input >/dev/null
+  [..] tee delete-input >/dev/null

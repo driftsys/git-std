@@ -1,7 +1,9 @@
 use serde::Serialize;
 use yansi::Paint;
 
-use standard_githooks::{HookCommand, HookMode, KNOWN_HOOKS, Prefix, default_mode};
+use standard_githooks::{
+    HookCommand, HookMode, KNOWN_HOOKS, Prefix, default_mode, split_delete_marker,
+};
 
 use crate::app::OutputFormat;
 use crate::contract::ContractMetadata;
@@ -14,6 +16,8 @@ use super::{is_enabled, read_and_parse_hooks};
 struct HookCommandJson {
     command: String,
     prefix: &'static str,
+    #[serde(rename = "delete", skip_serializing_if = "std::ops::Not::not")]
+    has_delete_marker: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     glob: Option<String>,
 }
@@ -94,35 +98,24 @@ pub fn list(format: OutputFormat) -> i32 {
             let max_cmd_width = commands
                 .iter()
                 .filter(|c| c.glob.is_some())
-                .map(|c| c.command.len() + 2) // +2 for prefix char + space
+                .map(|c| command_display(c).len())
                 .max()
                 .unwrap_or(0);
             // Minimum column width of 48, with at least 4 chars padding.
             let col_width = max_cmd_width.max(48);
 
             for cmd in &commands {
-                let prefix_char = match cmd.prefix {
-                    Prefix::FailFast => "!",
-                    Prefix::Advisory => "?",
-                    Prefix::Fix => "~",
-                    Prefix::Default => " ",
-                };
+                let command = command_display(cmd);
 
                 let display = if let Some(ref glob) = cmd.glob {
-                    let cmd_part = format!("{prefix_char} {}", cmd.command);
-                    let padding = if cmd_part.len() < col_width {
-                        col_width - cmd_part.len()
+                    let padding = if command.len() < col_width {
+                        col_width - command.len()
                     } else {
                         4
                     };
-                    format!(
-                        "{prefix_char} {}{:width$}{glob}",
-                        cmd.command,
-                        "",
-                        width = padding
-                    )
+                    format!("{command}{:width$}{glob}", "", width = padding)
                 } else {
-                    format!("{prefix_char} {}", cmd.command)
+                    command
                 };
 
                 ui::detail(&display);
@@ -156,10 +149,15 @@ fn list_json(hooks_dir: &std::path::Path) -> i32 {
                 },
                 commands: commands
                     .iter()
-                    .map(|c| HookCommandJson {
-                        command: c.command.clone(),
-                        prefix: prefix_label(c.prefix),
-                        glob: c.glob.clone(),
+                    .map(|command| {
+                        let (has_delete_marker, command_text) =
+                            split_delete_marker(&command.command);
+                        HookCommandJson {
+                            command: command_text.to_string(),
+                            prefix: prefix_label(command.prefix),
+                            has_delete_marker,
+                            glob: command.glob.clone(),
+                        }
                     })
                     .collect(),
             }
@@ -168,4 +166,16 @@ fn list_json(hooks_dir: &std::path::Path) -> i32 {
 
     println!("{}", serde_json::to_string(&hooks).unwrap());
     0
+}
+
+fn command_display(command: &HookCommand) -> String {
+    let prefix = match command.prefix {
+        Prefix::FailFast => "!",
+        Prefix::Advisory => "?",
+        Prefix::Fix => "~",
+        Prefix::Default => " ",
+    };
+    let (has_delete_marker, command_text) = split_delete_marker(&command.command);
+    let delete_marker = if has_delete_marker { "[delete] " } else { "" };
+    format!("{prefix} {delete_marker}{command_text}")
 }

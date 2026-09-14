@@ -10,8 +10,9 @@ pub use enable::{disable, enable};
 pub use list::list;
 pub use run::run;
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use standard_githooks::HookCommand;
 
@@ -37,6 +38,34 @@ pub(crate) fn exec_sh(command: &str, args: &[impl AsRef<std::ffi::OsStr>]) -> Op
     }
 }
 
+/// Execute a shell command with bytes supplied on standard input.
+pub(crate) fn exec_sh_with_stdin(
+    command: &str,
+    args: &[impl AsRef<std::ffi::OsStr>],
+    stdin: &[u8],
+) -> Option<i32> {
+    let mut child = match Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .arg("_")
+        .args(args)
+        .stdin(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(_) => return Some(127),
+    };
+    let Some(mut pipe) = child.stdin.take() else {
+        return Some(127);
+    };
+    let write_failed = pipe
+        .write_all(stdin)
+        .is_err_and(|error| error.kind() != std::io::ErrorKind::BrokenPipe);
+    drop(pipe);
+    let exit_code = child.wait().ok().and_then(|status| status.code());
+    if write_failed { Some(127) } else { exit_code }
+}
+
 /// Execute a shell command via `sh -c`, capturing stdout+stderr.
 ///
 /// Returns `(exit_code, combined_output)`.
@@ -56,6 +85,48 @@ pub(crate) fn exec_sh_capture(
             combined.push_str(&String::from_utf8_lossy(&o.stderr));
             (o.status.code(), combined.trim_end().to_string())
         }
+        Err(_) => (Some(127), String::new()),
+    }
+}
+
+/// Execute a shell command with bytes supplied on standard input, capturing output.
+pub(crate) fn exec_sh_capture_with_stdin(
+    command: &str,
+    args: &[impl AsRef<std::ffi::OsStr>],
+    stdin: &[u8],
+) -> (Option<i32>, String) {
+    let mut child = match Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .arg("_")
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(_) => return (Some(127), String::new()),
+    };
+    let Some(mut pipe) = child.stdin.take() else {
+        return (Some(127), String::new());
+    };
+    let (output, write_failed) = std::thread::scope(|scope| {
+        let writer = scope.spawn(move || {
+            pipe.write_all(stdin)
+                .is_err_and(|error| error.kind() != std::io::ErrorKind::BrokenPipe)
+        });
+        let output = child.wait_with_output();
+        let write_failed = writer.join().unwrap_or(true);
+        (output, write_failed)
+    });
+    match output {
+        Ok(output) if !write_failed => {
+            let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
+            combined.push_str(&String::from_utf8_lossy(&output.stderr));
+            (output.status.code(), combined.trim_end().to_string())
+        }
+        Ok(_) => (Some(127), String::new()),
         Err(_) => (Some(127), String::new()),
     }
 }

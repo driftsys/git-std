@@ -230,6 +230,18 @@ git std hook disable <hook>   # deactivate a hook (rename shim → .off)
 **Known hook types:** `pre-commit`, `commit-msg`, `pre-push`,
 `post-commit`, `prepare-commit-msg`, `post-merge`.
 
+For `pre-push`, commands skip pushes that contain only ref deletions. Add
+`[delete]` after the optional failure prefix when a command must also run for
+those pushes:
+
+```text
+! cargo test --workspace
+! [delete] ./scripts/check-ref-policy.sh
+```
+
+Normal and mixed pushes run every command. Each executed command receives the
+complete pre-push ref update list on standard input.
+
 **Flags (run and list):**
 
 | Flag             | Description                             |
