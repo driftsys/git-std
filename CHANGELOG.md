@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.17] (2026-09-14)
+
+### Bug Fixes
+
+- **git-std:** skip checks for deletion-only pushes ([#567]) ([1e9ec47]), closes
+  [#539]
+
+[0.11.17]: https://github.com/driftsys/git-std/compare/v0.11.16...v0.11.17
+[1e9ec47]: https://github.com/driftsys/git-std/commit/1e9ec47
+[#567]: https://github.com/driftsys/git-std/issues/567
+[#539]: https://github.com/driftsys/git-std/issues/539
+
 ## [0.11.16] (2026-09-13)
 
 ### Features
