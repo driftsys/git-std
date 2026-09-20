@@ -69,10 +69,101 @@ jobs:
       - uses: actions/checkout@v6.0.2
       - run: bash tools/bash_unit spec/install/install_test.sh
 
+  changes:
+    name: Detect install/release changes
+    runs-on: ubuntu-latest
+    outputs:
+      install: ${{ steps.filter.outputs.install }}
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            install:
+              - 'install.sh'
+              - 'bootstrap'
+              - 'crates/git-std/src/cli/init/**'
+              - 'spec/install/**'
+              - 'scripts/release/**'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/release.yml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+
+  install-smoke:
+    name: Install smoke (${{ matrix.os }})
+    if: needs.changes.outputs.install == 'true'
+    needs: changes
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Install and execute Unix release
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          GIT_STD_INSTALL_DIR: ${{ runner.temp }}/git-std-bin
+          GIT_STD_MAN_DIR: ${{ runner.temp }}/git-std-man
+        run: |
+          set -euo pipefail
+          bash install.sh
+          export PATH="$GIT_STD_INSTALL_DIR:$PATH"
+          test -x "$GIT_STD_INSTALL_DIR/git-std"
+          git-std --version
+          git std --version
+      - name: Install and execute Windows release
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Invoke-RestMethod 'https://api.github.com/repos/driftsys/git-std/releases/latest'
+          $archiveName = "git-std-$env:TARGET.tar.gz"
+          $archiveAsset = $release.assets | Where-Object name -eq $archiveName
+          $checksumAsset = $release.assets | Where-Object name -eq "$archiveName.sha256"
+          if ($null -eq $archiveAsset -or $null -eq $checksumAsset) {
+            throw "Release $($release.tag_name) is missing $archiveName or its checksum"
+          }
+
+          $workDir = Join-Path $env:RUNNER_TEMP 'git-std-install-smoke'
+          $installDir = Join-Path $workDir 'bin'
+          New-Item -ItemType Directory -Force $installDir | Out-Null
+          $archivePath = Join-Path $workDir $archiveName
+          $checksumPath = Join-Path $workDir "$archiveName.sha256"
+          Invoke-WebRequest $archiveAsset.browser_download_url -OutFile $archivePath
+          Invoke-WebRequest $checksumAsset.browser_download_url -OutFile $checksumPath
+
+          $expected = (Get-Content $checksumPath -Raw).Trim().Split()[0].ToLowerInvariant()
+          $actual = (Get-FileHash $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Checksum mismatch for $archiveName"
+          }
+
+          tar.exe -xzf $archivePath -C $installDir
+          $binary = Join-Path $installDir 'git-std.exe'
+          if (-not (Test-Path $binary)) {
+            throw "Extracted binary not found at $binary"
+          }
+          $env:Path = "$installDir;$env:Path"
+          & $binary --version
+          git std --version
+
   ci:
     name: CI
     if: always()
-    needs: [fmt, dprint, clippy, test, commit-lint, install-test]
+    needs: [fmt, dprint, clippy, test, commit-lint, install-test, changes, install-smoke]
     runs-on: ubuntu-latest
     steps:
       - name: Check results

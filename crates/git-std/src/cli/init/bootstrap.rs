@@ -117,8 +117,8 @@ detect_target() {{
   case "$os" in
     Linux)
       case "$arch" in
-        x86_64)  echo "x86_64-unknown-linux-gnu" ;;
-        aarch64) echo "aarch64-unknown-linux-gnu" ;;
+        x86_64)  echo "x86_64-unknown-linux-musl" ;;
+        aarch64) echo "aarch64-unknown-linux-musl" ;;
         *)       die "unsupported architecture: $arch" ;;
       esac
       ;;
@@ -255,6 +255,14 @@ mod tests {
     fn bootstrap_script_delegates_to_git_std() {
         let script = generate_bootstrap_script();
         assert!(script.contains("exec git std bootstrap"));
+    }
+
+    #[test]
+    fn bootstrap_script_uses_published_linux_musl_targets() {
+        let script = generate_bootstrap_script();
+        assert!(script.contains("x86_64-unknown-linux-musl"));
+        assert!(script.contains("aarch64-unknown-linux-musl"));
+        assert!(!script.contains("-unknown-linux-gnu"));
     }
 
     #[test]

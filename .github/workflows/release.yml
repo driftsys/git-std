@@ -140,9 +140,88 @@ jobs:
             release-assets/git-std-${{ matrix.target }}.tar.gz.spdx.json
             release-assets/git-std-${{ matrix.target }}.tar.gz.provenance.sigstore.json
 
+  smoke:
+    name: Smoke (${{ matrix.target }})
+    needs: build
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            execute: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            execute: false
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            execute: true
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            execute: false
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            execute: true
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: git-std-${{ matrix.target }}
+          path: artifacts
+      - name: Verify and execute Unix archive
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          archive_name="git-std-$TARGET.tar.gz"
+          archive="$(find artifacts -type f -name "$archive_name" -print -quit)"
+          test -n "$archive"
+          checksum="${archive}.sha256"
+          if command -v sha256sum >/dev/null 2>&1; then
+            (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$checksum")")
+          else
+            (cd "$(dirname "$archive")" && shasum -a 256 -c "$(basename "$checksum")")
+          fi
+          mkdir extracted
+          tar -xzf "$archive" -C extracted
+          test -x extracted/git-std
+          if [[ "${{ matrix.execute }}" == "true" ]]; then
+            ./extracted/git-std --version
+          fi
+      - name: Verify and execute Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archiveName = "git-std-$env:TARGET.tar.gz"
+          $archive = Get-ChildItem artifacts -Recurse -File -Filter $archiveName | Select-Object -First 1
+          if ($null -eq $archive) {
+            throw "Archive $archiveName was not downloaded"
+          }
+          $checksumPath = "$($archive.FullName).sha256"
+          $expected = (Get-Content $checksumPath -Raw).Trim().Split()[0].ToLowerInvariant()
+          $actual = (Get-FileHash $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Checksum mismatch for $archiveName"
+          }
+          $extractDir = Join-Path $env:RUNNER_TEMP 'git-std-release-smoke'
+          New-Item -ItemType Directory -Force $extractDir | Out-Null
+          tar.exe -xzf $archive.FullName -C $extractDir
+          $binary = Join-Path $extractDir 'git-std.exe'
+          if (-not (Test-Path $binary)) {
+            throw "Extracted binary not found at $binary"
+          }
+          if ('${{ matrix.execute }}' -eq 'true') {
+            & $binary --version
+          }
+
   release:
     name: Create GitHub Release
-    needs: build
+    needs: [build, smoke]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -165,7 +244,7 @@ jobs:
 
   publish:
     name: Publish to crates.io
-    needs: build
+    needs: [build, smoke]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
