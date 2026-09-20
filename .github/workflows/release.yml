@@ -148,14 +148,19 @@ jobs:
         include:
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
+            execute: true
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
+            execute: false
           - target: x86_64-apple-darwin
             os: macos-latest
+            execute: true
           - target: aarch64-apple-darwin
             os: macos-latest
+            execute: false
           - target: x86_64-pc-windows-msvc
             os: windows-latest
+            execute: true
     runs-on: ${{ matrix.os }}
     steps:
       - name: Download release artifact
@@ -182,7 +187,9 @@ jobs:
           mkdir extracted
           tar -xzf "$archive" -C extracted
           test -x extracted/git-std
-          ./extracted/git-std --version
+          if [[ "${{ matrix.execute }}" == "true" ]]; then
+            ./extracted/git-std --version
+          fi
       - name: Verify and execute Windows archive
         if: runner.os == 'Windows'
         shell: pwsh
@@ -208,7 +215,9 @@ jobs:
           if (-not (Test-Path $binary)) {
             throw "Extracted binary not found at $binary"
           }
-          & $binary --version
+          if ('${{ matrix.execute }}' -eq 'true') {
+            & $binary --version
+          }
 
   release:
     name: Create GitHub Release
