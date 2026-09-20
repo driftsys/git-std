@@ -89,12 +89,16 @@ detect_target() {
 
 main() {
   local target version download_url base
+  local -a github_api_args=()
 
   target="$(detect_target)"
   printf 'detected target: %s\n' "$target"
 
   # Get latest release tag
-  version="$(curl -sSf "https://api.github.com/repos/$REPO/releases/latest" \
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    github_api_args=(-H "Authorization: Bearer $GITHUB_TOKEN")
+  fi
+  version="$(curl -sSf "${github_api_args[@]}" "https://api.github.com/repos/$REPO/releases/latest" \
     | grep '"tag_name"' | head -1 | cut -d'"' -f4)"
   [ -n "$version" ] || die "could not determine latest release"
   printf 'latest version: %s\n' "$version"

@@ -52,7 +52,10 @@ jobs:
 
   commit-lint:
     name: Conventional commits
-    if: github.event_name == 'pull_request'
+    # Dependabot uses the conventional `deps` scope, which is intentionally
+    # outside this repository's package scopes. Other pull requests remain
+    # subject to the normal strict scope validation.
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -115,6 +118,7 @@ jobs:
         env:
           GIT_STD_INSTALL_DIR: ${{ runner.temp }}/git-std-bin
           GIT_STD_MAN_DIR: ${{ runner.temp }}/git-std-man
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           bash install.sh
@@ -127,9 +131,11 @@ jobs:
         shell: pwsh
         env:
           TARGET: ${{ matrix.target }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $release = Invoke-RestMethod 'https://api.github.com/repos/driftsys/git-std/releases/latest'
+          $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
+          $release = Invoke-RestMethod 'https://api.github.com/repos/driftsys/git-std/releases/latest' -Headers $headers
           $archiveName = "git-std-$env:TARGET.tar.gz"
           $archiveAsset = $release.assets | Where-Object name -eq $archiveName
           $checksumAsset = $release.assets | Where-Object name -eq "$archiveName.sha256"
