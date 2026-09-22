@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::process::Stdio;
 
 use assert_cmd::Command;
 
@@ -36,10 +35,51 @@ fn commit_msg_commands_receive_all_git_arguments() {
     );
 }
 
+#[test]
+fn other_git_hooks_receive_all_git_arguments() {
+    let cases = [
+        (
+            "prepare-commit-msg",
+            &[".git/COMMIT_EDITMSG", "merge", "deadbeef"][..],
+            ".git/COMMIT_EDITMSG\nmerge\ndeadbeef\n3\n",
+        ),
+        ("post-merge", &["1"][..], "1\n\n\n1\n"),
+    ];
+
+    for (hook, arguments, expected) in cases {
+        let repo = tempfile::tempdir().expect("repository");
+        git(repo.path(), &["init"]);
+
+        let hooks_dir = repo.path().join(".githooks");
+        std::fs::create_dir(&hooks_dir).expect("hooks directory");
+        std::fs::write(
+            hooks_dir.join(format!("{hook}.hooks")),
+            "! printf '%s\\n%s\\n%s\\n%s\\n' \"$1\" \"$2\" \"$3\" \"$#\" > first-args\n\
+             ! printf '%s\\n%s\\n%s\\n%s\\n' \"$1\" \"$2\" \"$3\" \"$#\" > second-args\n",
+        )
+        .expect("hook commands");
+
+        let mut command = Command::cargo_bin("git-std").expect("git-std binary");
+        command.args(["hook", "run", hook, "--"]);
+        command.args(arguments);
+        command.current_dir(repo.path()).assert().success();
+
+        for prefix in ["first", "second"] {
+            assert_eq!(
+                std::fs::read_to_string(repo.path().join(format!("{prefix}-args")))
+                    .expect("hook arguments"),
+                expected,
+                "{hook} should forward every Git argument to every command"
+            );
+        }
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn terminal_pre_push_commands_receive_arguments_and_independent_stdin() {
     use std::io::Write;
+    use std::process::Stdio;
 
     let repo = tempfile::tempdir().expect("repository");
     git(repo.path(), &["init"]);

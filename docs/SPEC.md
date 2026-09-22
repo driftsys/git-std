@@ -821,8 +821,9 @@ each command as shell positional parameters (`$1`, `$2`, and `$@`). For
 pre-push command receives an independent, unchanged copy of the complete ref
 update stream on standard input. A manual `hook run pre-push` without arguments
 passes an empty `$@` and still replays piped input. For `pre-commit`, `$@`
-contains the staged files instead. The `{msg}` token is substituted with the
-commit message file path.
+contains the complete staged-file list instead; a trailing glob decides whether
+the command runs but does not filter that list. The `{msg}` token is substituted
+with the commit message file path.
 
 **Prefix rules:**
 
