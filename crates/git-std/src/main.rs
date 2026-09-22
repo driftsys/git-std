@@ -260,6 +260,9 @@ fn main() {
         }
         Command::Init { force, refresh } => cli::init::run(force, refresh),
         Command::Bootstrap { dry_run } => cli::bootstrap::run(dry_run),
+        Command::Lfs { subcommand } => match subcommand {
+            LfsCommand::Install => cli::lfs::install(),
+        },
         Command::Hook { subcommand } => match subcommand {
             HookCommand::Run { hook, args, format } => cli::hook::run(&hook, &args, format),
             HookCommand::List { format } => cli::hook::list(format),

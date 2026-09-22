@@ -72,10 +72,7 @@ fn git_lfs_version() -> Option<String> {
 }
 
 fn has_lfs_in_gitattributes(root: &Path) -> bool {
-    let path = root.join(".gitattributes");
-    std::fs::read_to_string(path)
-        .map(|c| c.lines().any(|l| l.contains("filter=lfs")))
-        .unwrap_or(false)
+    super::lfs::has_declarations(root).unwrap_or(false)
 }
 
 fn read_update_cache() -> Option<String> {
@@ -155,6 +152,17 @@ struct HookEntry {
 fn build_hooks_section(root: &Path) -> (Vec<HookEntry>, Vec<Hint>) {
     let hooks_dir = root.join(".githooks");
     let mut hints = Vec::new();
+    if has_lfs_in_gitattributes(root) {
+        match super::lfs::upload_state(root) {
+            super::lfs::UploadState::Managed => {}
+            super::lfs::UploadState::Custom => hints.push(Hint(
+                "custom pre-push hook: LFS upload integration is unverified".to_owned(),
+            )),
+            super::lfs::UploadState::Missing => hints.push(Hint(
+                "LFS uploads are not enabled — run 'git std lfs install'".to_owned(),
+            )),
+        }
+    }
 
     // Health checks — only emit hints when something is wrong.
     if !hooks_dir.exists() {
@@ -625,6 +633,12 @@ mod tests {
     #[test]
     fn build_status_includes_lfs_when_gitattributes_has_filter() {
         let dir = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(dir.path())
+            .status()
+            .expect("git init");
+        assert!(status.success());
         std::fs::write(dir.path().join(".gitattributes"), "*.bin filter=lfs\n").unwrap();
         let (tools, _hints) = build_status_section(dir.path());
         assert!(

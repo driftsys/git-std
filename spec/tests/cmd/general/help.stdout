@@ -8,6 +8,7 @@ Commands:
   bump       Version bump, changelog, commit, and tag
   changelog  Generate a changelog (incremental by default, --full to regenerate)
   bootstrap  Post-clone environment setup
+  lfs        Configure Git LFS for a repository with managed hooks
   init       Scaffold hooks, bootstrap script, and README section in one step
   hook       Git hooks management
   doctor     Run health checks on the local git-std setup

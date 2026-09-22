@@ -148,6 +148,33 @@ pub fn run(force: bool, refresh: bool) -> i32 {
         Ok(s) => s,
         Err(code) => return code,
     };
+    let has_lfs = match super::lfs::has_declarations(&root) {
+        Ok(has_lfs) => has_lfs,
+        Err(error) => {
+            ui::error(&format!("cannot inspect .gitattributes: {error}"));
+            return 1;
+        }
+    };
+    let install_lfs = if has_lfs && std::io::stdin().is_terminal() {
+        match inquire::Confirm::new("Configure Git LFS for this repository?")
+            .with_default(false)
+            .prompt()
+        {
+            Ok(install) => install,
+            Err(_) => {
+                ui::error("init cancelled");
+                return 1;
+            }
+        }
+    } else {
+        false
+    };
+
+    if install_lfs && !super::lfs::is_available(&root) {
+        ui::error("git-lfs is required but not installed");
+        ui::hint("install Git LFS, then retry 'git std init'");
+        return 1;
+    }
 
     // ── Step 1: ensure .githooks/ exists ────────────────────────────────────
     if let Err(e) = std::fs::create_dir_all(&hooks_dir) {
@@ -295,6 +322,10 @@ pub fn run(force: bool, refresh: bool) -> i32 {
             }
             staged.push(doc);
         }
+    }
+
+    if install_lfs && super::lfs::install_at(&root) != 0 {
+        return 1;
     }
 
     // ── Step 9: stage all created/modified files ────────────────────────────

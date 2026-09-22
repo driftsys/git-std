@@ -73,6 +73,7 @@ git-std covers six concerns:
 | Maintainer setup             | `git std init`                          |
 | Git hooks management         | `git std hook run`, `git std hook list` |
 | Post-clone bootstrap         | `git std bootstrap`                     |
+| Git LFS setup                | `git std lfs install`                   |
 | Shell completions            | `git std --completions <shell>`         |
 
 **Out of scope:** repo scaffolding, directory structure
@@ -937,11 +938,21 @@ in the repository and configures the local environment.
 | Convention file          | Action                                                   | Condition             |
 | ------------------------ | -------------------------------------------------------- | --------------------- |
 | `.githooks/`             | `git config core.hooksPath .githooks`                    | directory exists      |
-| `.gitattributes`         | `git lfs install` + `git lfs pull`                       | contains `filter=lfs` |
+| `.gitattributes`         | Local LFS filter setup + `git lfs pull`                  | declares `filter=lfs` |
 | `.git-blame-ignore-revs` | `git config blame.ignoreRevsFile .git-blame-ignore-revs` | file exists           |
 
 If LFS rules are detected but `git-lfs` is not installed,
 prints an error with install URL and exits 1.
+For managed hooks, filter setup uses `git lfs install --local --skip-repo` so
+Git LFS does not replace the managed pre-push shim. Bootstrap does not add,
+uncomment, or enable the LFS upload command in `.githooks/pre-push.hooks`.
+It does not require Git LFS when no declaration is detected. Dry-run leaves
+filters, objects, and tracked hook policy unchanged.
+
+Detection scans tracked and visible untracked `.gitattributes` files, including
+nested files. It recognizes a `filter=lfs` attribute token on a non-comment
+line. It does not resolve macros, global attributes, or attributes in other
+branches or past commits. Detection only guides setup; it does not gate a push.
 
 #### 2.7.2 Custom commands (`.githooks/bootstrap.hooks`)
 
@@ -986,6 +997,10 @@ command that project maintainers run once and commit.
    `README.md` (idempotent, HTML comment marker).
 9. Stages all created/modified files.
 
+If LFS declarations are detected during interactive init, the maintainer may
+choose LFS setup. Non-interactive init leaves that choice to an explicit
+`git std lfs install` command.
+
 **Two personas:**
 
 - **Maintainer:** `git std init` — scaffold everything,
@@ -1004,7 +1019,36 @@ command that project maintainers run once and commit.
 All steps are idempotent — running twice produces the
 same result.
 
-### 2.8 `git std version`
+### 2.9 `git std lfs install`
+
+This maintainer command works after `git std init`, without `--force` and
+without a current `filter=lfs` declaration. It checks Git LFS availability,
+runs `git lfs install --local --skip-repo`, adds or restores exactly one
+canonical command in `.githooks/pre-push.hooks`, and enables the managed
+pre-push shim:
+
+```sh
+! [delete] git lfs pre-push "$@"
+```
+
+The command preserves other declarative checks and refuses to replace a custom
+pre-push shell hook. The hook runner forwards Git's remote arguments and an
+independent copy of the ref-update stream to LFS. LFS decides which pushed
+objects need upload; deletion-only pushes are passed to LFS.
+
+`git std doctor` reports missing LFS tooling or a missing managed upload
+entry when LFS attributes are declared. It reports custom pre-push wrappers
+as unverified because their behavior cannot be established from the
+declarative hook file.
+
+Comment out this entry to disable LFS uploads while retaining other pre-push
+checks. `git std hook disable pre-push` disables the whole hook. Bootstrap
+does not reverse either choice. An explicit `git std lfs install` restores
+the entry. A manual `git std hook run pre-push` with LFS enabled requires
+the remote arguments expected by Git LFS. `GIT_STD_SKIP_HOOKS=1` bypasses
+LFS upload along with other managed hook commands.
+
+### 2.10 `git std version`
 
 Lightweight, scriptable version queries without the overhead of `bump --dry-run`.
 
@@ -1111,7 +1155,7 @@ The stage range ensures every pre-release build is numerically less than the
 final stable release while remaining monotonically increasing within each
 pre-release track.
 
-### 2.9 Update Check
+### 2.11 Update Check
 
 git-std periodically checks whether a newer release is available and
 prints a one-line hint after command output.
@@ -1136,7 +1180,7 @@ prints a one-line hint after command output.
 - Stale or missing cache = silence.
 - Opt-out: set `GIT_STD_NO_UPDATE_CHECK=1`.
 
-### 2.10 Global Flags
+### 2.12 Global Flags
 
 | Flag                    | Description                          |
 | ----------------------- | ------------------------------------ |
