@@ -10,6 +10,11 @@ minor git-std release. Removing or renaming fields, changing their types, or
 changing documented exit semantics requires a new major CLI schema and a
 changelog callout.
 
+`git std lfs install` is a human-oriented setup command. It reports progress
+and failures on stderr and has no JSON output contract. The resulting LFS entry
+is an ordinary declarative pre-push command and appears in the existing
+`hook list` and `hook run` contracts.
+
 ## Inventory
 
 | Command                                 | Contract                               | Example                                                                     |

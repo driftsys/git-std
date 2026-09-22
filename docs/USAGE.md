@@ -192,6 +192,10 @@ git std init --refresh    # merge config defaults without overwriting hooks
 8. Appends post-clone section to `README.md` and `AGENTS.md` (if found).
 9. Stages all created files.
 
+If LFS rules are detected during interactive setup, `init` offers to configure
+Git LFS and add its pre-push command. Non-interactive setup leaves LFS disabled;
+run `git std lfs install` explicitly after init when needed.
+
 To install AI agent skills for `git std`, use
 [`upskill`](https://github.com/driftsys/upskill) (`upskill add
 driftsys/git-std`) — `init` does not scaffold skills.
@@ -205,12 +209,32 @@ driftsys/git-std`) — `init` does not scaffold skills.
 
 **Exit codes:** `0` = success, `1` = error.
 
+## `git std lfs install`
+
+Configure Git LFS for a repository already managed by `git std init`:
+
+```bash
+git std lfs install
+```
+
+This explicit maintainer command runs `git lfs install --local --skip-repo`,
+adds `! [delete] git lfs pre-push "$@"` to `.githooks/pre-push.hooks` once,
+and enables the managed pre-push hook. It works even when the current checkout
+has no LFS rule. Other pre-push commands stay in place. Commit the changed hook
+file and shim so contributors receive the integration.
+
+To disable LFS uploads while keeping other pre-push checks, comment out the
+LFS line. Running `git std lfs install` again restores it. To disable all
+pre-push commands, use `git std hook disable pre-push`. Bootstrap does not
+change these choices. A custom pre-push shell hook needs manual integration;
+the installer will not replace it.
+`GIT_STD_SKIP_HOOKS=1` bypasses all managed hook commands, including LFS upload.
+
 ## `git std hook`
 
 Manage git hooks defined in `.githooks/*.hooks` files.
 
 ```bash
-git std hook install          # set up hooks directory and shim scripts
 git std hook run <hook>       # execute a hook manually
 git std hook list             # display configured hooks
 git std hook enable <hook>    # activate a hook (rename .off → shim)
@@ -221,7 +245,6 @@ git std hook disable <hook>   # deactivate a hook (rename shim → .off)
 
 | Subcommand       | Description                                    |
 | ---------------- | ---------------------------------------------- |
-| `install`        | Write shim scripts and `.hooks` templates      |
 | `run <hook>`     | Execute a hook manually                        |
 | `list`           | Display all hooks with enabled/disabled status |
 | `enable <hook>`  | Activate a disabled hook                       |
@@ -265,10 +288,15 @@ git std bootstrap --dry-run    # print what would be done
 | Convention file          | Action                                                   |
 | ------------------------ | -------------------------------------------------------- |
 | `.githooks/`             | `git config core.hooksPath .githooks`                    |
-| `.gitattributes`         | `git lfs install` + `git lfs pull` (if `filter=lfs`)     |
+| `.gitattributes`         | Local LFS filters + `git lfs pull` (if `filter=lfs`)     |
 | `.git-blame-ignore-revs` | `git config blame.ignoreRevsFile .git-blame-ignore-revs` |
 
 After built-in checks, runs `.githooks/bootstrap.hooks` if present.
+Bootstrap scans root and nested `.gitattributes` files for `filter=lfs`. With
+managed hooks, it uses `git lfs install --local --skip-repo` and preserves the
+tracked pre-push policy. Detection does not inspect other branches or historical
+commits, so uploads are controlled by the explicit hook entry rather than a
+per-push attribute check.
 
 **Flags:**
 
@@ -281,6 +309,8 @@ After built-in checks, runs `.githooks/bootstrap.hooks` if present.
 Show everything about your local git-std setup in one command.
 Three sections: **Status**, **Hooks**, **Configuration**.
 Problems appear as hints at the bottom.
+When LFS rules are declared, doctor checks for an active managed LFS pre-push
+entry. It reports custom pre-push wrappers as unverified.
 
 ```bash
 git std doctor              # show all sections, exit 0 (no problems) or 1

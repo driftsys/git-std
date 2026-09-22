@@ -195,6 +195,11 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Configure Git LFS for a repository with managed hooks.
+    Lfs {
+        #[command(subcommand)]
+        subcommand: LfsCommand,
+    },
     /// Scaffold hooks, bootstrap script, and README section in one step.
     Init {
         /// Overwrite existing files.
@@ -297,6 +302,13 @@ pub enum Command {
         #[arg(long, default_value = "text")]
         format: OutputFormat,
     },
+}
+
+/// Git LFS setup commands.
+#[derive(Subcommand)]
+pub enum LfsCommand {
+    /// Configure local filters and the managed pre-push hook.
+    Install,
 }
 
 /// Hook subcommands.

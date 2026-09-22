@@ -92,21 +92,13 @@ fn check_hooks_path(root: &Path, dry_run: bool) -> bool {
 /// Returns `false` only when LFS rules are detected but `git-lfs` is not
 /// installed — this is a hard failure (exit 1).
 fn check_lfs(root: &Path, dry_run: bool) -> bool {
-    let attrs = root.join(".gitattributes");
-    if !attrs.exists() {
-        return true;
-    }
-
-    let content = match std::fs::read_to_string(&attrs) {
-        Ok(c) => c,
-        Err(e) => {
-            ui::error(&format!("cannot read .gitattributes: {e}"));
+    match super::lfs::has_declarations(root) {
+        Ok(false) => return true,
+        Ok(true) => {}
+        Err(error) => {
+            ui::error(&format!("cannot inspect .gitattributes: {error}"));
             return false;
         }
-    };
-
-    if !content.lines().any(|line| line.contains("filter=lfs")) {
-        return true;
     }
 
     // LFS rules detected — check if git-lfs is installed
@@ -127,11 +119,12 @@ fn check_lfs(root: &Path, dry_run: bool) -> bool {
         return true;
     }
 
-    // Run git lfs install
+    // Configure repository-local filters without replacing git-std's shim.
     let install_ok = Command::new("git")
-        .args(["lfs", "install"])
-        .status()
-        .map(|s| s.success())
+        .current_dir(root)
+        .args(["lfs", "install", "--local", "--skip-repo"])
+        .output()
+        .map(|output| output.status.success())
         .unwrap_or(false);
 
     if !install_ok {
@@ -141,9 +134,10 @@ fn check_lfs(root: &Path, dry_run: bool) -> bool {
 
     // Run git lfs pull
     let pull_ok = Command::new("git")
+        .current_dir(root)
         .args(["lfs", "pull"])
-        .status()
-        .map(|s| s.success())
+        .output()
+        .map(|output| output.status.success())
         .unwrap_or(false);
 
     if !pull_ok {

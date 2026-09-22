@@ -7,6 +7,7 @@ pub mod context;
 pub mod doctor;
 pub mod hook;
 pub mod init;
+pub mod lfs;
 pub mod lint;
 pub mod registry;
 pub mod update_check;

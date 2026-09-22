@@ -49,14 +49,7 @@ pub fn write_bootstrap_hooks(root: &Path, force: bool) -> FileResult {
         return FileResult::Skipped;
     }
 
-    let attrs_path = root.join(".gitattributes");
-    let has_lfs = attrs_path
-        .exists()
-        .then(|| std::fs::read_to_string(&attrs_path).unwrap_or_default())
-        .map(|c| c.lines().any(|l| l.contains("filter=lfs")))
-        .unwrap_or(false);
-
-    let template = generate_bootstrap_hooks_template(has_lfs);
+    let template = generate_bootstrap_hooks_template();
     if let Err(e) = std::fs::write(&path, &template) {
         ui::error(&format!("cannot write {BOOTSTRAP_HOOKS_FILE}: {e}"));
         return FileResult::Error;
@@ -207,17 +200,8 @@ exec git std bootstrap
 }
 
 /// Generate the `.githooks/bootstrap.hooks` template.
-fn generate_bootstrap_hooks_template(has_lfs: bool) -> String {
-    let lfs_example = if has_lfs {
-        "# LFS detected — uncomment to pull large files:\n\
-         # ! git lfs pull\n\
-         #\n"
-    } else {
-        ""
-    };
-
-    format!(
-        "# git-std hooks — bootstrap.hooks\n\
+fn generate_bootstrap_hooks_template() -> String {
+    "# git-std hooks — bootstrap.hooks\n\
          #\n\
          # Commands run by `git std bootstrap` after built-in checks.\n\
          # Prefix controls behavior:\n\
@@ -229,9 +213,8 @@ fn generate_bootstrap_hooks_template(has_lfs: bool) -> String {
          #   ! npm install          # install dependencies\n\
          #   ! pip install -r requirements.txt\n\
          #   ? pre-commit install   # optional tool setup\n\
-         #\n\
-         {lfs_example}"
-    )
+         #\n"
+    .to_owned()
 }
 
 #[cfg(test)]
@@ -267,23 +250,10 @@ mod tests {
 
     #[test]
     fn bootstrap_hooks_template_has_header() {
-        let t = generate_bootstrap_hooks_template(false);
+        let t = generate_bootstrap_hooks_template();
         assert!(t.contains("bootstrap.hooks"));
         assert!(t.contains("!  required"));
         assert!(t.contains("?  advisory"));
-    }
-
-    #[test]
-    fn bootstrap_hooks_template_includes_lfs_when_detected() {
-        let t = generate_bootstrap_hooks_template(true);
-        assert!(t.contains("LFS detected"));
-        assert!(t.contains("git lfs pull"));
-    }
-
-    #[test]
-    fn bootstrap_hooks_template_no_lfs_when_absent() {
-        let t = generate_bootstrap_hooks_template(false);
-        assert!(!t.contains("LFS detected"));
     }
 
     #[test]
