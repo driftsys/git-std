@@ -260,12 +260,89 @@ fn hooks_run_all_commands_for_a_mixed_push() {
     );
 }
 
+/// Text hook execution forwards Git's pre-push arguments and replays stdin.
+#[test]
+fn hooks_run_pre_push_forwards_arguments_in_text_mode() {
+    let repo = TestRepo::new().with_hooks_file(
+        "pre-push",
+        "! printf '%s\\n%s\\n%s\\n' \"$1\" \"$2\" \"$#\" > first-args; cat > first-input\n\
+         ! printf '%s\\n%s\\n%s\\n' \"$1\" \"$2\" \"$#\" > second-args; cat > second-input\n",
+    );
+
+    Command::new(TestRepo::bin_path())
+        .args([
+            "hook",
+            "run",
+            "pre-push",
+            "--",
+            "origin",
+            "https://example.com/repo.git",
+        ])
+        .stdin(MIXED_PUSH_INPUT)
+        .current_dir(repo.path())
+        .assert()
+        .success();
+
+    let expected_args = "origin\nhttps://example.com/repo.git\n2\n";
+    for prefix in ["first", "second"] {
+        assert_eq!(
+            std::fs::read_to_string(repo.path().join(format!("{prefix}-args")))
+                .expect("pre-push arguments"),
+            expected_args
+        );
+        assert_eq!(
+            std::fs::read(repo.path().join(format!("{prefix}-input"))).expect("pre-push stdin"),
+            MIXED_PUSH_INPUT.as_bytes()
+        );
+    }
+}
+
+/// JSON hook execution forwards Git's pre-push arguments and replays stdin.
+#[test]
+fn hooks_run_pre_push_forwards_arguments_in_json_mode() {
+    let repo = TestRepo::new().with_hooks_file(
+        "pre-push",
+        "! printf '%s\\n%s\\n%s\\n' \"$1\" \"$2\" \"$#\" > first-args; cat > first-input\n\
+         ! printf '%s\\n%s\\n%s\\n' \"$1\" \"$2\" \"$#\" > second-args; cat > second-input\n",
+    );
+
+    Command::new(TestRepo::bin_path())
+        .args([
+            "hook",
+            "run",
+            "pre-push",
+            "--format",
+            "json",
+            "--",
+            "origin",
+            "https://example.com/repo.git",
+        ])
+        .stdin(MIXED_PUSH_INPUT)
+        .current_dir(repo.path())
+        .assert()
+        .success();
+
+    let expected_args = "origin\nhttps://example.com/repo.git\n2\n";
+    for prefix in ["first", "second"] {
+        assert_eq!(
+            std::fs::read_to_string(repo.path().join(format!("{prefix}-args")))
+                .expect("pre-push arguments"),
+            expected_args
+        );
+        assert_eq!(
+            std::fs::read(repo.path().join(format!("{prefix}-input"))).expect("pre-push stdin"),
+            MIXED_PUSH_INPUT.as_bytes()
+        );
+    }
+}
+
 /// Manual pre-push execution replays piped input even without Git's remote arguments.
 #[test]
 fn hooks_run_replays_stdin_without_git_arguments() {
     let repo = TestRepo::new().with_hooks_file(
         "pre-push",
-        "! tee first-input >/dev/null\n! [delete] tee second-input >/dev/null\n",
+        "! printf '%s\\n<%s>\\n' \"$#\" \"$*\" > first-args; tee first-input >/dev/null\n\
+         ! [delete] printf '%s\\n<%s>\\n' \"$#\" \"$*\" > second-args; tee second-input >/dev/null\n",
     );
 
     Command::new(TestRepo::bin_path())
@@ -283,6 +360,13 @@ fn hooks_run_replays_stdin_without_git_arguments() {
         std::fs::read(repo.path().join("second-input")).expect("second stdin"),
         MIXED_PUSH_INPUT.as_bytes()
     );
+    for prefix in ["first", "second"] {
+        assert_eq!(
+            std::fs::read_to_string(repo.path().join(format!("{prefix}-args")))
+                .expect("manual pre-push arguments"),
+            "0\n<>\n"
+        );
+    }
 }
 
 /// JSON hook execution replays the complete pre-push input.

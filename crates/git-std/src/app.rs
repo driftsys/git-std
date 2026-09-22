@@ -240,7 +240,9 @@ pub enum Command {
     /// command that also runs during deletion-only pushes.
     ///
     /// A glob pattern at the end of a line restricts the command to matching
-    /// files only (populated as $@ when the hook is invoked by git):
+    /// files only. Pre-commit commands receive matching staged files in $@.
+    /// Other hooks receive Git's original arguments; for pre-push, $1 is the
+    /// remote name, $2 is the remote URL, and ref updates are provided on stdin:
     ///
     ///   ~ cargo fmt -- $@   *.rs
     ///   ! cargo clippy
