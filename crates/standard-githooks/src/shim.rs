@@ -51,6 +51,15 @@ pub fn generate_hooks_template(hook_name: &str) -> String {
     } else {
         ""
     };
+    let arguments_line = match hook_name {
+        "pre-commit" => "# $@ contains the list of staged files — commands can use or ignore it.\n",
+        "pre-push" => {
+            "# $1 is the remote name and $2 is the remote URL.\n\
+             # $@ contains both arguments in the same order.\n\
+             # Ref updates are replayed to every command on standard input.\n"
+        }
+        _ => "# $@ contains the arguments provided by Git.\n",
+    };
 
     let default_commands = if hook_name == "commit-msg" {
         "! git std lint --file {msg}\n"
@@ -69,7 +78,7 @@ pub fn generate_hooks_template(hook_name: &str) -> String {
          #   ?  advisory  run command, never block commit\n\
          {delete_line}\
          #\n\
-         # $@ contains the list of staged files — commands can use or ignore it.\n\
+         {arguments_line}\
          #\n\
          # Examples:\n\
          #   ! cargo fmt --check   # fail if code is unformatted\n\
@@ -95,6 +104,12 @@ mod tests {
     }
 
     #[test]
+    fn pre_push_shim_forwards_git_arguments() {
+        let shim = generate_shim("pre-push");
+        assert!(shim.contains("exec git std hook run pre-push -- \"$@\""));
+    }
+
+    #[test]
     fn shim_has_managed_comment() {
         let shim = generate_shim("commit-msg");
         assert!(shim.contains("Managed by git-std"));
@@ -108,6 +123,7 @@ mod tests {
         assert!(t.contains("!  check"));
         assert!(t.contains("~  fix"));
         assert!(t.contains("?  advisory"));
+        assert!(t.contains("$@ contains the list of staged files"));
     }
 
     #[test]
@@ -133,6 +149,15 @@ mod tests {
         let template = generate_hooks_template("pre-push");
         assert!(template.contains("Commands are skipped when a push contains only ref deletions."));
         assert!(template.contains("! [delete] check-ref-policy"));
+    }
+
+    #[test]
+    fn pre_push_template_explains_git_arguments_and_stdin() {
+        let template = generate_hooks_template("pre-push");
+        assert!(template.contains("$1 is the remote name and $2 is the remote URL"));
+        assert!(template.contains("$@ contains both arguments in the same order"));
+        assert!(template.contains("Ref updates are replayed to every command on standard input"));
+        assert!(!template.contains("staged files"));
     }
 
     #[test]

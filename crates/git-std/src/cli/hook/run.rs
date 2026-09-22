@@ -28,15 +28,14 @@ struct CommandResult {
 /// When `quiet` is true, the command runs silently (for JSON output mode).
 /// Otherwise animates a spinner while the command runs and prints the result.
 ///
-/// `staged_files` is passed as `$@` to the shell command (positional
-/// parameters). For `pre-commit` this is the list of staged files; for
-/// other hooks it is an empty slice.
+/// `command_args` is passed as `$@` to the shell command (positional
+/// parameters).
 ///
 /// Returns the [`CommandResult`] and whether the command failed (non-advisory).
 fn execute_and_print(
     cmd: &HookCommand,
     msg_path: &str,
-    staged_files: &[String],
+    command_args: &[String],
     stdin: Option<&[u8]>,
     quiet: bool,
 ) -> (CommandResult, bool) {
@@ -49,22 +48,22 @@ fn execute_and_print(
     let (exit_code, captured) = if !quiet && ui::is_tty() {
         // TTY: use spinner and capture output to show only on failure
         ui::spin_while(&display, || match stdin {
-            Some(stdin) => super::exec_sh_capture_with_stdin(&command_text, staged_files, stdin),
-            None => super::exec_sh_capture(&command_text, staged_files),
+            Some(stdin) => super::exec_sh_capture_with_stdin(&command_text, command_args, stdin),
+            None => super::exec_sh_capture(&command_text, command_args),
         })
     } else if !quiet {
         // Non-TTY: show pending, let output inherit, print result
         ui::pending_non_tty(&display);
         let code = match stdin {
-            Some(stdin) => super::exec_sh_with_stdin(&command_text, staged_files, stdin),
-            None => super::exec_sh(&command_text, staged_files),
+            Some(stdin) => super::exec_sh_with_stdin(&command_text, command_args, stdin),
+            None => super::exec_sh(&command_text, command_args),
         };
         (code, String::new())
     } else {
         // JSON / quiet mode: capture child streams so stdout remains one JSON document.
         match stdin {
-            Some(stdin) => super::exec_sh_capture_with_stdin(&command_text, staged_files, stdin),
-            None => super::exec_sh_capture(&command_text, staged_files),
+            Some(stdin) => super::exec_sh_capture_with_stdin(&command_text, command_args, stdin),
+            None => super::exec_sh_capture(&command_text, command_args),
         }
     };
 
@@ -167,6 +166,11 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
         Ok(setup) => setup,
         Err(code) => return code,
     };
+    let command_args = if hook == "pre-commit" {
+        staged_files.as_slice()
+    } else {
+        args
+    };
 
     let mut results: Vec<CommandResult> = Vec::new();
     let mut json_results: Vec<CommandExecutionJson> = Vec::new();
@@ -237,7 +241,7 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
         let (result, failed) = execute_and_print(
             &resolved_cmd,
             msg_path,
-            &staged_files,
+            command_args,
             pre_push_input.as_deref(),
             is_json,
         );

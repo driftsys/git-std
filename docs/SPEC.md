@@ -815,9 +815,15 @@ Execute all commands in `.githooks/<hook>.hooks`.
 5. Execute command via `sh -c`.
 6. Apply prefix rule to the exit code.
 
-Arguments after `--` are passed to each command. The
-`{msg}` token is substituted with the commit message
-file path.
+For hooks other than `pre-commit`, Git's arguments after `--` are passed to
+each command as shell positional parameters (`$1`, `$2`, and `$@`). For
+`pre-push`, `$1` is the remote name and `$2` is the remote URL. Every executed
+pre-push command receives an independent, unchanged copy of the complete ref
+update stream on standard input. A manual `hook run pre-push` without arguments
+passes an empty `$@` and still replays piped input. For `pre-commit`, `$@`
+contains the complete staged-file list instead; a trailing glob decides whether
+the command runs but does not filter that list. The `{msg}` token is substituted
+with the commit message file path.
 
 **Prefix rules:**
 

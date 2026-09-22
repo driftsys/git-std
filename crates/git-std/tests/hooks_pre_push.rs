@@ -6,6 +6,57 @@ use std::time::{Duration, Instant};
 use assert_cmd::Command;
 
 #[test]
+fn pre_push_commands_receive_git_remote_arguments() {
+    let local = tempfile::tempdir().expect("local repository");
+    let remote = tempfile::tempdir().expect("remote repository");
+
+    git(remote.path(), &["init", "--bare"]);
+    git(local.path(), &["init"]);
+    git(local.path(), &["config", "user.name", "Test"]);
+    git(local.path(), &["config", "user.email", "test@example.com"]);
+    std::fs::write(local.path().join("initial.txt"), "initial\n").expect("initial file");
+    git(local.path(), &["add", "initial.txt"]);
+    git(local.path(), &["commit", "-m", "chore: initialize"]);
+    git(
+        local.path(),
+        &["remote", "add", "origin", remote.path().to_str().unwrap()],
+    );
+
+    let hooks_dir = local.path().join(".githooks");
+    std::fs::create_dir(&hooks_dir).expect("hooks directory");
+    std::fs::write(
+        hooks_dir.join("pre-push.hooks"),
+        "! printf '%s\\n%s\\n' \"$1\" \"$2\" > push-args; cat > push-input\n",
+    )
+    .expect("pre-push commands");
+
+    let binary = Command::cargo_bin("git-std")
+        .expect("git-std binary")
+        .get_program()
+        .to_owned();
+    let shim = format!(
+        "#!/bin/sh\nexec \"{}\" hook run pre-push -- \"$@\"\n",
+        binary.to_string_lossy()
+    );
+    let shim_path = hooks_dir.join("pre-push");
+    std::fs::write(&shim_path, shim).expect("pre-push shim");
+    make_executable(&shim_path);
+    git(local.path(), &["config", "core.hooksPath", ".githooks"]);
+
+    git(local.path(), &["push", "origin", "HEAD:refs/heads/main"]);
+
+    assert_eq!(
+        std::fs::read_to_string(local.path().join("push-args")).expect("pre-push arguments"),
+        format!("origin\n{}\n", remote.path().display())
+    );
+    let input = std::fs::read_to_string(local.path().join("push-input")).expect("pre-push stdin");
+    assert!(
+        input.contains("refs/heads/main"),
+        "pre-push stdin should describe the pushed ref, got: {input}"
+    );
+}
+
+#[test]
 fn deletion_only_push_runs_only_delete_commands() {
     let local = tempfile::tempdir().expect("local repository");
     let remote = tempfile::tempdir().expect("remote repository");

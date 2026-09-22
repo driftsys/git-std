@@ -240,7 +240,9 @@ those pushes:
 ```
 
 Normal and mixed pushes run every command. Each executed command receives the
-complete pre-push ref update list on standard input.
+remote name as `$1`, the remote URL as `$2`, and both values through `$@`.
+Each command also receives an independent copy of the complete pre-push ref
+update list on standard input.
 
 **Flags (run and list):**
 
