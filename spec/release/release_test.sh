@@ -191,7 +191,7 @@ test_workflow_declares_nonpublishing_dispatch_and_metadata_assets() {
         assert "actionlint '$workflow'"
     fi
     assert "grep -q 'workflow_dispatch:' '$workflow'"
-    assert "grep -q 'attest-build-provenance@v3' '$workflow'"
+    assert "grep -q 'attest-build-provenance@v4' '$workflow'"
     assert "grep -q '\\.sigstore.json' '$workflow'"
     assert "grep -q '\\.spdx.json' '$workflow'"
     assert "grep -q '\\.provenance.sigstore.json' '$workflow'"
