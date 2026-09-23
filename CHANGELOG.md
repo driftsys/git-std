@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.11.19] (2026-09-23)
+
+### Bug Fixes
+
+- **release:** restore verification gate ([#580]) ([#581]) ([42415ec])
+- **git-std:** forward Git arguments to hook commands ([#573]) ([6eb5179])
+- **release:** handle dependabot install smoke checks ([#570]) ([1a28552])
+
+### Features
+
+- **git-std:** add managed Git LFS setup ([#572]) ([9f623b6]), closes [#572]
+
+[0.11.19]: https://github.com/driftsys/git-std/compare/v0.11.18...v0.11.19
+[42415ec]: https://github.com/driftsys/git-std/commit/42415ec
+[#580]: https://github.com/driftsys/git-std/issues/580
+[#581]: https://github.com/driftsys/git-std/issues/581
+[6eb5179]: https://github.com/driftsys/git-std/commit/6eb5179
+[#573]: https://github.com/driftsys/git-std/issues/573
+[1a28552]: https://github.com/driftsys/git-std/commit/1a28552
+[#570]: https://github.com/driftsys/git-std/issues/570
+[9f623b6]: https://github.com/driftsys/git-std/commit/9f623b6
+[#572]: https://github.com/driftsys/git-std/issues/572
+
 ## [0.11.17] (2026-09-14)
 
 ### Bug Fixes
