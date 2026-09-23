@@ -37,6 +37,8 @@ validate_workflow_shape() {
         expected = %w[x86_64-unknown-linux-musl aarch64-unknown-linux-musl x86_64-apple-darwin aarch64-apple-darwin x86_64-pc-windows-msvc]
         abort "wrong release target matrix" unless targets == expected
         steps = build.fetch("steps")
+        provenance = steps.find { |step| step["name"] == "Attest build provenance" }
+        abort "wrong provenance action" unless provenance && provenance["uses"] == "actions/attest-build-provenance@v4"
         package_run = steps.find { |step| step["name"] == "Package archive and checksum" }.fetch("run")
         package_lines = package_run.lines.map(&:strip).reject(&:empty?)
         expected_package_lines = [
@@ -191,7 +193,6 @@ test_workflow_declares_nonpublishing_dispatch_and_metadata_assets() {
         assert "actionlint '$workflow'"
     fi
     assert "grep -q 'workflow_dispatch:' '$workflow'"
-    assert "grep -q 'attest-build-provenance@v3' '$workflow'"
     assert "grep -q '\\.sigstore.json' '$workflow'"
     assert "grep -q '\\.spdx.json' '$workflow'"
     assert "grep -q '\\.provenance.sigstore.json' '$workflow'"
