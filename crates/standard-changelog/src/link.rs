@@ -318,6 +318,10 @@ mod boundary_tests {
         };
         for (text, expected) in [
             (
+                "fix [tracker](https://example.test/a>?q=#34),#12",
+                "fix [tracker](https://example.test/a>?q=#34),[#12]",
+            ),
+            (
                 "fix [tracker](https://example.test),#12",
                 "fix [tracker](https://example.test),[#12]",
             ),
