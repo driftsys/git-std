@@ -68,6 +68,7 @@ fn bump_fixture() -> TestRepo {
     );
     repo.write("project.toml", "name = \"fixture\"\nversion = \"1.0.0\"\n");
     repo.write("VERSION", "1.0.0\n");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");
@@ -190,10 +191,7 @@ fn changed_planned_file_rejects_apply_without_mutation() {
     );
 
     assert_eq!(status.code(), Some(1));
-    assert_eq!(
-        result["diagnostics"][0]["code"],
-        "GITSTD-BUMP-PLAN-DIVERGED"
-    );
+    assert_eq!(result["diagnostics"][0]["code"], "GITSTD-BUMP-DIRTY");
     assert_eq!(repo.snapshot_state(), before);
 }
 
@@ -313,7 +311,7 @@ fn changed_head_rejects_apply_without_additional_mutation() {
     let (_, plan) = run_json(&repo, &["bump", "--dry-run", "--format", "json"]);
     let plan_id = plan["plan_id"].as_str().expect("plan id");
     repo.add_commit("fix: change plan inputs");
-    assert_diverged_without_mutation(&repo, plan_id);
+    assert_rejected_without_mutation(&repo, plan_id, "GITSTD-BUMP-PLAN-DIVERGED");
 }
 
 #[test]
@@ -323,23 +321,27 @@ fn changed_config_rejects_apply_without_mutation() {
     let plan_id = plan["plan_id"].as_str().expect("plan id");
     let updated = format!("{}\n# changed after planning\n", repo.read(".git-std.toml"));
     repo.write(".git-std.toml", &updated);
-    assert_diverged_without_mutation(&repo, plan_id);
+    assert_rejected_without_mutation(&repo, plan_id, "GITSTD-BUMP-DIRTY");
 }
 
 #[test]
 fn changed_lifecycle_hook_rejects_apply_without_mutation() {
     let repo = bump_fixture();
     repo.write(".githooks/pre-bump.hooks", "true\n");
+    repo.git(&["add", ".githooks"]);
+    repo.git(&["commit", "-m", "chore: configure hook"]);
     let (_, plan) = run_json(&repo, &["bump", "--dry-run", "--format", "json"]);
     let plan_id = plan["plan_id"].as_str().expect("plan id");
     repo.write(".githooks/pre-bump.hooks", "true\n# changed\n");
-    assert_diverged_without_mutation(&repo, plan_id);
+    assert_rejected_without_mutation(&repo, plan_id, "GITSTD-BUMP-DIRTY");
 }
 
 #[test]
 fn changed_hook_skip_environment_rejects_apply_without_mutation() {
     let repo = bump_fixture();
     repo.write(".githooks/pre-bump.hooks", "true\n");
+    repo.git(&["add", ".githooks"]);
+    repo.git(&["commit", "-m", "chore: configure hook"]);
     let (_, plan) = run_json(&repo, &["bump", "--dry-run", "--format", "json"]);
     let plan_id = plan["plan_id"].as_str().expect("plan id");
     let before = repo.snapshot_state();
@@ -410,6 +412,8 @@ fn false_hook_skip_environment_values_preserve_guarded_hook_execution() {
     for value in ["0", "false"] {
         let repo = bump_fixture();
         repo.write(".githooks/pre-bump.hooks", "touch hook-ran\n");
+        repo.git(&["add", ".githooks"]);
+        repo.git(&["commit", "-m", "chore: configure hook"]);
         let (plan_status, plan) = run_json_with_env(
             &repo,
             &["bump", "--dry-run", "--format", "json"],
@@ -497,7 +501,7 @@ fn apply_reports_runtime_commit_and_tag_identifiers() {
     assert_eq!(commit_oid, repo.git(&["rev-parse", "refs/tags/v1.1.0^{}"]));
 }
 
-fn assert_diverged_without_mutation(repo: &TestRepo, plan_id: &str) {
+fn assert_rejected_without_mutation(repo: &TestRepo, plan_id: &str, expected_code: &str) {
     let before = repo.snapshot_state();
     let (status, result) = run_json(
         repo,
@@ -511,9 +515,6 @@ fn assert_diverged_without_mutation(repo: &TestRepo, plan_id: &str) {
         ],
     );
     assert_eq!(status.code(), Some(1));
-    assert_eq!(
-        result["diagnostics"][0]["code"],
-        "GITSTD-BUMP-PLAN-DIVERGED"
-    );
+    assert_eq!(result["diagnostics"][0]["code"], expected_code);
     assert_eq!(repo.snapshot_state(), before);
 }

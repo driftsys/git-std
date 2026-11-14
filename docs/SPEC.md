@@ -364,6 +364,15 @@ $ git std lint --range main..HEAD
 
 ### 2.3 `git std bump`
 
+**Clean-state precondition:** Every mutating bump requires a clean working tree
+and index, including no untracked non-ignored files or dirty submodules. User Git
+settings that hide these changes do not bypass this requirement. Check before
+hooks, version writes, or stable-branch creation. Return exit 1 and the diagnostic
+`GITSTD-BUMP-DIRTY` for dirty input, preserving files, index contents, and refs.
+This applies to `--no-commit` as well. Read-only `--dry-run` accepts dirty input.
+A guarded apply rejects changes introduced after its preview before mutation.
+This replaces the previous behavior that allowed unrelated staged changes.
+
 Calculate the next version from conventional commits
 since the last tag, update version files, generate
 changelog, commit, and tag.
@@ -440,7 +449,9 @@ changelog, commit, and tag.
 10. Prepend the section to `CHANGELOG.md`.
 11. Create commit: `chore(release): <version>`.
     All updated version files and synced lock files are
-    included in the release commit.
+    included in the release commit. Commit the resulting index, also including
+    outputs explicitly staged by lifecycle hooks. Do not automatically stage
+    extra hook outputs or substitute their unstaged contents.
 12. Create annotated tag: `<tag_prefix><version>`.
 
 **Flags:**
@@ -740,6 +751,16 @@ format and sigils as git hooks (see §2.6).
 - `--dry-run` skips all lifecycle hooks.
 - `post-changelog` is skipped when `--skip-changelog` is
   used.
+- Before the release commit, hooks may stage additional outputs with `git add`
+  or `git rm`. These staged additions, modifications, and deletions are included
+  in signed and unsigned release commits. Git-std still stages its own managed
+  release paths automatically. Extra unstaged outputs are excluded.
+- `--no-commit` skips release finalization's staging, commit, and tag phases; hook
+  staging remains. Stable-branch setup retains its separate configuration commit.
+  Failed hooks or commits leave outputs for inspection without automatic cleanup.
+  `post-bump` executes after the release commit and cannot contribute to it.
+- Hooks remain opaque effects in the plan contract; a preview does not predict
+  their output contents. Normal Git commit hooks retain normal index semantics.
 - `post-version` receives the computed version string as
   its first positional argument (`$1`).
 - Hook names do not collide with standard git hook names,
@@ -774,6 +795,8 @@ continuation lines are accepted until a blank line or non-reference prose.
 Pasted commit bodies after that boundary are not copied into changelog entries.
 Qualified repository references remain plain text and never become local links.
 External tracker IDs continue to use the configured `bug_url` template.
+In commit descriptions, issue numbers inside URL fragments remain unchanged;
+local issue references after completed Markdown links still become local links.
 
 Identical breaking notes appear once per release, in first occurrence order.
 Equality uses the exact parsed text: case, punctuation, and internal whitespace

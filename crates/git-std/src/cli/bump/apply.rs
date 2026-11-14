@@ -300,10 +300,10 @@ pub(super) fn finalize_bump(
         let commit_msg = format!("chore(release): {new_version}");
 
         if opts.sign {
-            if let Err(e) = git::create_signed_commit_only(workdir, &commit_msg, &paths_to_stage) {
+            if let Err(e) = git::create_signed_commit(workdir, &commit_msg) {
                 return machine_or_human_error(opts, "GITSTD-GIT-OPERATION", e.to_string(), 2);
             }
-        } else if let Err(e) = git::create_commit_only(workdir, &commit_msg, &paths_to_stage) {
+        } else if let Err(e) = git::create_commit(workdir, &commit_msg) {
             return machine_or_human_error(
                 opts,
                 "GITSTD-GIT-OPERATION",

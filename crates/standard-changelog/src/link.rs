@@ -35,10 +35,7 @@ pub(crate) fn linkify_issue_numbers(text: &str, host: &RepoHost, defs: &mut Link
 
     while let Some((i, ch)) = chars.next() {
         if ch == '#'
-            && !text[..i]
-                .rsplit(char::is_whitespace)
-                .next()
-                .is_some_and(|word| word.contains("://"))
+            && !is_inside_url(&text[..i])
             && text[..i].chars().next_back().is_none_or(|previous| {
                 !previous.is_alphanumeric() && !matches!(previous, '/' | '_' | '-' | '.' | '#')
             })
@@ -69,6 +66,28 @@ pub(crate) fn linkify_issue_numbers(text: &str, host: &RepoHost, defs: &mut Link
     }
 
     result
+}
+
+// Keep balanced parentheses inside URLs, but stop at Markdown closing delimiters.
+fn is_inside_url(prefix: &str) -> bool {
+    let token = prefix
+        .rsplit(char::is_whitespace)
+        .next()
+        .unwrap_or_default();
+    let Some((_, suffix)) = token.rsplit_once("://") else {
+        return false;
+    };
+    let mut parentheses = 0;
+    for character in suffix.chars() {
+        match character {
+            '(' => parentheses += 1,
+            ')' if parentheses == 0 => return false,
+            ')' => parentheses -= 1,
+            '>' => return false,
+            _ => {}
+        }
+    }
+    true
 }
 
 /// Link a single ref value using reference-style links.
@@ -282,6 +301,46 @@ mod boundary_tests {
             "resolve [#12],[#34] and \"[#56]\""
         );
         assert_eq!(defs.len(), 3);
+    }
+
+    #[test]
+    fn completed_url_spans_do_not_hide_following_local_references() {
+        let host = RepoHost::GitHub {
+            url: "https://github.com/local/project".into(),
+        };
+        for (text, expected) in [
+            (
+                "fix [tracker](https://example.test),#12",
+                "fix [tracker](https://example.test),[#12]",
+            ),
+            (
+                "fix <https://example.test>,#12",
+                "fix <https://example.test>,[#12]",
+            ),
+            (
+                "fix [tracker](https://example.test/path(a)),#12",
+                "fix [tracker](https://example.test/path(a)),[#12]",
+            ),
+        ] {
+            let mut defs = Vec::new();
+            assert_eq!(linkify_issue_numbers(text, &host, &mut defs), expected);
+            assert_eq!(defs.len(), 1);
+        }
+    }
+
+    #[test]
+    fn url_fragments_after_punctuation_remain_url_content() {
+        let host = RepoHost::GitHub {
+            url: "https://github.com/local/project".into(),
+        };
+        for text in [
+            "https://example.test/?q=#34",
+            "https://example.test/path(a)?q=#34",
+        ] {
+            let mut defs = Vec::new();
+            assert_eq!(linkify_issue_numbers(text, &host, &mut defs), text);
+            assert!(defs.is_empty());
+        }
     }
 
     #[test]

@@ -56,6 +56,11 @@ pub const DIAGNOSTIC_DEFINITIONS: &[DiagnosticDefinition] = &[
         explanation: "The requested bump violates the configured version policy.",
     },
     DiagnosticDefinition {
+        code: "GITSTD-BUMP-DIRTY",
+        class: "precondition",
+        explanation: "A mutating bump requires a clean working tree and index.",
+    },
+    DiagnosticDefinition {
         code: "GITSTD-BUMP-BRANCH",
         class: "precondition",
         explanation: "The current branch is not the configured release branch.",

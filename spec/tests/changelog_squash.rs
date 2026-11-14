@@ -20,7 +20,7 @@ fn fixture() -> TestRepo {
         "https://github.com/example/current.git",
     ]);
     repo.add_commit(&format!("feat: generate Flows (#112)\n\nBREAKING CHANGE: {NOTE}\nRefs #106\n\n* feat: nested commit\n\nPasted discussion of driftsys/ridl#1177.\n"));
-    repo.add_commit(&format!("fix: adapt driftsys/ridl#1177\n\nBREAKING CHANGE: {NOTE}\nRefs: #1177, driftsys/ridl#1177\n"));
+    repo.add_commit(&format!("fix: adapt driftsys/ridl#1177\n\nBREAKING CHANGE: {NOTE}\nRefs: #1177, driftsys/ridl#1177, driftsys/ridl#2088\n"));
     repo
 }
 
@@ -31,6 +31,9 @@ fn assert_section(output: &str) {
     assert!(output.contains("refs [#106]"), "{output}");
     assert!(output.contains("adapt driftsys/ridl#1177"), "{output}");
     assert!(!output.contains("driftsys/ridl[#1177]"), "{output}");
+    assert_eq!(output.matches("driftsys/ridl#1177").count(), 2, "{output}");
+    assert_eq!(output.matches("driftsys/ridl#2088").count(), 1, "{output}");
+    assert!(!output.contains("issues/2088"), "{output}");
     assert!(
         output.contains("[#1177]: https://github.com/example/current/issues/1177"),
         "{output}"

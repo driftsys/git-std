@@ -241,10 +241,12 @@ mod squash_tests {
     fn exact_breaking_notes_are_unique_in_first_occurrence_order() {
         let messages = [
             "feat!: first\n\nBREAKING CHANGE: Multi-line note.\n\nSecond paragraph.",
-            "fix!: second\n\nBREAKING-CHANGE: Multi-line note.\n\nSecond paragraph.",
+            "fix!: second\n\nBREAKING-CHANGE: Hyphenated note.\n\nSecond paragraph.",
             "fix!: third\n\nBREAKING CHANGE: multi-line note.\n\nSecond paragraph.",
             "fix!: fourth\n\nBREAKING CHANGE: Multi-line note!\n\nSecond paragraph.",
             "fix!: fifth\n\nBREAKING CHANGE: Multi-line  note.\n\nSecond paragraph.",
+            "fix!: sixth\n\nBREAKING-CHANGE: Multi-line note.\n\nSecond paragraph.",
+            "fix!: seventh\n\nBREAKING-CHANGE: Hyphenated note.\n\nSecond paragraph.",
         ];
         let commits: Vec<_> = messages.iter().map(|message| ("abc", *message)).collect();
         let config = ChangelogConfig::default();
@@ -253,6 +255,7 @@ mod squash_tests {
             release.breaking_changes,
             [
                 "Multi-line note.\n\nSecond paragraph.",
+                "Hyphenated note.\n\nSecond paragraph.",
                 "multi-line note.\n\nSecond paragraph.",
                 "Multi-line note!\n\nSecond paragraph.",
                 "Multi-line  note.\n\nSecond paragraph.",

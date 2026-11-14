@@ -67,6 +67,7 @@ fn simple_fixture() -> TestRepo {
         "Cargo.toml",
         "[package]\nname = \"fixture\"\nversion = \"1.0.0\"\n",
     );
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");
@@ -74,12 +75,13 @@ fn simple_fixture() -> TestRepo {
 }
 
 #[test]
-fn release_commit_excludes_unrelated_staged_files() {
+fn release_rejects_changes_staged_after_preview() {
     let repo = simple_fixture();
     let (_, plan) = run_json(&repo, &["bump", "--dry-run", "--format", "json"]);
     let plan_id = plan["plan_id"].as_str().expect("plan id");
     repo.write("unrelated.txt", "keep staged\n");
     repo.git(&["add", "unrelated.txt"]);
+    let before = repo.snapshot_state();
 
     let (status, result) = run_json(
         &repo,
@@ -93,9 +95,9 @@ fn release_commit_excludes_unrelated_staged_files() {
         ],
     );
 
-    assert!(status.success(), "{result}");
-    let committed = repo.git(&["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"]);
-    assert!(!committed.lines().any(|path| path == "unrelated.txt"));
+    assert_eq!(status.code(), Some(1), "{result}");
+    assert_eq!(result["diagnostics"][0]["code"], "GITSTD-BUMP-DIRTY");
+    assert_eq!(repo.snapshot_state(), before);
     assert_eq!(
         repo.git(&["diff", "--cached", "--name-only"]),
         "unrelated.txt"
@@ -114,6 +116,7 @@ fn cargo_workspace_exact_hash_matches_all_apply_rewrites() {
         "[package]\nname = \"member\"\nversion.workspace = true\n",
     );
     repo.write("member/src/lib.rs", "pub fn value() -> u8 { 1 }\n");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");
@@ -162,6 +165,7 @@ fn publish_false_workspace_member_is_not_a_planned_or_applied_effect() {
         "internal/Cargo.toml",
         "[package]\nname = \"internal\"\nversion = \"7.4.2\"\npublish = false\n",
     );
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");
@@ -204,6 +208,7 @@ fn workspace_dependency_only_root_is_an_exact_planned_and_applied_effect() {
         "member/Cargo.toml",
         "[package]\nname = \"member\"\nversion.workspace = true\n",
     );
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");
@@ -249,6 +254,7 @@ fn release_without_changelog_content_declares_no_changelog_effect() {
         ".githooks/post-changelog.hooks",
         "touch post-changelog-ran\n",
     );
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("chore: maintenance only");
@@ -306,6 +312,7 @@ fn workspace_dependency_root_and_pinned_member_are_both_committed() {
         "[package]\nname = \"member\"\nversion = \"1.0.0\"\n",
     );
     repo.write("member/src/lib.rs", "pub fn value() -> u8 { 1 }\n");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");

@@ -36,27 +36,9 @@ pub fn create_commit(dir: &Path, message: &str) -> Result<(), GitError> {
     git_ok(dir, &["commit", "-m", message])
 }
 
-/// Create a new commit containing only the given paths.
-pub fn create_commit_only(dir: &Path, message: &str, paths: &[&str]) -> Result<(), GitError> {
-    let mut args = vec!["commit", "--only", "-m", message, "--"];
-    args.extend(paths);
-    git_ok(dir, &args)
-}
-
 /// Create a GPG-signed commit.
 pub fn create_signed_commit(dir: &Path, message: &str) -> Result<(), GitError> {
     git_ok(dir, &["commit", "-S", "-m", message])
-}
-
-/// Create a GPG-signed commit containing only the given paths.
-pub fn create_signed_commit_only(
-    dir: &Path,
-    message: &str,
-    paths: &[&str],
-) -> Result<(), GitError> {
-    let mut args = vec!["commit", "--only", "-S", "-m", message, "--"];
-    args.extend(paths);
-    git_ok(dir, &args)
 }
 
 /// Create a GPG-signed commit, optionally amending the previous one.
@@ -85,8 +67,38 @@ pub fn create_signed_tag(dir: &Path, name: &str, message: &str) -> Result<(), Gi
 
 /// Return `true` if the working tree has uncommitted changes.
 pub fn is_working_tree_dirty(dir: &Path) -> Result<bool, GitError> {
-    let output = git(dir, &["status", "--porcelain"])?;
-    Ok(!output.is_empty())
+    let output = git(
+        dir,
+        &[
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+            "--ignore-submodules=none",
+        ],
+    )?;
+    if !output.is_empty() {
+        return Ok(true);
+    }
+    let entries = git(dir, &["ls-files", "--stage", "-z", "--", ":/"])?;
+    if !entries
+        .split('\0')
+        .any(|entry| entry.starts_with("160000 "))
+    {
+        return Ok(false);
+    }
+    // Each initialized submodule has its own status and ignore configuration.
+    // Checking each repository explicitly also exposes hidden nested changes.
+    let submodules = git(
+        dir,
+        &[
+            "submodule",
+            "foreach",
+            "--quiet",
+            "--recursive",
+            "git status --porcelain --untracked-files=all --ignore-submodules=none",
+        ],
+    )?;
+    Ok(!submodules.is_empty())
 }
 
 /// Create a new branch at HEAD.

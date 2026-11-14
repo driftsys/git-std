@@ -93,6 +93,22 @@ scope, description, body, and breaking change, then runs
 
 ## `git std bump`
 
+A mutating bump requires a clean working tree and index, including no untracked
+non-ignored files. Commit or remove pending changes first. This also applies to
+`--no-commit`; `--dry-run` remains available on dirty checkouts. Dirty input fails
+before hooks or release writes (`GITSTD-BUMP-DIRTY`, exit 1 in JSON mode).
+
+Git-std stages its managed version files, synced lock files, and changelog.
+Lifecycle hooks must explicitly stage extra release outputs with `git add` or
+`git rm`. The release commit includes the resulting index, including hook-staged
+additions, modifications, and deletions. Unstaged extra outputs are left out.
+`post-bump` runs after the release commit and cannot add files to it.
+
+With `--no-commit`, release finalization skips staging, committing, and tagging;
+any staging done by hooks remains. Stable-branch setup still creates its separate
+configuration commit. Failures preserve files and staged changes for inspection,
+so restore a clean state before retrying. Hook effects remain opaque in previews.
+
 Calculate the next version from conventional commits,
 update version files, generate changelog, commit, and tag.
 
@@ -161,6 +177,8 @@ continuation lines are accepted until a blank line or non-reference prose.
 Pasted commit bodies after that boundary are not copied into changelog entries.
 Qualified repository references remain plain text and never become local links.
 External tracker IDs continue to use the configured `bug_url` template.
+In commit descriptions, issue numbers inside URL fragments remain unchanged;
+local issue references after completed Markdown links still become local links.
 
 Identical breaking notes appear once per release, in first occurrence order.
 Equality uses the exact parsed text: case, punctuation, and internal whitespace

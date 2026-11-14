@@ -34,18 +34,6 @@ pub(super) fn run_stable(config: &ProjectConfig, opts: &BumpOptions) -> i32 {
         .map(|(_, v)| v.clone())
         .unwrap_or_else(|| semver::Version::new(0, 0, 0));
 
-    match git::is_working_tree_dirty(dir) {
-        Ok(true) => {
-            ui::error("working tree has uncommitted changes");
-            return 1;
-        }
-        Err(e) => {
-            ui::error(&format!("cannot check working tree status: {e}"));
-            return 1;
-        }
-        Ok(false) => {}
-    }
-
     let stable_branch_name = match &opts.stable {
         Some(Some(name)) => name.clone(),
         _ => format!("stable-v{}.{}", cur_ver.major, cur_ver.minor),
