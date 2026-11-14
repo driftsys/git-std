@@ -140,7 +140,7 @@ fn hook_outputs_from_linked_worktree_subdirectory_are_committed() {
 fn signed_release_includes_hook_staging() {
     let repo = fixture(
         "post-version",
-        "! echo new > created.txt; git add created.txt\n",
+        "! echo released > metadata.txt; echo new > created.txt; git add metadata.txt created.txt; git rm obsolete.txt; echo later > metadata.txt; echo incidental > feature.txt; echo artifact > unstaged.txt\n",
     );
     let keys = tempfile::tempdir().unwrap();
     let key = keys.path().join("signing-key");
@@ -155,6 +155,21 @@ fn signed_release_includes_hook_staging() {
     let output = bump(&repo, &["--sign"]);
     assert!(output.status.success(), "{output:?}");
     assert_eq!(repo.git(&["show", "v1.0.1:created.txt"]), "new");
+    assert_eq!(repo.git(&["show", "HEAD:metadata.txt"]), "released");
+    assert_eq!(repo.git(&["show", "HEAD:feature.txt"]), "feature");
+    assert_eq!(repo.read("metadata.txt"), "later\n");
+    assert_eq!(repo.read("feature.txt"), "incidental\n");
+    assert_eq!(
+        repo.git(&["rev-parse", "HEAD^{tree}"]),
+        repo.git(&["rev-parse", "v1.0.1^{tree}"])
+    );
+    let paths = repo.git(&["ls-tree", "-r", "--name-only", "HEAD"]);
+    assert!(
+        !paths
+            .lines()
+            .any(|path| path == "obsolete.txt" || path == "unstaged.txt")
+    );
+    assert_eq!(repo.git(&["diff", "--cached", "--name-only"]), "");
     assert!(
         repo.git(&["cat-file", "commit", "HEAD"])
             .contains("gpgsig -----BEGIN SSH SIGNATURE-----")
