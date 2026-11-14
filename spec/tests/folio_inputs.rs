@@ -2,6 +2,7 @@
 mod support;
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use snapbox::cmd::Command;
 use support::TestRepo;
 
@@ -207,10 +208,14 @@ fn dirty_preview_binds_raw_configuration_and_hook_bytes() {
     for (path, initial, changed) in [
         (
             ".git-std.toml",
-            "monorepo = false\n",
-            "monorepo = false\n# changed\n",
+            "monorepo = false\n# before\n",
+            "monorepo = false\n# after!\n",
         ),
-        (".githooks/pre-bump.hooks", "true\n", "true\n# changed\n"),
+        (
+            ".githooks/pre-bump.hooks",
+            "true\n# before\n",
+            "true\n# after!\n",
+        ),
     ] {
         let repo = bump_fixture();
         repo.write(path, initial);
@@ -229,6 +234,15 @@ fn dirty_preview_binds_raw_configuration_and_hook_bytes() {
                 .unwrap()["sha256"]
                 .clone()
         };
+        assert_eq!(initial.len(), changed.len());
+        assert_eq!(
+            digest(&before),
+            format!("{:x}", Sha256::digest(initial.as_bytes()))
+        );
+        assert_eq!(
+            digest(&after),
+            format!("{:x}", Sha256::digest(changed.as_bytes()))
+        );
         assert_ne!(
             digest(&before),
             digest(&after),
