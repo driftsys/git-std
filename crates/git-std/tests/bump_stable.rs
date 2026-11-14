@@ -61,7 +61,8 @@ fn init_bump_repo(dir: &Path) {
 /// Helper: add a commit to a repo.
 fn add_commit(dir: &Path, filename: &str, message: &str) {
     std::fs::write(dir.join(filename), message).unwrap();
-    git(dir, &["add", filename]);
+    // Include the version/configuration fixture prepared for this release.
+    git(dir, &["add", "."]);
     git(dir, &["commit", "-m", message]);
 }
 
@@ -382,6 +383,6 @@ fn bump_stable_rejects_dirty_working_tree() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains(
-            "working tree has uncommitted changes",
+            "bump requires a clean working tree and index",
         ));
 }

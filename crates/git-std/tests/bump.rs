@@ -348,6 +348,9 @@ fn bump_full_release_cycle() {
     // Add a feat commit.
     add_commit(dir.path(), "a.txt", "feat: first feature");
 
+    git(dir.path(), &["add", ".git-std.toml"]);
+    git(dir.path(), &["commit", "-m", "chore: configure calver"]);
+
     // First release.
     Command::cargo_bin("git-std")
         .unwrap()
@@ -498,6 +501,9 @@ fn bump_missing_tool_lock_file_warns_and_continues() {
     // cannot be found regardless of the host environment, isolating the
     // "tool not on PATH" warning path.
     std::fs::write(dir.path().join("uv.lock"), "# placeholder\n").unwrap();
+
+    git(dir.path(), &["add", "uv.lock"]);
+    git(dir.path(), &["commit", "-m", "chore: add lock fixture"]);
 
     // Build a minimal PATH that contains git (needed for bump internals)
     // but excludes ecosystem tools like uv, npm, etc.
@@ -760,6 +766,8 @@ fn write_hooks_file(dir: &std::path::Path, hook_name: &str, content: &str) {
     let hooks_dir = dir.join(".githooks");
     std::fs::create_dir_all(&hooks_dir).unwrap();
     std::fs::write(hooks_dir.join(format!("{hook_name}.hooks")), content).unwrap();
+    git(dir, &["add", ".githooks"]);
+    git(dir, &["commit", "-m", "chore: configure lifecycle hook"]);
 }
 
 /// `pre-bump` with a required command that exits 0 — bump proceeds normally.

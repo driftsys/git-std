@@ -102,6 +102,28 @@ pub fn run(config: &crate::config::ProjectConfig, opts: &BumpOptions) -> i32 {
         );
     }
 
+    if !opts.dry_run {
+        match git::is_working_tree_dirty(std::path::Path::new(".")) {
+            Ok(true) => {
+                return error::machine_or_human_error(
+                    opts,
+                    "GITSTD-BUMP-DIRTY",
+                    "bump requires a clean working tree and index; commit or remove pending changes first",
+                    1,
+                );
+            }
+            Err(error) => {
+                return error::machine_or_human_error(
+                    opts,
+                    "GITSTD-GIT-OPERATION",
+                    format!("cannot check working tree status: {error}"),
+                    2,
+                );
+            }
+            Ok(false) => {}
+        }
+    }
+
     // Branch guard: warn and prompt when bumping on a non-release branch.
     // Skipped for --dry-run (read-only), --yes, and GIT_STD_YES=1.
     if !opts.dry_run && !opts.yes {

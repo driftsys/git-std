@@ -39,7 +39,8 @@ fn init_bump_repo(dir: &Path) {
 /// Helper: add a commit to a repo.
 fn add_commit(dir: &Path, filename: &str, message: &str) {
     std::fs::write(dir.join(filename), message).unwrap();
-    git(dir, &["add", filename]);
+    // Include the version/configuration fixture prepared for this release.
+    git(dir, &["add", "."]);
     git(dir, &["commit", "-m", message]);
 }
 
