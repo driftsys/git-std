@@ -34,7 +34,15 @@ pub(crate) fn linkify_issue_numbers(text: &str, host: &RepoHost, defs: &mut Link
     let mut chars = text.char_indices().peekable();
 
     while let Some((i, ch)) = chars.next() {
-        if ch == '#' {
+        if ch == '#'
+            && !text[..i]
+                .rsplit(char::is_whitespace)
+                .next()
+                .is_some_and(|word| word.contains("://"))
+            && text[..i].chars().next_back().is_none_or(|previous| {
+                !previous.is_alphanumeric() && !matches!(previous, '/' | '_' | '-' | '.' | '#')
+            })
+        {
             let start = i + 1;
             let mut end = start;
             while let Some(&(j, d)) = chars.peek() {
@@ -84,6 +92,11 @@ pub(crate) fn link_ref(
             add_link_def(defs, r, &url);
             return format!("[{r}]");
         }
+        return r.to_string();
+    }
+
+    // Preserve qualified targets rather than applying the current repository's tracker.
+    if crate::references::is_qualified_reference(r) {
         return r.to_string();
     }
 
@@ -250,6 +263,68 @@ mod tests {
         let host = RepoHost::Unknown;
         let mut defs = Vec::new();
         assert_eq!(link_ref("PROJ-123", &host, None, &mut defs), "PROJ-123");
+        assert!(defs.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod boundary_tests {
+    use super::*;
+
+    #[test]
+    fn punctuation_separates_local_references() {
+        let host = RepoHost::GitHub {
+            url: "https://github.com/local/project".into(),
+        };
+        let mut defs = Vec::new();
+        assert_eq!(
+            linkify_issue_numbers("resolve #12,#34 and \"#56\"", &host, &mut defs),
+            "resolve [#12],[#34] and \"[#56]\""
+        );
+        assert_eq!(defs.len(), 3);
+    }
+
+    #[test]
+    fn qualified_references_and_url_fragments_are_not_local_links() {
+        let host = RepoHost::GitHub {
+            url: "https://github.com/local/project".into(),
+        };
+        let mut defs = Vec::new();
+        let text = "fix owner/repo#12 and https://example.test/path#34 with #12 and café#56 (#78)";
+        assert_eq!(
+            linkify_issue_numbers(text, &host, &mut defs),
+            "fix owner/repo#12 and https://example.test/path#34 with [#12] and café#56 ([#78])"
+        );
+        assert_eq!(
+            defs.iter()
+                .map(|(label, _)| label.as_str())
+                .collect::<Vec<_>>(),
+            ["#12", "#78"]
+        );
+        assert_eq!(
+            link_ref(
+                "owner/repo#12",
+                &host,
+                Some("https://tracker.test/%s"),
+                &mut defs
+            ),
+            "owner/repo#12"
+        );
+        assert_eq!(defs.len(), 2);
+    }
+
+    #[test]
+    fn unknown_host_preserves_qualified_references() {
+        let mut defs = Vec::new();
+        assert_eq!(
+            link_ref(
+                "group/subgroup/repo#12",
+                &RepoHost::Unknown,
+                Some("https://tracker.test/%s"),
+                &mut defs
+            ),
+            "group/subgroup/repo#12"
+        );
         assert!(defs.is_empty());
     }
 }
