@@ -68,22 +68,30 @@ pub(crate) fn linkify_issue_numbers(text: &str, host: &RepoHost, defs: &mut Link
     result
 }
 
-// Keep balanced parentheses inside URLs, but stop at Markdown closing delimiters.
+// Only the delimiter that opened a Markdown URL can close its span.
 fn is_inside_url(prefix: &str) -> bool {
     let token = prefix
         .rsplit(char::is_whitespace)
         .next()
         .unwrap_or_default();
-    let Some((_, suffix)) = token.rsplit_once("://") else {
+    let Some((scheme_prefix, suffix)) = token.rsplit_once("://") else {
         return false;
     };
+    let opening = scheme_prefix
+        .trim_end_matches(|c: char| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+        .chars()
+        .next_back();
+    match opening {
+        Some('<') => return !suffix.contains('>'),
+        Some('(') => {}
+        _ => return true,
+    }
     let mut parentheses = 0;
     for character in suffix.chars() {
         match character {
             '(' => parentheses += 1,
             ')' if parentheses == 0 => return false,
             ')' => parentheses -= 1,
-            '>' => return false,
             _ => {}
         }
     }
@@ -336,6 +344,8 @@ mod boundary_tests {
         for text in [
             "https://example.test/?q=#34",
             "https://example.test/path(a)?q=#34",
+            "https://example.test/a)?q=#34",
+            "<https://example.test/a)?q=#34>",
         ] {
             let mut defs = Vec::new();
             assert_eq!(linkify_issue_numbers(text, &host, &mut defs), text);

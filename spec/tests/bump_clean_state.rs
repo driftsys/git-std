@@ -57,6 +57,37 @@ fn dirty_bump_rejects_before_hooks_and_preserves_index_and_files() {
 }
 
 #[test]
+fn staged_only_changes_reject_before_hooks_and_preserve_state() {
+    for change in ["modify", "add", "delete"] {
+        let repo = fixture();
+        match change {
+            "modify" => {
+                repo.write("tracked.txt", "staged change\n");
+                repo.git(&["add", "tracked.txt"]);
+            }
+            "add" => {
+                repo.write("created.txt", "staged addition\n");
+                repo.git(&["add", "created.txt"]);
+            }
+            "delete" => {
+                repo.git(&["rm", "tracked.txt"]);
+            }
+            _ => unreachable!(),
+        }
+        assert_eq!(repo.git(&["diff", "--name-only"]), "");
+        let before = repo.snapshot_state();
+        let index = repo.git(&["ls-files", "--stage"]);
+        let output = bump(&repo, &["--format", "json"]);
+        assert_eq!(output.status.code(), Some(1), "{change}: {output:?}");
+        let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(document["diagnostics"][0]["code"], "GITSTD-BUMP-DIRTY");
+        assert_eq!(repo.snapshot_state(), before);
+        assert_eq!(repo.git(&["ls-files", "--stage"]), index);
+        assert!(!repo.path().join("hook-sentinel").exists());
+    }
+}
+
+#[test]
 fn hidden_untracked_files_still_block_bump() {
     let repo = fixture();
     repo.git(&["config", "status.showUntrackedFiles", "no"]);
