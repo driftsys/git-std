@@ -81,9 +81,9 @@ fn is_inside_url(prefix: &str) -> bool {
             .next_back();
         let end = match opening {
             Some('<') => suffix.find('>').map(|index| index + 1),
-            Some('[') => suffix.find(']').map(|index| index + 1),
-            Some('(') => {
-                let mut parentheses = 0;
+            Some(opening @ ('(' | '[')) => {
+                let closing = if opening == '(' { ')' } else { ']' };
+                let mut depth = 0;
                 let mut is_escaped = false;
                 suffix.char_indices().find_map(|(index, character)| {
                     if is_escaped {
@@ -92,9 +92,9 @@ fn is_inside_url(prefix: &str) -> bool {
                     }
                     match character {
                         '\\' => is_escaped = true,
-                        '(' => parentheses += 1,
-                        ')' if parentheses == 0 => return Some(index + 1),
-                        ')' => parentheses -= 1,
+                        c if c == opening => depth += 1,
+                        c if c == closing && depth == 0 => return Some(index + 1),
+                        c if c == closing => depth -= 1,
                         _ => {}
                     }
                     None
@@ -364,6 +364,10 @@ mod boundary_tests {
             r"[tracker](https://example.test/a\(b?q=#34)",
             "[one](https://example.test),[two](https://other.test?q=#34)",
             "[https://label.test](https://example.test/?q=#34)",
+            "[tracker](https://example.test/path(a(b)c)?q=#34)",
+            r"[https://example.test/a\]?q=#34](https://target.test)",
+            r"[https://example.test/a\[b?q=#34](https://target.test)",
+            "[https://example.test/a[b[c]d]?q=#34](https://target.test)",
         ] {
             let mut defs = Vec::new();
             let text = format!("fix {destination},#12");

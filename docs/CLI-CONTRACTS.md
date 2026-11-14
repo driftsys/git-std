@@ -71,8 +71,8 @@ plan_id="$(git std bump --dry-run --format json | jq -r .plan_id)"
 git std bump --expect-plan "$plan_id" --format json --yes
 ```
 
-Mutating bumps first require a clean index and working tree. Staged, unstaged,
-nonignored untracked files and dirty submodules cause exit 1 with
+Mutating bumps first require a clean index and working tree as reported by Git.
+Staged, unstaged, nonignored untracked files and dirty submodules cause exit 1 with
 `GITSTD-BUMP-DIRTY`, including edits to bound manifests, configuration or hooks.
 This admission check precedes plan comparison; dry-run remains available on
 a dirty working tree.
