@@ -37,6 +37,7 @@ mod date;
 mod host;
 mod link;
 mod model;
+mod references;
 mod render;
 pub use build::build_release;
 pub use date::{days_to_date, format_date};

@@ -34,7 +34,12 @@ pub(crate) fn linkify_issue_numbers(text: &str, host: &RepoHost, defs: &mut Link
     let mut chars = text.char_indices().peekable();
 
     while let Some((i, ch)) = chars.next() {
-        if ch == '#' {
+        if ch == '#'
+            && !is_inside_url(&text[..i])
+            && text[..i].chars().next_back().is_none_or(|previous| {
+                !previous.is_alphanumeric() && !matches!(previous, '/' | '_' | '-' | '.' | '#')
+            })
+        {
             let start = i + 1;
             let mut end = start;
             while let Some(&(j, d)) = chars.peek() {
@@ -63,6 +68,48 @@ pub(crate) fn linkify_issue_numbers(text: &str, host: &RepoHost, defs: &mut Link
     result
 }
 
+// Preserve complete URL spans, including nested schemes and escaped delimiters.
+fn is_inside_url(prefix: &str) -> bool {
+    let mut token = prefix
+        .rsplit(char::is_whitespace)
+        .next()
+        .unwrap_or_default();
+    while let Some((scheme_prefix, suffix)) = token.split_once("://") {
+        let opening = scheme_prefix
+            .trim_end_matches(|c: char| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+            .chars()
+            .next_back();
+        let end = match opening {
+            Some('<') => suffix.find('>').map(|index| index + 1),
+            Some(opening @ ('(' | '[')) => {
+                let closing = if opening == '(' { ')' } else { ']' };
+                let mut depth = 0;
+                let mut is_escaped = false;
+                suffix.char_indices().find_map(|(index, character)| {
+                    if is_escaped {
+                        is_escaped = false;
+                        return None;
+                    }
+                    match character {
+                        '\\' => is_escaped = true,
+                        c if c == opening => depth += 1,
+                        c if c == closing && depth == 0 => return Some(index + 1),
+                        c if c == closing => depth -= 1,
+                        _ => {}
+                    }
+                    None
+                })
+            }
+            _ => return true,
+        };
+        match end {
+            Some(end) => token = &suffix[end..],
+            None => return true,
+        }
+    }
+    false
+}
+
 /// Link a single ref value using reference-style links.
 pub(crate) fn link_ref(
     r: &str,
@@ -84,6 +131,11 @@ pub(crate) fn link_ref(
             add_link_def(defs, r, &url);
             return format!("[{r}]");
         }
+        return r.to_string();
+    }
+
+    // Preserve qualified targets rather than applying the current repository's tracker.
+    if crate::references::is_qualified_reference(r) {
         return r.to_string();
     }
 
@@ -250,6 +302,145 @@ mod tests {
         let host = RepoHost::Unknown;
         let mut defs = Vec::new();
         assert_eq!(link_ref("PROJ-123", &host, None, &mut defs), "PROJ-123");
+        assert!(defs.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod boundary_tests {
+    use super::*;
+
+    #[test]
+    fn punctuation_separates_local_references() {
+        let host = RepoHost::GitHub {
+            url: "https://github.com/local/project".into(),
+        };
+        let mut defs = Vec::new();
+        assert_eq!(
+            linkify_issue_numbers("resolve #12,#34 and \"#56\"", &host, &mut defs),
+            "resolve [#12],[#34] and \"[#56]\""
+        );
+        assert_eq!(defs.len(), 3);
+    }
+
+    #[test]
+    fn completed_url_spans_do_not_hide_following_local_references() {
+        let host = RepoHost::GitHub {
+            url: "https://github.com/local/project".into(),
+        };
+        for (text, expected) in [
+            (
+                "fix [tracker](https://example.test/a>?q=#34),#12",
+                "fix [tracker](https://example.test/a>?q=#34),[#12]",
+            ),
+            (
+                "fix [tracker](https://example.test),#12",
+                "fix [tracker](https://example.test),[#12]",
+            ),
+            (
+                "fix <https://example.test>,#12",
+                "fix <https://example.test>,[#12]",
+            ),
+            (
+                "fix [tracker](https://example.test/path(a)),#12",
+                "fix [tracker](https://example.test/path(a)),[#12]",
+            ),
+        ] {
+            let mut defs = Vec::new();
+            assert_eq!(linkify_issue_numbers(text, &host, &mut defs), expected);
+            assert_eq!(defs.len(), 1);
+        }
+    }
+
+    #[test]
+    fn markdown_url_spans_preserve_nested_and_escaped_content() {
+        let host = RepoHost::GitHub {
+            url: "https://github.com/local/project".into(),
+        };
+        for destination in [
+            "[tracker](https://example.test/path(a)?q=#34)",
+            "[tracker](https://example.test/?redirect=(https://other.test)&issue=#34)",
+            r"[tracker](https://example.test/a\)?q=#34)",
+            r"[tracker](https://example.test/a\(b?q=#34)",
+            "[one](https://example.test),[two](https://other.test?q=#34)",
+            "[https://label.test](https://example.test/?q=#34)",
+            "[tracker](https://example.test/path(a(b)c)?q=#34)",
+            r"[https://example.test/a\]?q=#34](https://target.test)",
+            r"[https://example.test/a\[b?q=#34](https://target.test)",
+            "[https://example.test/a[b[c]d]?q=#34](https://target.test)",
+        ] {
+            let mut defs = Vec::new();
+            let text = format!("fix {destination},#12");
+            let expected = format!("fix {destination},[#12]");
+            assert_eq!(linkify_issue_numbers(&text, &host, &mut defs), expected);
+            assert_eq!(
+                defs,
+                vec![(
+                    "#12".into(),
+                    "https://github.com/local/project/issues/12".into()
+                )]
+            );
+        }
+    }
+
+    #[test]
+    fn url_fragments_after_punctuation_remain_url_content() {
+        let host = RepoHost::GitHub {
+            url: "https://github.com/local/project".into(),
+        };
+        for text in [
+            "https://example.test/?q=#34",
+            "https://example.test/path(a)?q=#34",
+            "https://example.test/a)?q=#34",
+            "<https://example.test/a)?q=#34>",
+        ] {
+            let mut defs = Vec::new();
+            assert_eq!(linkify_issue_numbers(text, &host, &mut defs), text);
+            assert!(defs.is_empty());
+        }
+    }
+
+    #[test]
+    fn qualified_references_and_url_fragments_are_not_local_links() {
+        let host = RepoHost::GitHub {
+            url: "https://github.com/local/project".into(),
+        };
+        let mut defs = Vec::new();
+        let text = "fix owner/repo#12 and https://example.test/path#34 with #12 and café#56 (#78)";
+        assert_eq!(
+            linkify_issue_numbers(text, &host, &mut defs),
+            "fix owner/repo#12 and https://example.test/path#34 with [#12] and café#56 ([#78])"
+        );
+        assert_eq!(
+            defs.iter()
+                .map(|(label, _)| label.as_str())
+                .collect::<Vec<_>>(),
+            ["#12", "#78"]
+        );
+        assert_eq!(
+            link_ref(
+                "owner/repo#12",
+                &host,
+                Some("https://tracker.test/%s"),
+                &mut defs
+            ),
+            "owner/repo#12"
+        );
+        assert_eq!(defs.len(), 2);
+    }
+
+    #[test]
+    fn unknown_host_preserves_qualified_references() {
+        let mut defs = Vec::new();
+        assert_eq!(
+            link_ref(
+                "group/subgroup/repo#12",
+                &RepoHost::Unknown,
+                Some("https://tracker.test/%s"),
+                &mut defs
+            ),
+            "group/subgroup/repo#12"
+        );
         assert!(defs.is_empty());
     }
 }

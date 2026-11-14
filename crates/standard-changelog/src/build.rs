@@ -42,6 +42,7 @@ pub fn build_release(
 
     let mut groups_map: HashMap<String, Vec<ChangelogEntry>> = HashMap::new();
     let mut breaking_changes = Vec::new();
+    let mut seen_breaking_changes = HashSet::new();
 
     for (short_hash, message) in commits {
         let parsed = match standard_commit::parse(message) {
@@ -62,21 +63,17 @@ pub fn build_release(
         for footer in &parsed.footers {
             match footer.token.as_str() {
                 "BREAKING CHANGE" | "BREAKING-CHANGE" => {
-                    breaking_changes.push(footer.value.clone());
+                    if seen_breaking_changes.insert(footer.value.clone()) {
+                        breaking_changes.push(footer.value.clone());
+                    }
                 }
                 "Refs" | "Closes" | "Fixes" | "Resolves" => {
                     let token = footer.token.to_lowercase();
-                    for r in footer.value.split(',') {
-                        let r = r.trim();
-                        if !r.is_empty() {
-                            let value = if r.chars().all(|c| c.is_ascii_digit()) {
-                                format!("#{r}")
-                            } else {
-                                r.to_string()
-                            };
-                            refs.push((token.clone(), value));
-                        }
-                    }
+                    refs.extend(
+                        crate::references::extract_references(&footer.value)
+                            .into_iter()
+                            .map(|value| (token.clone(), value)),
+                    );
                 }
                 _ => {}
             }
@@ -187,5 +184,84 @@ mod tests {
         let config = ChangelogConfig::default();
         let commits: Vec<(&str, &str)> = vec![];
         assert!(build_release(&commits, "1.0.0", None, &config).is_none());
+    }
+}
+
+#[cfg(test)]
+mod squash_tests {
+    use super::*;
+
+    #[test]
+    fn reference_lists_stop_before_body_prose() {
+        let message = "feat: feature\n\nRefs: #45, #46 99\nowner/repo#1177 PROJ-123 https://tracker.test/issue/4\n\nPasted body #777";
+        let release = build_release(
+            &[("abc", message)],
+            "1.0.0",
+            None,
+            &ChangelogConfig::default(),
+        )
+        .unwrap();
+        let refs: Vec<_> = release.groups[0].1[0]
+            .refs
+            .iter()
+            .map(|(_, value)| value.as_str())
+            .collect();
+        assert_eq!(
+            refs,
+            [
+                "#45",
+                "#46",
+                "#99",
+                "owner/repo#1177",
+                "PROJ-123",
+                "https://tracker.test/issue/4"
+            ]
+        );
+    }
+
+    #[test]
+    fn reference_extraction_does_not_resume_after_prose() {
+        for value in ["#12 followed by #34", "#12\nprose #34", "#12\n\n#34"] {
+            let message = format!("fix: feature\n\nRefs: {value}");
+            let release = build_release(
+                &[("abc", &message)],
+                "1.0.0",
+                None,
+                &ChangelogConfig::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                release.groups[0].1[0].refs,
+                vec![("refs".into(), "#12".into())]
+            );
+        }
+    }
+
+    #[test]
+    fn exact_breaking_notes_are_unique_in_first_occurrence_order() {
+        let messages = [
+            "feat!: first\n\nBREAKING CHANGE: Multi-line note.\n\nSecond paragraph.",
+            "fix!: second\n\nBREAKING-CHANGE: Hyphenated note.\n\nSecond paragraph.",
+            "fix!: third\n\nBREAKING CHANGE: multi-line note.\n\nSecond paragraph.",
+            "fix!: fourth\n\nBREAKING CHANGE: Multi-line note!\n\nSecond paragraph.",
+            "fix!: fifth\n\nBREAKING CHANGE: Multi-line  note.\n\nSecond paragraph.",
+            "fix!: sixth\n\nBREAKING-CHANGE: Multi-line note.\n\nSecond paragraph.",
+            "fix!: seventh\n\nBREAKING-CHANGE: Hyphenated note.\n\nSecond paragraph.",
+        ];
+        let commits: Vec<_> = messages.iter().map(|message| ("abc", *message)).collect();
+        let config = ChangelogConfig::default();
+        let release = build_release(&commits, "1.0.0", None, &config).unwrap();
+        assert_eq!(
+            release.breaking_changes,
+            [
+                "Multi-line note.\n\nSecond paragraph.",
+                "Hyphenated note.\n\nSecond paragraph.",
+                "multi-line note.\n\nSecond paragraph.",
+                "Multi-line note!\n\nSecond paragraph.",
+                "Multi-line  note.\n\nSecond paragraph.",
+            ]
+        );
+        let other = build_release(&commits[..1], "2.0.0", Some("1.0.0"), &config).unwrap();
+        assert_eq!(other.breaking_changes.len(), 1);
     }
 }
