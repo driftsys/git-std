@@ -2,6 +2,7 @@
 mod support;
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use snapbox::cmd::Command;
 use support::TestRepo;
 
@@ -200,4 +201,63 @@ fn plan_records_the_resolved_tool_path() {
             .iter()
             .any(|tool| tool["name"] == "deno" && tool["path"].is_null())
     );
+}
+
+#[test]
+fn dirty_preview_binds_raw_configuration_and_hook_bytes() {
+    for (path, initial, changed) in [
+        (
+            ".git-std.toml",
+            "monorepo = false\n# before\n",
+            "monorepo = false\n# after!\n",
+        ),
+        (
+            ".githooks/pre-bump.hooks",
+            "true\n# before\n",
+            "true\n# after!\n",
+        ),
+    ] {
+        let repo = bump_fixture();
+        repo.write(path, initial);
+        repo.git(&["add", "."]);
+        repo.git(&["commit", "-m", "chore: configure release"]);
+        let before = run_json(&repo, &["bump", "--dry-run", "--format", "json"]);
+        repo.write(path, changed);
+        let state = repo.snapshot_state();
+        let after = run_json(&repo, &["bump", "--dry-run", "--format", "json"]);
+        let digest = |plan: &Value| {
+            plan["inputs"]["files"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|file| file["path"] == path)
+                .unwrap()["sha256"]
+                .clone()
+        };
+        assert_eq!(initial.len(), changed.len());
+        assert_eq!(
+            digest(&before),
+            Sha256::digest(initial.as_bytes())
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        );
+        assert_eq!(
+            digest(&after),
+            Sha256::digest(changed.as_bytes())
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        );
+        assert_ne!(
+            digest(&before),
+            digest(&after),
+            "raw input unchanged: {path}"
+        );
+        assert_ne!(
+            before["plan_id"], after["plan_id"],
+            "plan unchanged: {path}"
+        );
+        assert_eq!(repo.snapshot_state(), state);
+    }
 }

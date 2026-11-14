@@ -127,6 +127,8 @@ fn bump_json_captures_hook_stdout_and_structures_hook_failure() {
     repo.create_tag("v1.0.0");
     repo.add_commit("fix: next release");
     repo.write(".githooks/pre-bump.hooks", "echo hook-output\n");
+    repo.git(&["add", "."]);
+    repo.git(&["commit", "-m", "chore: prepare hook fixture"]);
 
     let success = Command::new(TestRepo::bin_path())
         .args(["bump", "--format", "json", "--yes", "--no-commit"])
@@ -138,6 +140,8 @@ fn bump_json_captures_hook_stdout_and_structures_hook_failure() {
     assert!(!String::from_utf8_lossy(&success.stdout).contains("hook-output"));
 
     repo.write(".githooks/pre-bump.hooks", "false\n");
+    repo.git(&["add", "."]);
+    repo.git(&["commit", "-m", "chore: prepare failure fixture"]);
     let failure = Command::new(TestRepo::bin_path())
         .args([
             "bump",

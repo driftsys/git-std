@@ -9,6 +9,7 @@ use support::TestRepo;
 #[test]
 fn bump_dry_run_shows_plan() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v0.1.0");
     repo.add_commit("feat: add feature A");
@@ -27,6 +28,7 @@ fn bump_dry_run_shows_plan() {
 #[test]
 fn bump_no_bump_worthy_commits() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("chore: update deps");
@@ -45,6 +47,7 @@ fn bump_no_bump_worthy_commits() {
 #[test]
 fn bump_breaking_change_major() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.2.3");
     repo.add_commit("feat!: remove old API");
@@ -63,6 +66,7 @@ fn bump_breaking_change_major() {
 #[test]
 fn bump_first_release() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("feat: initial feature");
 
     Command::new(TestRepo::bin_path())
@@ -83,6 +87,7 @@ fn bump_first_release() {
 #[test]
 fn bump_release_as_forced_version() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("fix: patch something");
@@ -101,6 +106,7 @@ fn bump_release_as_forced_version() {
 #[test]
 fn bump_prerelease_cycle() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: new feature");
@@ -139,6 +145,7 @@ fn bump_prerelease_cycle() {
 #[test]
 fn bump_no_tag_flag() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: new feature");
@@ -173,6 +180,7 @@ fn bump_no_tag_flag() {
 #[test]
 fn bump_no_commit_flag() {
     let mut repo = TestRepo::new().with_cargo_toml("0.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: new feature");
@@ -222,6 +230,7 @@ fn bump_multi_ecosystem() {
     let mut repo = TestRepo::new()
         .with_cargo_toml("1.0.0")
         .with_package_json("1.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: cross-platform feature");
@@ -248,6 +257,7 @@ regex = 'version = "(\d+\.\d+\.\d+)"'
     // Create the custom version file.
     std::fs::write(repo.path().join("version.txt"), "version = \"1.0.0\"\n").unwrap();
 
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");
@@ -282,6 +292,7 @@ regex = 'version:\s*(\S+)'
     .unwrap();
     std::fs::write(repo.path().join("skills/beta/SKILL.md"), "version: 1.0.0\n").unwrap();
 
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");
@@ -302,6 +313,7 @@ fn bump_calver_scheme() {
     let mut repo = TestRepo::new()
         .with_cargo_toml("0.0.0")
         .with_config("scheme = \"calver\"\n");
+    repo.git(&["add", "."]);
     repo.add_commit("feat: initial feature");
 
     Command::new(TestRepo::bin_path())
@@ -316,6 +328,7 @@ fn bump_calver_scheme() {
 #[test]
 fn bump_skip_changelog_dry_run() {
     let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: new feature");
@@ -336,6 +349,7 @@ fn bump_patch_scheme_dry_run() {
     let mut repo = TestRepo::new()
         .with_cargo_toml("0.0.0")
         .with_config("scheme = \"patch\"\n");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: new feature");
@@ -360,6 +374,7 @@ fn bump_stable_dry_run() {
         .args(["add", "Cargo.toml"])
         .status()
         .unwrap();
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.2.0");
     repo.add_commit("feat!: breaking change");
@@ -376,6 +391,7 @@ fn bump_stable_dry_run() {
 #[test]
 fn bump_skip_changelog_no_file() {
     let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: new feature");
@@ -396,6 +412,7 @@ fn bump_skip_changelog_no_file() {
 #[test]
 fn bump_push_dry_run_shows_would_push() {
     let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");
@@ -417,6 +434,7 @@ fn bump_push_dry_run_shows_would_push() {
 #[test]
 fn bump_push_dry_run_named_remote() {
     let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");
@@ -438,6 +456,7 @@ fn bump_push_dry_run_named_remote() {
 #[test]
 fn bump_push_to_local_remote() {
     let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");
@@ -490,6 +509,7 @@ fn bump_push_to_local_remote() {
 #[test]
 fn bump_project_toml() {
     let mut repo = TestRepo::new().with_project_toml("1.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: new feature");
@@ -511,6 +531,7 @@ fn bump_project_toml() {
 #[test]
 fn bump_project_json() {
     let mut repo = TestRepo::new().with_project_json("1.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: new feature");
@@ -532,6 +553,7 @@ fn bump_project_json() {
 #[test]
 fn bump_project_yaml() {
     let mut repo = TestRepo::new().with_project_yaml("1.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: new feature");
@@ -553,6 +575,7 @@ fn bump_project_yaml() {
 #[test]
 fn bump_project_toml_dry_run() {
     let mut repo = TestRepo::new().with_project_toml("1.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: new feature");
@@ -574,6 +597,7 @@ fn bump_project_toml_dry_run() {
 #[test]
 fn bump_push_failure_exits_nonzero() {
     let mut repo = TestRepo::new().with_cargo_toml("1.0.0");
+    repo.git(&["add", "."]);
     repo.add_commit("chore: init");
     repo.create_tag("v1.0.0");
     repo.add_commit("feat: add feature");

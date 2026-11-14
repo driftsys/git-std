@@ -71,8 +71,15 @@ plan_id="$(git std bump --dry-run --format json | jq -r .plan_id)"
 git std bump --expect-plan "$plan_id" --format json --yes
 ```
 
-`--expect-plan <plan-id>` recomputes the plan before built-in mutation. If any
-bound input changed, apply exits 1 with `GITSTD-BUMP-PLAN-DIVERGED`; it does not
+Mutating bumps first require a clean index and working tree. Staged, unstaged,
+nonignored untracked files and dirty submodules cause exit 1 with
+`GITSTD-BUMP-DIRTY`, including edits to bound manifests, configuration or hooks.
+This admission check precedes plan comparison; dry-run remains available on
+a dirty working tree.
+
+After clean admission, `--expect-plan <plan-id>` recomputes the plan before
+built-in mutation. If any bound input changed, apply exits 1 with
+`GITSTD-BUMP-PLAN-DIVERGED`; it does not
 update version files, changelog, commit, tag, or push. The plan is not stored on
 a server: the ID is a content-derived precondition. It conflicts with
 `--dry-run` because it is meaningful only for apply.
