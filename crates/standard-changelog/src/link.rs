@@ -68,34 +68,46 @@ pub(crate) fn linkify_issue_numbers(text: &str, host: &RepoHost, defs: &mut Link
     result
 }
 
-// Only the delimiter that opened a Markdown URL can close its span.
+// Preserve complete URL spans, including nested schemes and escaped delimiters.
 fn is_inside_url(prefix: &str) -> bool {
-    let token = prefix
+    let mut token = prefix
         .rsplit(char::is_whitespace)
         .next()
         .unwrap_or_default();
-    let Some((scheme_prefix, suffix)) = token.rsplit_once("://") else {
-        return false;
-    };
-    let opening = scheme_prefix
-        .trim_end_matches(|c: char| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
-        .chars()
-        .next_back();
-    match opening {
-        Some('<') => return !suffix.contains('>'),
-        Some('(') => {}
-        _ => return true,
-    }
-    let mut parentheses = 0;
-    for character in suffix.chars() {
-        match character {
-            '(' => parentheses += 1,
-            ')' if parentheses == 0 => return false,
-            ')' => parentheses -= 1,
-            _ => {}
+    while let Some((scheme_prefix, suffix)) = token.split_once("://") {
+        let opening = scheme_prefix
+            .trim_end_matches(|c: char| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+            .chars()
+            .next_back();
+        let end = match opening {
+            Some('<') => suffix.find('>').map(|index| index + 1),
+            Some('[') => suffix.find(']').map(|index| index + 1),
+            Some('(') => {
+                let mut parentheses = 0;
+                let mut is_escaped = false;
+                suffix.char_indices().find_map(|(index, character)| {
+                    if is_escaped {
+                        is_escaped = false;
+                        return None;
+                    }
+                    match character {
+                        '\\' => is_escaped = true,
+                        '(' => parentheses += 1,
+                        ')' if parentheses == 0 => return Some(index + 1),
+                        ')' => parentheses -= 1,
+                        _ => {}
+                    }
+                    None
+                })
+            }
+            _ => return true,
+        };
+        match end {
+            Some(end) => token = &suffix[end..],
+            None => return true,
         }
     }
-    true
+    false
 }
 
 /// Link a single ref value using reference-style links.
@@ -337,6 +349,33 @@ mod boundary_tests {
             let mut defs = Vec::new();
             assert_eq!(linkify_issue_numbers(text, &host, &mut defs), expected);
             assert_eq!(defs.len(), 1);
+        }
+    }
+
+    #[test]
+    fn markdown_url_spans_preserve_nested_and_escaped_content() {
+        let host = RepoHost::GitHub {
+            url: "https://github.com/local/project".into(),
+        };
+        for destination in [
+            "[tracker](https://example.test/path(a)?q=#34)",
+            "[tracker](https://example.test/?redirect=(https://other.test)&issue=#34)",
+            r"[tracker](https://example.test/a\)?q=#34)",
+            r"[tracker](https://example.test/a\(b?q=#34)",
+            "[one](https://example.test),[two](https://other.test?q=#34)",
+            "[https://label.test](https://example.test/?q=#34)",
+        ] {
+            let mut defs = Vec::new();
+            let text = format!("fix {destination},#12");
+            let expected = format!("fix {destination},[#12]");
+            assert_eq!(linkify_issue_numbers(&text, &host, &mut defs), expected);
+            assert_eq!(
+                defs,
+                vec![(
+                    "#12".into(),
+                    "https://github.com/local/project/issues/12".into()
+                )]
+            );
         }
     }
 

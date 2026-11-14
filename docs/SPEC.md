@@ -365,8 +365,10 @@ $ git std lint --range main..HEAD
 ### 2.3 `git std bump`
 
 **Clean-state precondition:** Every mutating bump requires a clean working tree
-and index, including no untracked non-ignored files or dirty submodules. User Git
-settings that hide these changes do not bypass this requirement. Check before
+and index, including no untracked non-ignored files or dirty submodules. The check
+overrides `status.showUntrackedFiles` and submodule-ignore settings. It uses
+Git-reported changes: index flags such as `assume-unchanged` can still hide tracked
+file edits, so clear those flags before relying on this check. Check before
 hooks, version writes, or stable-branch creation. Return exit 1 and the diagnostic
 `GITSTD-BUMP-DIRTY` for dirty input, preserving files, index contents, and refs.
 This applies to `--no-commit` as well. Read-only `--dry-run` accepts dirty input.

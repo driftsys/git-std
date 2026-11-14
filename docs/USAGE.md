@@ -97,6 +97,9 @@ A mutating bump requires a clean working tree and index, including no untracked
 non-ignored files. Commit or remove pending changes first. This also applies to
 `--no-commit`; `--dry-run` remains available on dirty checkouts. Dirty input fails
 before hooks or release writes (`GITSTD-BUMP-DIRTY`, exit 1 in JSON mode).
+The check overrides hidden-untracked and submodule-ignore settings, but Git index
+flags such as `assume-unchanged` can still hide tracked edits. Clear those flags
+before relying on the clean-state check.
 
 Git-std stages its managed version files, synced lock files, and changelog.
 Lifecycle hooks must explicitly stage extra release outputs with `git add` or
