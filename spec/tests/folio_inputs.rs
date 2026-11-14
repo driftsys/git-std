@@ -237,11 +237,17 @@ fn dirty_preview_binds_raw_configuration_and_hook_bytes() {
         assert_eq!(initial.len(), changed.len());
         assert_eq!(
             digest(&before),
-            format!("{:x}", Sha256::digest(initial.as_bytes()))
+            Sha256::digest(initial.as_bytes())
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
         );
         assert_eq!(
             digest(&after),
-            format!("{:x}", Sha256::digest(changed.as_bytes()))
+            Sha256::digest(changed.as_bytes())
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
         );
         assert_ne!(
             digest(&before),
