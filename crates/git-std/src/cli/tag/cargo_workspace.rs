@@ -17,11 +17,14 @@ pub(super) fn check(root: &Path, release_version: &str) -> Result<()> {
         return Ok(());
     };
     let Some(members) = workspace.get("members") else {
-        return Ok(());
+        return check_fallback(root, release_version);
     };
     let members = members
         .as_array()
         .ok_or_else(|| refuse("Cargo workspace members must be an array"))?;
+    if members.is_empty() {
+        return check_fallback(root, release_version);
+    }
     for member in members {
         let pattern = member
             .as_str()
@@ -45,6 +48,15 @@ pub(super) fn check(root: &Path, release_version: &str) -> Result<()> {
             found = true;
         }
         require(found, "missing Cargo workspace member manifest")?;
+    }
+    Ok(())
+}
+
+// Preserve the established non-Cargo authority checks for hybrid workspaces.
+fn check_fallback(root: &Path, release_version: &str) -> Result<()> {
+    for member in crate::config::discover_packages(root) {
+        safe_path(&member.path)?;
+        versions::check(&root.join(member.path), root, release_version, &[])?;
     }
     Ok(())
 }

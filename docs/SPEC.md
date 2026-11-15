@@ -1569,7 +1569,9 @@ is validated against that independent version, not the root release version.
 Its manifest must remain valid, and its other version sources must agree with
 its own version. Inherited versions and publishable members still use the root
 release version. Explicit monorepo release entries and configured custom
-captures remain authoritative even for unpublished members. Dependency pins
+captures remain authoritative even for unpublished members. When Cargo workspace
+members are absent or empty, existing Node, Deno and plain-directory discovery
+still supplies release authorities. Dependency pins
 and generated version
 codes are not independent version authorities. Subject-only authority is
 allowed when no version sources are discovered and none is explicitly required;
