@@ -125,3 +125,38 @@ fn two_step_release_tags_rewritten_merge_commit() {
         assert_eq!(repo.git(&["rev-parse", "HEAD"]), after);
     }
 }
+
+#[test]
+fn prepared_workspace_release_preserves_independent_unpublished_member() {
+    let repo = TestRepo::new();
+    repo.git(&["checkout", "-B", "main"]);
+    repo.write("Cargo.toml", "[workspace]\nmembers=['library','spec']\nresolver='3'\n[workspace.package]\nversion='1.0.0'\n");
+    repo.write(
+        "library/Cargo.toml",
+        "[package]\nname='example-library'\nversion.workspace=true\nedition='2024'\n",
+    );
+    repo.write("library/src/lib.rs", "pub fn example() {}\n");
+    repo.write(
+        "spec/Cargo.toml",
+        "[package]\nname='example-spec'\nversion='0.3.0'\npublish=false\nedition='2024'\n",
+    );
+    repo.write("spec/src/lib.rs", "pub fn example() {}\n");
+    repo.git(&["add", "."]);
+    repo.git(&["commit", "-m", "chore: initialize"]);
+    repo.create_tag("v1.0.0");
+    repo.write("feature.txt", "change\n");
+    repo.git(&["add", "."]);
+    repo.git(&["commit", "-m", "fix: change"]);
+    for args in [vec!["bump", "--no-tag", "--yes"], vec!["tag", "HEAD"]] {
+        let out = Command::new(TestRepo::bin_path())
+            .current_dir(repo.path())
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{out:?}");
+    }
+    let release = repo.git(&["rev-parse", "HEAD"]);
+    assert_eq!(repo.git(&["rev-parse", "v1.0.1^{commit}"]), release);
+    assert!(repo.read("spec/Cargo.toml").contains("version='0.3.0'"));
+    assert_eq!(repo.git(&["status", "--porcelain"]), "");
+}
