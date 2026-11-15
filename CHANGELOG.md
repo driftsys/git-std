@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.1] (2026-11-15)
+
+### Bug Fixes
+
+- **release:** collect man pages from Cargo build metadata ([#598]) ([f477c99]),
+  closes [#597]
+
+[0.12.1]: https://github.com/driftsys/git-std/compare/v0.12.0...v0.12.1
+[f477c99]: https://github.com/driftsys/git-std/commit/f477c99
+[#598]: https://github.com/driftsys/git-std/issues/598
+[#597]: https://github.com/driftsys/git-std/issues/597
+
 ## [0.12.0] (2026-11-15)
 
 ### Features
