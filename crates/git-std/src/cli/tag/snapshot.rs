@@ -125,6 +125,7 @@ fn patterns(
     for config in configs {
         safe_path(&config.path)?;
         for expanded in crate::config::expand_braces(&config.path) {
+            safe_path(&expanded)?;
             let path = if prefix.is_empty() {
                 expanded
             } else {

@@ -18,9 +18,12 @@ fn validate(table: &toml::Table, kind: &str, diagnostics: &mut Vec<String>) -> R
             (_, "scheme") => value
                 .as_str()
                 .is_some_and(|v| matches!(v, "semver" | "calver" | "patch")),
-            ("root", "types" | "refs_required") | ("changelog", "sections" | "hidden") => value
+            ("root", "types" | "refs_required") | ("changelog", "hidden") => value
                 .as_array()
                 .is_some_and(|a| a.iter().all(toml::Value::is_str)),
+            ("changelog", "sections") => value
+                .as_table()
+                .is_some_and(|t| t.values().all(toml::Value::is_str)),
             ("root", "scopes") => {
                 value.as_str() == Some("auto")
                     || value

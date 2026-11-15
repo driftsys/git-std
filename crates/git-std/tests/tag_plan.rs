@@ -8,16 +8,41 @@ fn historical_configuration_and_dirty_checkout_are_isolated() {
         "chore(release): 1.2.3 (#12)",
     );
     let oid = git(r.path(), &["rev-parse", "HEAD"]);
-    std::fs::write(r.path().join("VERSION"), "9.0.0").unwrap();
-    git(r.path(), &["add", "VERSION"]);
-    let before = git(r.path(), &["write-tree"]);
-    let v = ok(tag(r.path(), &[&oid, "--dry-run", "--format", "json"]));
-    assert_eq!(v["tags"][0]["name"], "release-1.2.3");
-    assert_eq!(git(r.path(), &["write-tree"]), before);
-    assert_eq!(
-        std::fs::read_to_string(r.path().join("VERSION")).unwrap(),
-        "9.0.0"
+    std::fs::write(
+        r.path().join(".git-std.toml"),
+        "release_branch='other'\n[versioning]\ntag_prefix='current-'",
+    )
+    .unwrap();
+    git(r.path(), &["add", "."]);
+    git(
+        r.path(),
+        &["commit", "-m", "chore: change release configuration"],
     );
+    for current in [
+        "release_branch='other'\n[versioning]\ntag_prefix='dirty-'",
+        "invalid = [",
+    ] {
+        std::fs::write(r.path().join(".git-std.toml"), current).unwrap();
+        std::fs::write(r.path().join("VERSION"), "9.0.0").unwrap();
+        git(r.path(), &["add", "VERSION"]);
+        let before = git(r.path(), &["write-tree"]);
+        let status = git(r.path(), &["status", "--porcelain"]);
+        let v = ok(tag(r.path(), &[&oid, "--dry-run", "--format", "json"]));
+        assert_eq!(v["tags"][0]["name"], "release-1.2.3");
+        assert_eq!(v["release_branch"], "main");
+        ok(tag(r.path(), &[&oid]));
+        assert_eq!(git(r.path(), &["rev-parse", "release-1.2.3^{}"]), oid);
+        assert_eq!(git(r.path(), &["write-tree"]), before);
+        assert_eq!(git(r.path(), &["status", "--porcelain"]), status);
+        assert_eq!(
+            std::fs::read_to_string(r.path().join(".git-std.toml")).unwrap(),
+            current
+        );
+        assert_eq!(
+            std::fs::read_to_string(r.path().join("VERSION")).unwrap(),
+            "9.0.0"
+        );
+    }
 }
 #[test]
 fn bad_identity_versions_configuration_and_sources_refuse_without_refs() {
@@ -159,4 +184,29 @@ fn quoted_commented_cargo_version_is_manifest_authority() {
     git(r.path(), &["commit", "-m", "chore(release): 1.2.3"]);
     let value = ok(tag(r.path(), &["HEAD", "--dry-run", "--format", "json"]));
     assert_eq!(value["tags"][0]["version_basis"], "manifest");
+}
+
+#[test]
+fn matching_source_and_subject_still_require_valid_scheme_version() {
+    for (config, version) in [
+        ("", "banana"),
+        (
+            "scheme='calver'\n[versioning]\ncalver_format='YYYY.0M.PATCH'",
+            "banana",
+        ),
+        (
+            "scheme='calver'\n[versioning]\ncalver_format='YYYY.0M.PATCH'",
+            "2026.13.1",
+        ),
+    ] {
+        let r = repo(config, version, &format!("chore(release): {version}"));
+        let refs = git(r.path(), &["show-ref"]);
+        let out = tag(r.path(), &["HEAD"]);
+        assert_eq!(out.status.code(), Some(1), "{out:?}");
+        assert!(
+            String::from_utf8_lossy(&out.stderr).contains("invalid release version"),
+            "{out:?}"
+        );
+        assert_eq!(git(r.path(), &["show-ref"]), refs);
+    }
 }

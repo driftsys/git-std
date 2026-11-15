@@ -1570,6 +1570,13 @@ the result reports that basis. A missing configured source, malformed manifest,
 wrong version type, unreadable version or mismatch refuses the plan. A changelog
 is not required because bump supports `--skip-changelog`.
 
+Manifest validation parses TOML, JSON, JSONC and YAML structurally. `package.json`
+requires JSON; `project.json`, `deno.json` and `deno.jsonc` also accept comments
+and trailing commas. YAML versions in `pubspec.yaml`, `project.yaml` and
+`project.yml` must be strings; a pubspec build suffix is excluded from the release
+version comparison. Valid manifests without a version may use subject-only
+authority. Invalid syntax or a non-string version cannot use that fallback.
+
 Branch selection uses `--branch`, then the target configuration's
 `release_branch`, then an existing main or master in that order. Local-only
 operations require ancestry in a local release branch. Publication requires
@@ -1580,7 +1587,8 @@ support is checked rather than inferred from a version number.
 
 Only regular tracked configuration, manifest, discovery and custom version files
 are materialized in an owned temporary directory. Paths must remain inside that
-snapshot, including workspace-member paths. Symlink sources, case collisions,
+snapshot, including workspace-member paths and every brace-expanded custom
+source alternative. Symlink sources, case collisions,
 external paths and LFS pointer versions are refused. Snapshot inspection runs no
 hooks, filters, submodules or build tools. Malformed configuration is refused;
 unknown keys are warnings for compatibility with the existing configuration

@@ -29,6 +29,9 @@ pub(super) fn check(
     let mut custom = Vec::new();
     for config in configs {
         safe_path(&config.path)?;
+        for expanded in crate::config::expand_braces(&config.path) {
+            safe_path(&expanded)?;
+        }
         let resolved =
             crate::config::resolve_custom_version_files(root, std::slice::from_ref(config));
         require(
@@ -36,9 +39,20 @@ pub(super) fn check(
             format!("missing version source: {}", config.path),
         )?;
         for source in resolved {
+            safe_path(
+                source
+                    .path
+                    .to_str()
+                    .ok_or_else(|| refuse("non-UTF-8 version source"))?,
+            )?;
+            let path = root.join(&source.path);
             require(
                 root.join(&source.path).is_file(),
                 format!("missing version source: {}", source.path.display()),
+            )?;
+            require(
+                path.canonicalize()?.starts_with(root.canonicalize()?),
+                "version source escapes release snapshot",
             )?;
             let engine = standard_version::RegexVersionFile::new(&source)
                 .map_err(|e| refuse(e.to_string()))?;
