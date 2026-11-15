@@ -30,6 +30,7 @@ test-install:
 
 # Verify release packaging, metadata, and tamper rejection locally
 test-release:
+    python3 spec/release/man_pages_test.py
     bash tools/bash_unit spec/release/release_test.sh
 
 # Assemble + check

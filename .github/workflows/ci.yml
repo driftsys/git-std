@@ -75,6 +75,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - run: bash tools/bash_unit spec/install/install_test.sh
+      - name: Test release man-page collection
+        run: python3 spec/release/man_pages_test.py
 
   changes:
     name: Detect install/release changes
@@ -94,6 +96,7 @@ jobs:
               - 'bootstrap'
               - 'crates/git-std/src/cli/init/**'
               - 'spec/install/**'
+              - 'spec/release/**'
               - 'scripts/release/**'
               - '.github/workflows/ci.yml'
               - '.github/workflows/release.yml'

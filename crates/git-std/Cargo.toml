@@ -7,7 +7,6 @@ license.workspace = true
 readme = "README.md"
 repository.workspace = true
 documentation = "https://driftsys.github.io/git-std/"
-homepage = "https://github.com/driftsys/git-std"
 keywords = ["git", "conventional-commits", "hooks", "versioning", "changelog"]
 categories = ["command-line-utilities", "development-tools"]
 
