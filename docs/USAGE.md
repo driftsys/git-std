@@ -471,3 +471,26 @@ prints a hint after command output when an update is available.
 - Opt-out: `GIT_STD_NO_UPDATE_CHECK=1`.
 
 [conv-commits]: https://www.conventionalcommits.org/en/v1.0.0/
+
+## `git std tag`
+
+Tag an existing release commit without another bump. The explicit `<commit>`
+argument identifies a release reachable from the configured release branch.
+
+| Option                  | Purpose                                       |
+| ----------------------- | --------------------------------------------- |
+| `--dry-run`             | Validate the exact plan without creating refs |
+| `--branch <name>`       | Override the release branch                   |
+| `--package <name>`      | Select a released package; repeat for several |
+| `--sign`                | Create signed annotated tags                  |
+| `--push <remote>`       | Publish only the planned tags atomically      |
+| `--format <text\|json>` | Select human or versioned machine output      |
+
+The command reads configuration and versions from the target commit and leaves
+HEAD, the index and working files unchanged. It reuses matching annotated tags,
+refuses conflicts, and reports partial or uncertain outcomes without rollback.
+With `--push`, it verifies remote branch reachability and exact remote tag objects.
+
+See [release workflows](releases.md) for preflight requirements, both release
+processes, retry behavior and limitations. See [CLI contracts](CLI-CONTRACTS.md)
+for structured results and exit semantics.

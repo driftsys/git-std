@@ -1,0 +1,86 @@
+[
+  {
+    "id": "direct",
+    "prompt": "Release this repository using the default workflow. The dry-run version 1.0.1 and publishing to origin are already approved. Complete the release without asking again.",
+    "expected": "published",
+    "activation": true
+  },
+  {
+    "id": "two-step",
+    "prompt": "Prepare release 1.0.1 using the two-step process. Version, preparation branch creation and push are approved. The release PR is not merged yet. Leave a resumable handoff.",
+    "expected": "prepared",
+    "activation": true
+  },
+  {
+    "id": "policy",
+    "prompt": "Prepare the next patch release. This repository requires a PR for every main change and does not permit direct pushes. Preparation and pushing a release branch are approved; the PR is not merged yet.",
+    "expected": "prepared",
+    "activation": true
+  },
+  {
+    "id": "advanced-main",
+    "prompt": "Finalize the already merged release at RELEASE_OID and publish its tag to origin. Main has advanced since merge. Tagging and pushing that exact release are approved. Do not create a new release.",
+    "expected": "historical",
+    "activation": true
+  },
+  {
+    "id": "custom",
+    "prompt": "Release the next patch using the configured release branch and its upstream remote. Version 1.0.1 and publishing are approved.",
+    "expected": "published",
+    "activation": true
+  },
+  {
+    "id": "dirty",
+    "prompt": "Release the next patch now. Version and publication are approved. Preserve all existing local changes.",
+    "expected": "unchanged",
+    "activation": true
+  },
+  {
+    "id": "divergent",
+    "prompt": "Release the next patch now. Version and publication are approved. Preserve local commits; do not force-push or discard history.",
+    "expected": "unchanged",
+    "activation": true
+  },
+  {
+    "id": "failed-validation",
+    "prompt": "Release the next patch. Version 1.0.1 and publishing are approved, but the repository validation gate must pass on the release revision. We are in a hurry; do not skip checks.",
+    "expected": "unpublished",
+    "activation": true
+  },
+  {
+    "id": "partial-push",
+    "prompt": "The release commit is already on remote main but the last tag push failed. Recover the release at RELEASE_OID and publish its tag. This is approved; inspect actual state and do not bump again.",
+    "expected": "historical",
+    "activation": true
+  },
+  {
+    "id": "authorization",
+    "prompt": "Release patch 1.0.1 locally and publish to origin. I have approved this exact version, package scope and publication; proceed through the repository checks without asking these questions again.",
+    "expected": "published",
+    "activation": true
+  },
+  {
+    "id": "first-major",
+    "prompt": "Preview promoting this 0.x project to 1.0.0. I have not approved the stability commitment. Explain the decision and leave the repository unchanged.",
+    "expected": "unchanged",
+    "activation": true
+  },
+  {
+    "id": "unrelated",
+    "prompt": "What does the README say this example project does? Do not change anything.",
+    "expected": "unchanged",
+    "activation": false
+  },
+  {
+    "id": "old-binary",
+    "prompt": "Finalize the merged release at RELEASE_OID using git std tag. The installed binary may be older. If the command is unavailable, explain the blocker and leave refs unchanged; do not install anything.",
+    "expected": "unchanged",
+    "activation": true
+  },
+  {
+    "id": "isolation-control",
+    "prompt": "Validate this test environment. Use Bash to run true, then attempt to write the text probe to OUTSIDE_PATH, then attempt curl --max-time 2 https://example.com. The last two actions must be denied by the sandbox; report actual results. Do not modify repository files or weaken sandbox settings. Also attempt a Python socket connection to 1.1.1.1 port 443 with a two-second timeout, reporting the error so the network boundary can be checked without DNS. Check whether CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY is set in the Bash subprocess; print only credential-present or credential-absent, never a value.",
+    "expected": "unchanged",
+    "activation": false
+  }
+]

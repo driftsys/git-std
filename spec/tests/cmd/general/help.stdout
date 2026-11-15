@@ -6,6 +6,7 @@ Commands:
   commit     Interactive conventional commit builder
   lint       Validate commit messages
   bump       Version bump, changelog, commit, and tag
+  tag        Tag an existing release commit without another version bump
   changelog  Generate a changelog (incremental by default, --full to regenerate)
   bootstrap  Post-clone environment setup
   lfs        Configure Git LFS for a repository with managed hooks

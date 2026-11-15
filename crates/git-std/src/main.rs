@@ -258,6 +258,23 @@ fn main() {
             };
             cli::bump::run(&project_config, &opts)
         }
+        Command::Tag {
+            commit,
+            dry_run,
+            packages,
+            branch,
+            sign,
+            push,
+            format,
+        } => cli::tag::run(&cli::tag::TagOptions {
+            commit,
+            dry_run,
+            packages,
+            branch,
+            sign,
+            push,
+            format,
+        }),
         Command::Init { force, refresh } => cli::init::run(force, refresh),
         Command::Bootstrap { dry_run } => cli::bootstrap::run(dry_run),
         Command::Lfs { subcommand } => match subcommand {

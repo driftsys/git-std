@@ -10,8 +10,9 @@ mod workspace;
 
 pub use load::load;
 pub(crate) use load::load_with_raw;
+pub(crate) use load::parse_config;
 pub use scope_hint::{meta_scope_suggested, unmatched_scope_dir};
-pub(crate) use version_files::resolve_custom_version_files;
+pub(crate) use version_files::{expand_braces, resolve_custom_version_files};
 pub(crate) use workspace::discover_packages;
 
 #[cfg(test)]

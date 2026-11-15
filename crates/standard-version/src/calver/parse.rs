@@ -191,3 +191,58 @@ mod tests {
         assert!(matches!(err, CalverError::UnknownToken(_)));
     }
 }
+
+/// Check whether a version uses the configured calver tokens and numeric ranges.
+///
+/// Returns a format error when the format itself is invalid.
+pub fn version_matches(format: &str, version: &str) -> Result<bool, CalverError> {
+    let tokens = parse_format(format)?;
+    let mut positions = std::collections::BTreeSet::from([0]);
+    for token in tokens {
+        let mut next = std::collections::BTreeSet::new();
+        for start in positions {
+            let remaining = &version[start..];
+            if let Token::Separator(separator) = &token {
+                if remaining.starts_with(separator) {
+                    next.insert(start + separator.len());
+                }
+                continue;
+            }
+            let digits = remaining.bytes().take_while(u8::is_ascii_digit).count();
+            // Keep all valid boundaries: format tokens need not have separators.
+            for width in 1..=digits.min(20) {
+                let Ok(number) = remaining[..width].parse::<u64>() else {
+                    continue;
+                };
+                let valid = match token {
+                    Token::FullYear => width == 4 && number > 0,
+                    Token::ShortYear => width <= 2 && number <= 99,
+                    Token::ZeroPaddedMonth => width == 2 && (1..=12).contains(&number),
+                    Token::Month => width <= 2 && (1..=12).contains(&number),
+                    Token::IsoWeek => width <= 2 && (1..=53).contains(&number),
+                    Token::Day => width <= 2 && (1..=31).contains(&number),
+                    Token::Patch => true,
+                    Token::Separator(_) => unreachable!(),
+                };
+                if valid {
+                    next.insert(start + width);
+                }
+            }
+        }
+        positions = next;
+    }
+    Ok(positions.contains(&version.len()))
+}
+
+#[cfg(test)]
+mod version_validation_tests {
+    #[test]
+    fn validates_version_against_configured_calver_tokens() {
+        assert!(super::version_matches("YYYY.0M.PATCH", "2026.03.12").unwrap());
+        assert!(!super::version_matches("YYYY.0M.PATCH", "2026.3.12").unwrap());
+        assert!(!super::version_matches("YYYY.MM.PATCH", "2026.13.0").unwrap());
+        assert!(!super::version_matches("YYYY.MM.PATCH", "2026.3.bad").unwrap());
+        assert!(super::version_matches("YY.WW.PATCH", "26.12.4").unwrap());
+        assert!(super::version_matches("YYYY0M.PATCH", "202603.12").unwrap());
+    }
+}

@@ -1,114 +1,105 @@
 ---
 name: std-bump
-description: Bump the project version using git std — use when asked to "bump", "release", "cut a release", or "tag a version".
+description: Use when asked to bump a version, cut or prepare a release, tag an existing release, or recover interrupted release publication with git std.
 ---
 
-## Workflow
+# Release with git std
 
-**Step 1: Verify git std is installed**
+Preserve the release identity: every published tag must point to the intended
+release commit in the configured release branch's history. Prefer a combined
+bump and tag. Use preparation followed by tagging when requested or required by
+repository policy. Never bump again to recover an existing release.
 
-- Run `git std --version`
-- If it fails:
-  - If `./bootstrap` exists at repo root: ask "git std is not installed. Run
-    `./bootstrap` to install it?"
-  - Otherwise: ask "git std is not installed. Install it now?"
-  - If user declines, stop.
+## Establish context and authorization
 
-**Step 2: Get project context**
+1. Read repository instructions, release documentation and `.git-std.toml`.
+   Inspect `git std --version`, `git std --context` and relevant command help.
+   If unavailable or not bootstrapped, explain the blocker. Ask before installing.
+   An older binary without `git std tag` needs an approved upgrade; do not silently
+   substitute a manual tagging workflow.
+2. Resolve the repository root with Git. Discover the configured release branch,
+   upstream and publication remote. Do not hard-code `main`, `master` or `origin`.
+   For publication require one identical effective fetch/push URL, no mirror
+   remote, and explicit selected refs. Inspect current remote state.
+3. Preserve dirty, untracked and staged work. Before a new bump, require a clean
+   release base synchronized in both directions with the remote. Stop on
+   divergence; do not reset, stash, force-push or discard work to make it pass.
+   If the caller's checkout is dirty, stop this new-release request before any
+   bump, branch change or publication. Do not clone or create a clean worktree
+   to work around this admission failure. Ask the user to resolve it first.
+   Respect branches owned by other worktrees.
+4. Reuse decisions already authorized in this session: workflow, version, package
+   scope, signing and publication. Ask only for missing decisions. General
+   release approval does not authorize bypassing branch protection. A requested
+   preview authorizes no mutation. Promotion from 0.x to 1.0 requires an explicit
+   stability commitment before adding `--first-major-release`.
 
-- Run `git std --context`
-- If output shows `Not bootstrapped`, print and stop.
-- Extract:
-  - **Stable status**: Is `Stable: true` or `Stable: false`?
-  - **Current branch**: Which branch are we on?
-  - **Scheme**: What versioning scheme (semver, calver, etc.)?
-  - **Tag prefix**: What's the tag prefix (v, release-, etc.)?
+## Plan a new release
 
-**Step 3: Ensure on release branch**
+Run `git std bump --dry-run --format json` with the intended version and package
+options. Read the planned version, files, tags and warnings. Keep the complete
+package/version list for a multi-package release. Do not force a bump when no
+bump-worthy commits exist without approval. Select `--first-release`,
+`--prerelease`, `--release-as` or package flags only when warranted.
 
-- If `Stable: true` (already on release branch):
-  - Proceed to Step 4
-- If `Stable: false` (not on release branch):
-  - Ask: "You need to be on the release branch (main/master) to bump. Switch to
-    main and pull latest?"
-  - If user says "No": stop — do not bump outside release branch
-  - If user says "Yes":
-    - Run `git checkout main`
-    - Run `git fetch origin`
-    - Run `git pull origin main`
-    - Re-run `git std --context` (get updated context)
-    - Show `git log --oneline -5`
+Show the concrete plan. Existing approval for that exact scope is sufficient;
+ask if the plan changes it. Where supported, bind apply with `--expect-plan`
+using the returned `plan_id`; keep preview and apply options consistent.
 
-**Step 4: Check for sync issues**
+## Preferred: combined bump and tag
 
-- Run `git rev-list HEAD..origin/main --count`
-- If count > 0 (we're behind):
-  - Ask: "⚠ Local branch is behind origin. Pull first?"
-  - If "Yes": run `git pull origin main`
-  - If "No": ask "Continue bumping anyway?" (confirm user knows)
-- If count = 0: proceed
+Use this when direct release commits on the release branch are permitted.
 
-**Step 5: Identify bump type**
+1. Run `git std bump` locally with the approved options. Do not use `--push` yet.
+2. Record the generated release OID and exact annotated tag names and objects.
+   Run the repository's required checks on this generated revision. Checks run
+   before the bump do not validate its manifest, lockfile and changelog changes.
+3. If checks fail, stop publication and report local state. Do not bypass checks
+   or amend a tagged release silently.
+4. When publication is authorized and checks pass, push the release branch and
+   only the selected tags together with `git push --atomic --no-follow-tags
+   --recurse-submodules=no <remote> <explicit-branch-refspec>
+   <explicit-tag-refspec>...`. Refuse an unsupported atomic push; do not fall back
+   to sequential pushes. Never use `--tags`, `--follow-tags` or force.
+5. Read back the remote branch and tag objects; verify each tag's peeled commit
+   belongs to that branch. A push exit alone is not final verification.
 
-Ask user: "What type of bump?" with options:
+## Supported: prepare, then tag after merge
 
-- `--prerelease` (alpha, beta, rc releases)
-- Regular release (standard semantic version bump)
-- `--first-release` (if no tags exist yet)
+Use this for release PR policy or an explicitly requested two-step process.
 
-**Step 6: Select packages (if multi-package workspace)**
+1. Create an isolated preparation branch from the synchronized release base.
+   Preview and apply `git std bump --no-tag` with the approved options and
+   `--yes` to acknowledge preparation off the release branch. Do not use
+   `--no-commit`: the generated release commit is the handoff identity.
+2. Check the generated revision. Push only the preparation branch explicitly
+   when authorized; `--no-tag --push` does not push it. Create the release PR
+   where a forge is available. Preserve the generated `chore(release): ...`
+   subject and full version list as the PR's merge identity.
+3. If unmerged, stop with branch, preparation OID, planned tags, PR status and
+   checks recorded. Do not tag the preparation commit early.
+4. After merge, obtain the resulting release OID from authoritative merge
+   evidence. Squash/rebase can rewrite it. Fetch it; never substitute current
+   HEAD just because main has advanced. Validate that exact merged revision in
+   an isolated checkout, preserving the caller's checkout and local work.
+5. Inspect `git std tag <merged-release-OID> --dry-run --push <remote>` with the
+   approved package/signing options. Then apply the same command without
+   `--dry-run`. Omit `--push` for an authorized local-only tag. This command
+   reads historical configuration and versions, checks branch membership,
+   creates or reuses annotated tags, and pushes only those tags atomically.
 
-- Run `git std bump --dry-run` to determine available packages
-- If workspace has multiple packages:
-  - Ask: "Which packages to bump?" with options:
-    - "All packages"
-    - Each package name individually (multi-select)
-  - If individual: collect list of selected package names
-- If single package workspace: skip this step
+## Recover and report
 
-**Step 7: Show dry-run and get approval**
+On any interrupted or rejected publication, inspect local and remote branch,
+annotated tag object and peeled commit identities before deciding what remains.
+If the release commit is already on the remote release branch, retry
+`git std tag <release-OID> --push <remote>` after its dry-run and required checks.
+Do not run another bump. Matching existing tags are reused; a remote-only tag
+can be adopted. Conflicting objects or targets require explicit reconciliation;
+do not delete, retag, overwrite or force them. Exit 2 may mean partial local
+creation or uncertain remote acceptance, not that nothing happened.
 
-- Run `git std bump --dry-run` with all flags determined so far
-- Display the **full dry-run output** to user
-- If the output shows **"no bump-worthy commits found"**:
-  - Only `feat`/`fix`/`perf`/`revert`/breaking changes trigger a bump —
-    `docs`/`style`/`refactor`/`test`/`chore`/`ci`/`build` never do (matches
-    the Conventional Commits spec; not configurable).
-  - Ask: "No bump-worthy commits since the last tag. Force a release anyway
-    (e.g. for a docs-only change)?" with options:
-    - "No, don't bump" (stop here)
-    - "Yes, force patch" → add `--release-as patch`
-    - "Yes, force minor" → add `--release-as minor`
-    - "Yes, force major" → add `--release-as major`
-  - Re-run `git std bump --dry-run` with the chosen `--release-as` flag and
-    show the updated plan
-- If the command instead exits non-zero with a message mentioning
-  `--first-major-release` (the dry-run plan would promote the project from
-  `0.x` to `1.0.0`):
-  - This is a deliberate API-stability commitment, not a routine bump. Ask
-    the user explicitly: "This bump would promote the project from 0.x to
-    1.0.0 — a stability commitment for the public API. What's changed that
-    justifies declaring 1.0 now? Should we proceed, or hold in 0.x for now?"
-  - If the user confirms: add `--first-major-release` and re-run
-    `git std bump --dry-run` to show the updated plan
-  - If the user is unsure or declines: stop here — do not add the flag
-- Otherwise, show what will be bumped, new versions, and tags that will be created
-- Ask: "Proceed with this version bump?" (Yes/No)
-- **Do not proceed without explicit approval**
-
-**Step 8: Confirm push strategy**
-
-- Ask: "Push commit and tags to origin after bumping?" (Yes/No)
-- Note: If "No", user must push manually later
-
-**Step 9: Execute the bump**
-
-- Run `git std bump` with all confirmed flags:
-  - `--prerelease` if user selected prerelease
-  - `--first-release` if applicable
-  - `--release-as <level>` if the user chose to force a bump in Step 7
-  - `--first-major-release` if the user confirmed the 0.x → 1.0 promotion in Step 7
-  - `--package <name>` for each selected package
-  - `--push` if user confirmed push in Step 8
-- Display the result (commit hash, new version, tags created)
-- Show `git log --oneline -3` to confirm
+Report separately: local release commit, local tags, remote branch, published
+tags, exact revision checked and check results, and remaining work. Only claim
+hosted CI or package publication when independently observed. Include a resumable
+handoff for pending PRs, failed checks or incomplete publication.

@@ -21,6 +21,8 @@ clap = { version = "4.6.0", features = ["derive"] }
 clap_complete = "4"
 glob = "0.3.3"
 inquire = "0.9"
+jsonc-parser = { version = "0.34", features = ["serde"] }
+yaml-rust2 = { version = "0.13", default-features = false }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -29,6 +31,7 @@ standard-changelog.workspace = true
 standard-commit.workspace = true
 standard-githooks.workspace = true
 standard-version.workspace = true
+tempfile = "3"
 toml = "1.1"
 yansi = "1"
 

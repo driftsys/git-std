@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://driftsys.github.io/git-std/schemas/v1/cli/tag.schema.json",
+  "title": "git std tag JSON",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool_version",
+    "status",
+    "exit_code",
+    "diagnostics"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "tool_version": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "success",
+        "error"
+      ]
+    },
+    "exit_code": {
+      "enum": [
+        0,
+        1,
+        2
+      ]
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "target_oid": {
+      "type": "string"
+    },
+    "release_branch": {
+      "type": "string"
+    },
+    "remote": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "version_basis",
+          "oid",
+          "local",
+          "remote",
+          "action",
+          "signature"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "version_basis": {
+            "enum": [
+              "manifest",
+              "release_subject"
+            ]
+          },
+          "oid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "local": {
+            "enum": [
+              "missing",
+              "existing",
+              "adopted",
+              "created",
+              "conflict"
+            ]
+          },
+          "remote": {
+            "enum": [
+              "not_checked",
+              "missing",
+              "existing",
+              "pushed",
+              "conflict",
+              "unknown"
+            ]
+          },
+          "action": {
+            "enum": [
+              "create",
+              "adopt",
+              "none"
+            ]
+          },
+          "signature": {
+            "enum": [
+              "unsigned",
+              "verified",
+              "unverified",
+              "invalid"
+            ]
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "warning",
+              "error"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "dry_run",
+          "target_oid",
+          "release_branch",
+          "remote",
+          "tags"
+        ],
+        "properties": {
+          "exit_code": {
+            "const": 0
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "exit_code": {
+            "enum": [
+              1,
+              2
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

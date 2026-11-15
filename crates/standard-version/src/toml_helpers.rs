@@ -49,8 +49,8 @@ pub fn read_version_in_section(content: &str, section: &str) -> Option<String> {
             && let Some(eq_pos) = trimmed.find('=')
         {
             let value = trimmed[eq_pos + 1..].trim();
-            let version = value.trim_matches('"');
-            return Some(version.to_string());
+            let table = format!("version = {value}").parse::<toml::Table>().ok()?;
+            return table.get("version")?.as_str().map(str::to_owned);
         }
     }
     None
