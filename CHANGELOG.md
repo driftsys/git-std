@@ -9,6 +9,9 @@
 
 ### Bug Fixes
 
+- **release:** validate independent unpublished Cargo members against their own
+  versions when tagging workspace releases ([#595]).
+
 - **standard-changelog:** bound references and deduplicate breaking notes
   ([bfc7a0e]), closes [#587]
 - **git-std:** include hook-staged release outputs ([198518a]), closes [#583]
@@ -20,6 +23,7 @@
 [0.12.0]: https://github.com/driftsys/git-std/compare/v0.11.19...v0.12.0
 [fa34e9a]: https://github.com/driftsys/git-std/commit/fa34e9a
 [#593]: https://github.com/driftsys/git-std/issues/593
+[#595]: https://github.com/driftsys/git-std/issues/595
 [#592]: https://github.com/driftsys/git-std/issues/592
 [bfc7a0e]: https://github.com/driftsys/git-std/commit/bfc7a0e
 [#587]: https://github.com/driftsys/git-std/issues/587

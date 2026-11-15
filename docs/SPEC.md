@@ -1563,7 +1563,14 @@ or calver scheme. Duplicate entries and unknown release packages are refused.
 
 Every discovered authoritative version source and every explicitly configured
 custom capture must agree with the release entry. Cargo workspace inheritance
-is resolved inside the target snapshot. Dependency pins and generated version
+is resolved inside the target snapshot. For a non-monorepo Cargo workspace,
+an explicitly unpublished member (`publish = false`) with its own string version
+is validated against that independent version, not the root release version.
+Its manifest must remain valid, and its other version sources must agree with
+its own version. Inherited versions and publishable members still use the root
+release version. Explicit monorepo release entries and configured custom
+captures remain authoritative even for unpublished members. Dependency pins
+and generated version
 codes are not independent version authorities. Subject-only authority is
 allowed when no version sources are discovered and none is explicitly required;
 the result reports that basis. A missing configured source, malformed manifest,

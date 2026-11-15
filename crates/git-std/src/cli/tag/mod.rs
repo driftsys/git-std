@@ -1,3 +1,4 @@
+mod cargo_workspace;
 mod configuration;
 mod identity;
 mod manifests;

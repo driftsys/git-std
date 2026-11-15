@@ -3,8 +3,8 @@ use super::{
     types::{PlannedTag, TagOptions, TagPlan, refuse, require},
     versions,
 };
-use crate::{config, git::release_refs as git};
-use anyhow::{Context, Result};
+use crate::git::release_refs as git;
+use anyhow::Result;
 use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
@@ -152,22 +152,8 @@ pub(super) fn build(root: &Path, options: &TagOptions, plan: &mut TagPlan) -> Re
         };
         versions::validate_version(&config, scheme, &version)?;
         let basis = versions::check(&directory, snapshot.path(), &version, custom)?;
-        if !config.monorepo && snapshot.path().join("Cargo.toml").exists() {
-            let source = std::fs::read_to_string(snapshot.path().join("Cargo.toml"))?;
-            let table = source
-                .parse::<toml::Table>()
-                .context("invalid Cargo manifest")?;
-            if table.contains_key("workspace") {
-                for member in config::discover_packages(snapshot.path()) {
-                    snapshot::safe_path(&member.path)?;
-                    versions::check(
-                        &snapshot.path().join(member.path),
-                        snapshot.path(),
-                        &version,
-                        &[],
-                    )?;
-                }
-            }
+        if !config.monorepo {
+            super::cargo_workspace::check(snapshot.path(), &version)?;
         }
         require(names.insert(name.clone()), "release tag names collide")?;
         require(
