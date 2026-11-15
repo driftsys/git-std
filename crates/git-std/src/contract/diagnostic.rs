@@ -16,6 +16,16 @@ pub struct DiagnosticDefinition {
 /// Operational and precondition diagnostics emitted by versioned CLI contracts.
 pub const DIAGNOSTIC_DEFINITIONS: &[DiagnosticDefinition] = &[
     DiagnosticDefinition {
+        code: "GITSTD-TAG-REFUSED",
+        class: "precondition",
+        explanation: "The existing release cannot be tagged under the requested policy.",
+    },
+    DiagnosticDefinition {
+        code: "GITSTD-TAG-NOTE",
+        class: "finding",
+        explanation: "Release tag inspection found configuration or signature information.",
+    },
+    DiagnosticDefinition {
         code: "GITSTD-INVALID-ARGUMENT",
         class: "operational",
         explanation: "A command argument could not be parsed or is unsupported.",

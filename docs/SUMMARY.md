@@ -9,3 +9,5 @@
 - [Configuration](CONFIG.md)
 - [Skills](skills.md)
 - [API Reference](REFERENCE.md)
+
+- [Release workflows](releases.md)

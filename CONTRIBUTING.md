@@ -102,3 +102,9 @@ Follow the "Clean Code" naming rules:
 - Avoid encodings and prefixes.
 - Class/struct names should be nouns; function names should be verbs.
 - Pick one word per concept and stick with it.
+
+## Releases
+
+Follow [release workflows](docs/releases.md). Ordinary development uses reviewed
+PRs; release operations follow the configured branch policy and the chosen
+combined or two-step process. Agent guidance is authored in `skills/std-bump/`.

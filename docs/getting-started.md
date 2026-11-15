@@ -107,3 +107,9 @@ next version, updates version files, generates the
 changelog, creates a release commit, and tags it.
 
 Use `--dry-run` to preview without writing anything.
+
+## Release management
+
+See [release workflows](releases.md) for the preferred combined commit-and-tag
+process and the supported prepare-then-tag process. Agents use `std-bump` for
+both release preparation and finalizing an already merged release.

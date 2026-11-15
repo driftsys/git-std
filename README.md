@@ -135,3 +135,6 @@ gh api --method POST repos/OWNER/REPO/rulesets \
 ## Post-clone setup
 
 Run `./bootstrap` after `git clone` or `git worktree add`.
+
+See [release workflows](docs/releases.md) for combined commit-and-tag releases
+and the supported two-step preparation and post-merge tagging process.

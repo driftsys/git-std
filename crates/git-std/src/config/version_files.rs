@@ -26,7 +26,7 @@ pub(crate) fn is_glob(path: &str) -> bool {
 ///
 /// The `glob` crate does not implement brace alternation itself, so this
 /// expansion happens before patterns are handed to [`glob::glob`].
-fn expand_braces(pattern: &str) -> Vec<String> {
+pub(crate) fn expand_braces(pattern: &str) -> Vec<String> {
     let Some(open) = pattern.find('{') else {
         return vec![pattern.to_string()];
     };

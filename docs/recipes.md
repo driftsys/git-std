@@ -354,3 +354,9 @@ git std hook enable pre-push
 git std hook disable post-commit
 git std hook list              # see status of all hooks
 ```
+
+## Release management
+
+See [release workflows](releases.md) for the preferred combined commit-and-tag
+process and the supported prepare-then-tag process. Agents use `std-bump` for
+both release preparation and finalizing an already merged release.

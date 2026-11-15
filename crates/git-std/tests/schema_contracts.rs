@@ -4,6 +4,7 @@ use std::process::{Command, Output};
 const CONTRACTS: &[&str] = &[
     "version",
     "bump",
+    "tag",
     "lint",
     "registry",
     "hook-list",

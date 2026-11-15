@@ -1526,3 +1526,107 @@ git std lint --range main..HEAD --format json
 
 4. **Hook parallelism.** Sequential by default.
    `--parallel` flag deferred to a future version.
+
+## `git std tag`
+
+Tag an existing release commit without another bump. The explicit `<commit>`
+argument identifies a release reachable from the configured release branch.
+
+| Option                  | Purpose                                       |
+| ----------------------- | --------------------------------------------- |
+| `--dry-run`             | Validate the exact plan without creating refs |
+| `--branch <name>`       | Override the release branch                   |
+| `--package <name>`      | Select a released package; repeat for several |
+| `--sign`                | Create signed annotated tags                  |
+| `--push <remote>`       | Publish only the planned tags atomically      |
+| `--format <text\|json>` | Select human or versioned machine output      |
+
+The command reads configuration and versions from the target commit and leaves
+HEAD, the index and working files unchanged. It reuses matching annotated tags,
+refuses conflicts, and reports partial or uncertain outcomes without rollback.
+With `--push`, it verifies remote branch reachability and exact remote tag objects.
+
+See [release workflows](releases.md) for preflight requirements, both release
+processes, retry behavior and limitations. See [CLI contracts](CLI-CONTRACTS.md)
+for structured results and exit semantics.
+
+### Release identity and target validation
+
+The command resolves the required commit-ish once to a full commit object ID.
+There is no implicit target, version override, force option or second bump.
+Release configuration, package discovery and authoritative versions come from
+that commit, independently of the current checkout. The release subject uses
+bump's `chore(release): <version>` format, or its monorepo root/package list;
+one terminal GitHub squash suffix `(#<digits>)` is accepted. Scoped package
+names are split at their final `@`. Versions must satisfy the configured semver
+or calver scheme. Duplicate entries and unknown release packages are refused.
+
+Every discovered authoritative version source and every explicitly configured
+custom capture must agree with the release entry. Cargo workspace inheritance
+is resolved inside the target snapshot. Dependency pins and generated version
+codes are not independent version authorities. Subject-only authority is
+allowed when no version sources are discovered and none is explicitly required;
+the result reports that basis. A missing configured source, malformed manifest,
+wrong version type, unreadable version or mismatch refuses the plan. A changelog
+is not required because bump supports `--skip-changelog`.
+
+Branch selection uses `--branch`, then the target configuration's
+`release_branch`, then an existing main or master in that order. Local-only
+operations require ancestry in a local release branch. Publication requires
+ancestry in the observed remote release branch and does not require that branch
+to exist locally. Shallow and partial/promisor repositories are refused.
+Inspection disables lazy fetching and replacement objects. Required Git option
+support is checked rather than inferred from a version number.
+
+Only regular tracked configuration, manifest, discovery and custom version files
+are materialized in an owned temporary directory. Paths must remain inside that
+snapshot, including workspace-member paths. Symlink sources, case collisions,
+external paths and LFS pointer versions are refused. Snapshot inspection runs no
+hooks, filters, submodules or build tools. Malformed configuration is refused;
+unknown keys are warnings for compatibility with the existing configuration
+loader. These guarantees do not constrain side effects of the user's ordinary
+pre-push hook during publication.
+
+### Tag creation, publication and recovery
+
+The complete release plan is validated before mutation. Root names use the
+configured tag prefix and package names use the tag template. Name collisions
+and invalid Git ref names are refused. Package selection omits the root tag;
+selection changes which tags are created, while the release entries are still
+validated together.
+
+Tags are annotated with their corresponding version. Existing annotated tags
+must directly identify the target commit, carry the expected tag name and have
+the exact version annotation after removing a recognized signature block and
+one terminal newline. Matching objects are preserved. Lightweight tags,
+conflicting targets or annotations, and unsigned tags for a signing request
+are refused. Explicit unsigned creation overrides `tag.gpgSign`; `--sign`
+requests signed creation. Signature presence and verified trust are separate:
+verification failure is reported with diagnostics and does not itself block a
+retry whose signature-presence requirement is satisfied.
+
+Publication accepts a configured remote name with exactly one effective fetch
+URL and one identical effective push URL. Mirror remotes and ambiguous endpoints
+are refused. Remote branch and tag inspection precedes local tag creation.
+Inspection fetches can add objects but create no refs and do not write
+FETCH_HEAD. Branch observation is checked around the fetch and retried once if
+it changes. A compatible remote-only annotated tag is adopted by object ID;
+distinct local and remote objects are refused even if their commits and
+annotations agree.
+
+Only missing planned tags are pushed, atomically, from their validated object
+IDs to explicit tag destinations. The command neither publishes a branch nor
+follows unrelated tags, and never falls back to a non-atomic push. The ordinary
+pre-push hook remains enabled. Success requires readback of the exact remote
+tag objects and renewed target ancestry from the same endpoint. Failed or
+unavailable readback reports uncertain publication. Observations do not lock
+remote state against subsequent changes.
+
+Creation and adoption never replace existing refs. A failure can leave a subset
+of local tags present; no destructive rollback occurs. Retrying the same target
+inspects actual state and completes missing work. A tag-object conflict requires
+separate deliberate reconciliation and is not an automatic retry path. Exit 1
+reports semantic refusal before this invocation creates refs. Operational
+failures and any failure after local creation or adoption return exit 2. JSON
+runtime results include the known per-tag states; argument syntax errors retain
+clap's normal behavior. See [CLI contracts](CLI-CONTRACTS.md#tag-results).

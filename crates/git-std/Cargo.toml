@@ -29,6 +29,7 @@ standard-changelog.workspace = true
 standard-commit.workspace = true
 standard-githooks.workspace = true
 standard-version.workspace = true
+tempfile = "3"
 toml = "1.1"
 yansi = "1"
 

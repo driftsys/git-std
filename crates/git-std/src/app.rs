@@ -174,6 +174,29 @@ pub enum Command {
         #[arg(long, value_name = "PLAN_ID", conflicts_with = "dry_run")]
         expect_plan: Option<String>,
     },
+    /// Tag an existing release commit without another version bump.
+    Tag {
+        /// Release commit to tag (resolved once to its full object ID).
+        commit: String,
+        /// Validate and print the plan without creating refs.
+        #[arg(long)]
+        dry_run: bool,
+        /// Select one released package (repeatable).
+        #[arg(short = 'p', long = "package")]
+        packages: Vec<String>,
+        /// Release branch containing the commit.
+        #[arg(long)]
+        branch: Option<String>,
+        /// Create signed annotated tags.
+        #[arg(short = 'S', long)]
+        sign: bool,
+        /// Publish the planned tags to this configured remote.
+        #[arg(long, value_name = "REMOTE")]
+        push: Option<String>,
+        /// Output format.
+        #[arg(long, default_value = "text")]
+        format: OutputFormat,
+    },
     /// Generate a changelog (incremental by default, --full to regenerate).
     Changelog {
         /// Regenerate the entire changelog from the first commit.

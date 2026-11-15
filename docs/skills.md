@@ -33,14 +33,26 @@ The skill:
 
 ## /std-bump
 
-Orchestrate a version bump.
+Prepare a release, finalize a merged release, or recover interrupted
+publication.
 
 Invoke with `/std-bump` in your agent.
 
 The skill:
 
-1. Checks `git std` is installed — offers to install if not.
-2. Runs `git std --context` to assess stability, branch, and tag state.
-3. Runs `git std bump --dry-run` and shows the full plan.
-4. Asks for confirmation, package selection (monorepo), and whether to push.
-5. Requires your approval before running.
+1. Reads repository policy, command availability, configuration and release state;
+   unavailable tooling or unsafe checkout state produces a concrete blocker.
+2. Resolves package selection, release process and publication scope, reusing
+   authorization already given in the session.
+3. Previews the bump or existing-release tag plan and asks only for decisions or
+   approval that remain unresolved.
+4. Validates the generated or merged release revision before publication, then
+   publishes only the selected refs atomically when authorized.
+5. Inspects actual refs on recovery and reports local changes, remote refs,
+   validation and hosted publication as separate states.
+
+## Release management
+
+See [release workflows](releases.md) for the preferred combined commit-and-tag
+process and the supported prepare-then-tag process. Agents use `std-bump` for
+both release preparation and finalizing an already merged release.

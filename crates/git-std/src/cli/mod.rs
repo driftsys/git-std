@@ -10,5 +10,6 @@ pub mod init;
 pub mod lfs;
 pub mod lint;
 pub mod registry;
+pub mod tag;
 pub mod update_check;
 pub mod version;

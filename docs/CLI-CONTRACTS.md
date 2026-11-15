@@ -27,6 +27,7 @@ is an ordinary declarative pre-push command and appears in the existing
 | `git std hook run <hook> --format json` | `schemas/v1/cli/hook-run.schema.json`  | `schemas/v1/cli/examples/hook-run.json`                                     |
 | `git std doctor --format json`          | `schemas/v1/cli/doctor.schema.json`    | `schemas/v1/cli/examples/doctor.json`                                       |
 | `git std registry --format json`        | `schemas/v1/cli/registry.schema.json`  | `schemas/v1/cli/examples/registry.json`                                     |
+| `git std tag <commit> --format json`    | `schemas/v1/cli/tag.schema.json`       | `schemas/v1/cli/examples/tag.json`                                          |
 
 Object responses contain `schema_version`, `tool_version`, and `status`.
 Compatibility preserves the existing array shape of range lint and hook-list
@@ -115,3 +116,35 @@ workspace version is bumped for the next release, branch builds and examples
 still report the source package version `0.11.15`; that field alone is not
 release evidence. Record the first release containing the contracts here after
 a real release is published and verified.
+
+## Tag results
+
+`tag` reports the pinned `target_oid`, `release_branch`, selected remote,
+`dry_run`, and each tag's name, version, object ID, planned action, local state,
+remote state, signature state, and version source. Dry-run performs inspection
+without creating refs. A successful retry can report existing tags without
+creating new objects. See [release workflows](releases.md) for recovery.
+
+Exit 1 refuses an unsafe or inconsistent release. Exit 2 reports operational
+failure, including partial local creation or uncertain publication. Inspect
+per-tag states and repeat the same explicit commit after resolving the cause;
+do not infer that exit 2 means the remote received nothing.
+
+Per-tag `local` states are `missing`, `existing`, `adopted`, `created` and
+`conflict`. Remote states are `not_checked`, `missing`, `existing`, `pushed`,
+`conflict` and `unknown`. `action` is `create`, `adopt` or `none`; it describes
+the plan separately from observed state. `version_basis` is `manifest` or
+`release_subject`. An early failure may leave the target or branch unresolved
+and the tags array empty.
+
+Signature results currently emitted are `unsigned`, `verified` and `unverified`.
+`verified` requires a successful `git verify-tag`; any unsuccessful verification
+is `unverified`, with Git's explanation retained in a diagnostic. The schema also
+allows `invalid`, but the command does not currently distinguish cryptographic
+failure from unavailable verification or trust configuration. A signed tag may
+therefore satisfy `--sign` without establishing signer trust.
+
+Runtime refusals use `GITSTD-TAG-REFUSED`; operational errors use
+`GITSTD-GIT-OPERATION`. Warnings, including configuration and signature-trust
+notes, use `GITSTD-TAG-NOTE`. Human output uses stderr and JSON uses stdout.
+A no-op text success is silent; JSON still reports the satisfied plan.

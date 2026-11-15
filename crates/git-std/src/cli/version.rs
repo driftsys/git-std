@@ -631,7 +631,7 @@ mod tests {
     fn calver_code_prerelease_segment_uses_last_numeric() {
         // "2026.3.1-rc.1" splits as ["2026","3","1","rc","1"]; micro = 1
         let days = days_since_epoch(2026, 3, 1);
-        let expected = days as u64 * 10_000 + 1 * 100 + 99;
+        let expected = days as u64 * 10_000 + 100 + 99;
         assert_eq!(calver_code("2026.3.1-rc.1").unwrap(), expected);
     }
 
