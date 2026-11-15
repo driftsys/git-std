@@ -158,16 +158,28 @@ fn empty_cargo_workspace_preserves_fallback_authorities() {
                 let (name, root, member) = match ecosystem {
                     "node" => (
                         "package.json",
-                        "{\"version\":\"1.2.3\",\"workspaces\":[\"web\"]}",
+                        "{\"version\":\"1.2.3\",\"workspaces\":[\"first\",\"web\"]}",
                         format!("{{\"name\":\"web\",\"version\":\"{version}\"}}"),
                     ),
                     "deno" => (
                         "deno.json",
-                        "{\"version\":\"1.2.3\",\"workspace\":[\"web\"]}",
+                        "{\"version\":\"1.2.3\",\"workspace\":[\"first\",\"web\"]}",
                         format!("{{\"name\":\"web\",\"version\":\"{version}\"}}"),
                     ),
                     _ => ("VERSION", "1.2.3", version.into()),
                 };
+                let first_path = if ecosystem == "plain" {
+                    "packages/first"
+                } else {
+                    "first"
+                };
+                std::fs::create_dir_all(r.path().join(first_path)).unwrap();
+                let first = if ecosystem == "plain" {
+                    "1.2.3"
+                } else {
+                    r#"{"name":"first","version":"1.2.3"}"#
+                };
+                std::fs::write(r.path().join(first_path).join(name), first).unwrap();
                 std::fs::write(r.path().join(name), root).unwrap();
                 std::fs::write(r.path().join(member_path).join(name), member).unwrap();
                 git(r.path(), &["add", "."]);
