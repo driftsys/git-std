@@ -44,6 +44,10 @@ validate_workflow_shape() {
         end
         collector = steps.find { |step| step["name"] == "Collect man pages" }.fetch("run")
         abort "missing metadata collector" unless collector.include?("scripts/release/collect-man-pages.py") && collector.include?("cargo-metadata.json cargo-build.jsonl man-staging")
+        cross_argument = "${{ matrix.use_cross && " + 39.chr + "--cross" + 39.chr + " || " + (39.chr * 2) + " }}"
+        abort "missing cross path translation" unless collector.lines.map(&:strip).last == cross_argument
+        metadata = steps.find { |step| step["name"] == "Record Cargo metadata" }
+        abort "missing Cargo metadata capture" unless metadata.fetch("run") == "cargo metadata --no-deps --format-version 1 > cargo-metadata.json"
         abort "private Cargo layout glob remains" if collector.include?("find target/")
         package_run = steps.find { |step| step["name"] == "Package archive and checksum" }.fetch("run")
         package_lines = package_run.lines.map(&:strip).reject(&:empty?)

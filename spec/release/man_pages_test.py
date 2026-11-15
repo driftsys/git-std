@@ -66,6 +66,25 @@ class ManPagesTest(unittest.TestCase):
                                  ['git-std-tag.1', 'git-std.1'])
                 self.assertEqual((self.destination / 'git-std.1').read_text(), 'main page')
 
+    def test_only_current_output_pages_and_bytes_are_staged(self):
+        current = self.target / 'current/output'
+        current_pages = self.pages(current)
+        expected = {'git-std.1': b'current main', 'git-std-tag.1': b'current tag'}
+        for name, content in expected.items():
+            (current_pages / name).write_bytes(content)
+        for name in ['stale', 'unrelated']:
+            pages = self.pages(self.target / name / 'output')
+            (pages / 'git-std.1').write_text(name + ' main')
+            (pages / 'git-std-tag.1').write_text(name + ' tag')
+            (pages / ('git-std-' + name + '.1')).write_text(name)
+        self.destination.mkdir()
+        (self.destination / 'notes.txt').write_bytes(b'preserve unrelated file')
+        result = self.collect(self.messages(current))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expected['notes.txt'] = b'preserve unrelated file'
+        self.assertEqual({p.name: p.read_bytes() for p in self.destination.iterdir()},
+                         expected)
+
     def test_cross_maps_container_target_and_workspace_paths(self):
         self.pages(self.target / 'unusual/output')
         result = self.collect(self.messages('/target/unusual/output',
