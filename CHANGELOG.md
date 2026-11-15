@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.12.0] (2026-11-15)
+
+### Features
+
+- **release:** support agent-managed release workflows ([#593]) ([fa34e9a]),
+  closes [#592], refs [#592], [#592]
+
+### Bug Fixes
+
+- **standard-changelog:** bound references and deduplicate breaking notes
+  ([bfc7a0e]), closes [#587]
+- **git-std:** include hook-staged release outputs ([198518a]), closes [#583]
+
+### BREAKING CHANGES
+
+- Mutating bumps reject staged, unstaged and nonignored untracked changes before running hooks. Dirty dry-run remains available.
+
+[0.12.0]: https://github.com/driftsys/git-std/compare/v0.11.19...v0.12.0
+[fa34e9a]: https://github.com/driftsys/git-std/commit/fa34e9a
+[#593]: https://github.com/driftsys/git-std/issues/593
+[#592]: https://github.com/driftsys/git-std/issues/592
+[bfc7a0e]: https://github.com/driftsys/git-std/commit/bfc7a0e
+[#587]: https://github.com/driftsys/git-std/issues/587
+[198518a]: https://github.com/driftsys/git-std/commit/198518a
+[#583]: https://github.com/driftsys/git-std/issues/583
+
 ## [0.11.19] (2026-09-23)
 
 ### Bug Fixes
