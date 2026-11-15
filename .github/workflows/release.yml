@@ -43,6 +43,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Test man-page collector
+        run: python spec/release/man_pages_test.py
+      - name: Record Cargo metadata
+        shell: bash
+        run: cargo metadata --no-deps --format-version 1 > cargo-metadata.json
       - name: Install musl tools (x86_64)
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
@@ -51,15 +59,19 @@ jobs:
         run: cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.5
       - name: Build release binary (cross)
         if: matrix.use_cross
-        run: cross build --release --target ${{ matrix.target }} -p git-std
+        shell: bash
+        run: cross build --release --target ${{ matrix.target }} -p git-std --message-format=json-render-diagnostics > cargo-build.jsonl
       - name: Build release binary (cargo)
         if: "!matrix.use_cross"
-        run: cargo build --release --target ${{ matrix.target }} -p git-std
+        shell: bash
+        run: cargo build --release --target ${{ matrix.target }} -p git-std --message-format=json-render-diagnostics > cargo-build.jsonl
       - name: Collect man pages
         shell: bash
         run: |
           mkdir -p man-staging release-assets
-          find target/ -path '*/build/git-std-*/out/man/*.1' -exec cp {} man-staging/ \;
+          python scripts/release/collect-man-pages.py \
+            cargo-metadata.json cargo-build.jsonl man-staging \
+            ${{ matrix.use_cross && '--cross' || '' }}
       - name: Package archive and checksum
         shell: bash
         run: |

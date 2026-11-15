@@ -82,3 +82,24 @@ Release `v0.11.15` has archives and `.tar.gz.sha256` files for all five targets,
 but no Sigstore, SPDX, or provenance companions. The enhanced evidence set is
 unreleased on this branch. Update this mapping after the first verified release;
 do not infer conformance from a closed issue or a successful local test.
+
+## Collecting generated man pages
+
+Release builds capture Cargo JSON messages and match the `git-std` binary's
+manifest to the workspace package. The collector uses that package's
+`build-script-executed.out_dir` to locate generated man pages. It does not
+search Cargo's private build directory layout, which changed in Cargo 1.100.
+Custom target and build directories therefore do not require new globs.
+For cross v0.2.5, the collector maps the container's `/target` and `/project`
+mounts to the host directories reported by Cargo metadata.
+
+Collection requires a successful build, one matching build-script output,
+and the main `git-std.1` page. Missing or ambiguous outputs fail packaging;
+other build directories cannot supply fallback pages. Previously staged
+man pages are replaced. Signature, provenance, checksum, and smoke gates
+remain required before publication.
+
+Run `just test-release` for layout and rejection fixtures. Before publishing
+a packaging correction, dispatch the release workflow on its reviewed branch
+and require all five target builds and smoke jobs to pass. Manual dispatch
+runs the integrity gates without creating a release or publishing crates.

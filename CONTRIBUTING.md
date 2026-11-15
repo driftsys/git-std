@@ -18,6 +18,7 @@ Open bugs and feature requests at
 
 You need the Rust toolchain and a few extra tools:
 
+- **Python**: 3.9 or newer for release packaging tests
 - **Rust**: stable toolchain (install via [rustup](https://rustup.rs))
 - **[just]**: command runner
 - **[dprint]**: Markdown formatter

@@ -37,6 +37,14 @@ validate_workflow_shape() {
         expected = %w[x86_64-unknown-linux-musl aarch64-unknown-linux-musl x86_64-apple-darwin aarch64-apple-darwin x86_64-pc-windows-msvc]
         abort "wrong release target matrix" unless targets == expected
         steps = build.fetch("steps")
+        %w[cargo cross].each do |builder|
+          step = steps.find { |entry| entry["name"] == "Build release binary (#{builder})" }
+          abort "build must preserve exit status in bash" unless step.fetch("shell") == "bash"
+          abort "missing Cargo JSON capture" unless step.fetch("run") == "#{builder} build --release --target ${{ matrix.target }} -p git-std --message-format=json-render-diagnostics > cargo-build.jsonl"
+        end
+        collector = steps.find { |step| step["name"] == "Collect man pages" }.fetch("run")
+        abort "missing metadata collector" unless collector.include?("scripts/release/collect-man-pages.py") && collector.include?("cargo-metadata.json cargo-build.jsonl man-staging")
+        abort "private Cargo layout glob remains" if collector.include?("find target/")
         package_run = steps.find { |step| step["name"] == "Package archive and checksum" }.fetch("run")
         package_lines = package_run.lines.map(&:strip).reject(&:empty?)
         expected_package_lines = [
