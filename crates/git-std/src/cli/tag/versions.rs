@@ -74,12 +74,12 @@ pub(super) fn check(
         }
     }
     let structural = super::manifests::validate(root, expected)?;
-    let observed =
-        standard_version::detect_version_files(root, &custom).map_err(|e| refuse(e.to_string()))?;
+    let observed: Vec<_> = standard_version::detect_version_files(root, &custom)
+        .map_err(|e| refuse(e.to_string()))?
+        .into_iter()
+        .filter(|file| !structural.paths.contains(&file.path))
+        .collect();
     for file in &observed {
-        if structural.contains(&file.name) {
-            continue;
-        }
         let version = if file.name == "pubspec.yaml" {
             file.old_version
                 .split('+')
@@ -105,7 +105,11 @@ pub(super) fn check(
         )?;
     }
     Ok(
-        if observed.is_empty() && inherited.is_none() && structural.is_empty() {
+        if observed.is_empty()
+            && inherited.is_none()
+            && !structural.has_version
+            && custom.is_empty()
+        {
             "release_subject"
         } else {
             "manifest"

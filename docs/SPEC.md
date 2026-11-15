@@ -1575,7 +1575,9 @@ requires JSON; `project.json`, `deno.json` and `deno.jsonc` also accept comments
 and trailing commas. YAML versions in `pubspec.yaml`, `project.yaml` and
 `project.yml` must be strings; a pubspec build suffix is excluded from the release
 version comparison. Valid manifests without a version may use subject-only
-authority. Invalid syntax or a non-string version cannot use that fallback.
+authority. Comments and nested fields do not become version authorities through
+legacy readers; parsed manifests are identified by their actual file paths.
+Invalid syntax or a non-string version cannot use that fallback.
 
 Branch selection uses `--branch`, then the target configuration's
 `release_branch`, then an existing main or master in that order. Local-only

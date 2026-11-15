@@ -1,16 +1,27 @@
 use super::types::{refuse, require};
 use anyhow::Result;
-use std::{collections::BTreeSet, path::Path};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
+
+/// Parsed files and whether they contain an authoritative version.
+#[derive(Default)]
+pub(super) struct ManifestVersions {
+    pub paths: BTreeSet<PathBuf>,
+    pub has_version: bool,
+}
 
 /// Validate structural fields before tolerant legacy version discovery.
-pub(super) fn validate(root: &Path, expected: &str) -> Result<BTreeSet<String>> {
-    let mut observed = BTreeSet::new();
+pub(super) fn validate(root: &Path, expected: &str) -> Result<ManifestVersions> {
+    let mut observed = ManifestVersions::default();
     for name in ["Cargo.toml", "project.toml", "pyproject.toml"] {
         let path = root.join(name);
         if !path.exists() {
             continue;
         }
-        let content = std::fs::read_to_string(path)?;
+        observed.paths.insert(path.clone());
+        let content = std::fs::read_to_string(&path)?;
         let document = content
             .parse::<toml::Table>()
             .map_err(|e| refuse(format!("invalid {name}: {e}")))?;
@@ -38,7 +49,7 @@ pub(super) fn validate(root: &Path, expected: &str) -> Result<BTreeSet<String>> 
                 version == expected,
                 format!("version mismatch in {name}: expected {expected}, found {version}"),
             )?;
-            observed.insert(name.into());
+            observed.has_version = true;
         }
     }
     for name in ["package.json", "project.json", "deno.json", "deno.jsonc"] {
@@ -46,7 +57,8 @@ pub(super) fn validate(root: &Path, expected: &str) -> Result<BTreeSet<String>> 
         if !path.exists() {
             continue;
         }
-        let content = std::fs::read_to_string(path)?;
+        observed.paths.insert(path.clone());
+        let content = std::fs::read_to_string(&path)?;
         let document: serde_json::Value = if name == "package.json" {
             serde_json::from_str(&content).map_err(|e| refuse(format!("invalid {name}: {e}")))?
         } else {
@@ -79,7 +91,7 @@ pub(super) fn validate(root: &Path, expected: &str) -> Result<BTreeSet<String>> 
                 version == expected,
                 format!("version mismatch in {name}: expected {expected}, found {version}"),
             )?;
-            observed.insert(name.into());
+            observed.has_version = true;
         }
     }
     for name in ["pubspec.yaml", "project.yaml", "project.yml"] {
@@ -87,7 +99,8 @@ pub(super) fn validate(root: &Path, expected: &str) -> Result<BTreeSet<String>> 
         if !path.exists() {
             continue;
         }
-        let documents = yaml_rust2::YamlLoader::load_from_str(&std::fs::read_to_string(path)?)
+        observed.paths.insert(path.clone());
+        let documents = yaml_rust2::YamlLoader::load_from_str(&std::fs::read_to_string(&path)?)
             .map_err(|e| refuse(format!("invalid {name}: {e}")))?;
         require(
             documents.len() == 1,
@@ -109,7 +122,7 @@ pub(super) fn validate(root: &Path, expected: &str) -> Result<BTreeSet<String>> 
                 version == expected,
                 format!("version mismatch in {name}: expected {expected}, found {version}"),
             )?;
-            observed.insert(name.into());
+            observed.has_version = true;
         }
     }
     Ok(observed)
