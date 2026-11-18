@@ -7,6 +7,30 @@ case "${FAIL_GIT_OPERATION:-}" in
             exit 88
         fi
         ;;
+    stash-apply-ref-collision)
+        if [[ "${1:-}" == "stash" && "${2:-}" == "apply" ]]; then
+            "$REAL_GIT" update-ref MERGE_AUTOSTASH HEAD
+            exit 88
+        fi
+        ;;
+    stash-apply-generate-auto)
+        if [[ "${1:-}" == "stash" && "${2:-}" == "apply" ]]; then
+            "$REAL_GIT" update-ref AUTO_MERGE 'HEAD^{tree}'
+            exit 88
+        fi
+        ;;
+    delete-merge-autostash)
+        if [[ "${1:-}" == "update-ref" && "${2:-}" == "--no-deref" && "${3:-}" == "-d" && "${4:-}" == "MERGE_AUTOSTASH" ]]; then
+            exit 88
+        fi
+        ;;
+    stash-apply-merge-collision)
+        if [[ "${1:-}" == "stash" && "${2:-}" == "apply" ]]; then
+            directory="$("$REAL_GIT" rev-parse --absolute-git-dir)"
+            printf 'unexpected\n' > "$directory/MERGE_HEAD"
+            exit 88
+        fi
+        ;;
     stash-apply)
         if [[ "${1:-}" == "stash" && "${2:-}" == "apply" ]]; then
             exit 88

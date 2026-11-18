@@ -883,11 +883,17 @@ staged-only formatting behavior.
 
 Before each stash operation, existing merge-state files are moved into a private
 `git-std-merge-state-*` directory inside the current worktree's Git directory.
-They are restored before user commands run. If restoration fails, the hook
+Reftable repositories preserve `AUTO_MERGE` and `MERGE_AUTOSTASH` through Git's
+reference commands, with original OIDs saved in `git-std-merge-refs-*` beside the
+file recovery directory. Both forms are restored before user commands run.
+Reference updates compare the observed OID before changing it. If restoration
+fails, the hook
 reports an operational error and the recovery directory path; remaining original
 metadata stays there for recovery. A killed process can also leave that directory.
 Inspect it and the current merge state before manually restoring files; do not
 start another merge or delete the recovery directory until recovery is complete.
+For a reference recovery record, restore the saved OID with `git update-ref` in
+the affected worktree; copying it into `.git` does not restore a reftable ref.
 
 **Default mode per hook:**
 

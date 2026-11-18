@@ -24,10 +24,8 @@ pub(super) fn preserve<T>(operation: impl FnOnce() -> Result<T, String>) -> Resu
     }
     let directory = String::from_utf8(output.stdout)
         .map_err(|error| format!("invalid Git directory path: {error}"))?;
-    preserve_in(
-        Path::new(directory.trim_end_matches(['\r', '\n'])),
-        operation,
-    )
+    let directory = Path::new(directory.trim_end_matches(['\r', '\n']));
+    super::merge_refs::preserve(directory, || preserve_in(directory, operation))
 }
 
 fn preserve_in<T>(
@@ -298,6 +296,29 @@ mod tests {
             .is_err()
         );
         assert_eq!(fs::read_to_string(target).unwrap(), "untouched");
+    }
+
+    #[test]
+    fn failed_operation_restores_auto_merge_bytes_or_absence() {
+        for had_original in [false, true] {
+            let directory = tempfile::tempdir().unwrap();
+            fs::write(directory.path().join("MERGE_HEAD"), "parent").unwrap();
+            let auto_merge = directory.path().join("AUTO_MERGE");
+            if had_original {
+                fs::write(&auto_merge, "original").unwrap();
+            }
+            let error = preserve_in(directory.path(), || -> Result<(), String> {
+                fs::write(&auto_merge, "generated").unwrap();
+                Err("operation failed".to_owned())
+            })
+            .unwrap_err();
+            assert_eq!(error, "operation failed");
+            if had_original {
+                assert_eq!(fs::read_to_string(&auto_merge).unwrap(), "original");
+            } else {
+                assert!(!auto_merge.exists());
+            }
+        }
     }
 
     #[test]

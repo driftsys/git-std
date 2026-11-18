@@ -1,92 +1,9 @@
+#[path = "../support/merge_fixture.rs"]
+mod merge_fixture;
 #[path = "../support/mod.rs"]
 mod support;
 
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use support::TestRepo;
-
-const MERGE_FILES: [&str; 7] = [
-    "MERGE_HEAD",
-    "MERGE_MSG",
-    "MERGE_MODE",
-    "AUTO_MERGE",
-    "MERGE_AUTOSTASH",
-    "MERGE_RR",
-    "SQUASH_MSG",
-];
-
-fn git(root: &Path, args: &[&str]) -> String {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(root)
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "git {args:?}: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    String::from_utf8(output.stdout).unwrap().trim().to_string()
-}
-
-fn git_dir(root: &Path) -> PathBuf {
-    PathBuf::from(git(root, &["rev-parse", "--absolute-git-dir"]))
-}
-
-fn metadata(root: &Path) -> BTreeMap<String, Vec<u8>> {
-    let directory = git_dir(root);
-    MERGE_FILES
-        .into_iter()
-        .filter_map(|name| {
-            let path = directory.join(name);
-            path.exists()
-                .then(|| (name.to_string(), std::fs::read(path).unwrap()))
-        })
-        .collect()
-}
-
-fn fixture(hook: &str) -> TestRepo {
-    let repo = TestRepo::new().with_hooks_file("pre-commit", hook);
-    repo.git(&["symbolic-ref", "HEAD", "refs/heads/main"]);
-    repo.git(&["config", "core.hooksPath", ".disabled-hooks"]);
-    repo.git(&["config", "commit.gpgsign", "false"]);
-    repo.write("shared.txt", "base\n");
-    repo.git(&["add", "."]);
-    repo.git(&["commit", "-m", "chore: base"]);
-    repo.git(&["switch", "-c", "feature"]);
-    repo.write("feature.txt", "feature\n");
-    repo.git(&["add", "feature.txt"]);
-    repo.git(&["commit", "-m", "feat: feature"]);
-    repo.git(&["switch", "main"]);
-    repo.write("main.txt", "main\n");
-    repo.git(&["add", "main.txt"]);
-    repo.git(&["commit", "-m", "feat: main"]);
-    repo
-}
-
-fn run_hook(root: &Path) -> Output {
-    Command::new(TestRepo::bin_path())
-        .args(["hook", "run", "pre-commit", "--format", "json"])
-        .current_dir(root)
-        .output()
-        .unwrap()
-}
-
-fn assert_merge_commit(root: &Path, parents: &[String; 2]) {
-    git(root, &["commit", "-m", "feat: merge"]);
-    assert_eq!(
-        git(root, &["show", "-s", "--format=%P", "HEAD"]),
-        parents.join(" ")
-    );
-}
-
-fn parents(root: &Path) -> [String; 2] {
-    [
-        git(root, &["rev-parse", "HEAD"]),
-        git(root, &["rev-parse", "feature"]),
-    ]
-}
+use merge_fixture::*;
 
 #[test]
 fn successful_fix_hook_preserves_merge_metadata_and_both_parents() {
@@ -105,35 +22,45 @@ fn successful_fix_hook_preserves_merge_metadata_and_both_parents() {
 
 #[test]
 fn linked_worktree_fix_preserves_its_merge_and_the_other_worktree() {
-    let repo = fixture("~ true\n");
-    let linked = tempfile::tempdir().unwrap();
-    let checkout = linked.path().join("checkout");
-    repo.git(&[
-        "worktree",
-        "add",
-        "-b",
-        "merging",
-        checkout.to_str().unwrap(),
-        "main",
-    ]);
-    let expected_parents = parents(&checkout);
-    repo.git(&["merge", "--no-commit", "feature"]);
-    git(&checkout, &["merge", "--no-commit", "feature"]);
-    std::fs::write(
-        git_dir(repo.path()).join("MERGE_MSG"),
-        "main worktree message\n",
-    )
-    .unwrap();
-    let main_before = metadata(repo.path());
-    let main_staged = repo.git(&["diff", "--cached", "--binary"]);
-    let before = metadata(&checkout);
-    let output = run_hook(&checkout);
-    assert!(output.status.success(), "{output:?}");
-    assert_eq!(metadata(&checkout), before);
-    assert_eq!(metadata(repo.path()), main_before);
-    assert_eq!(repo.git(&["diff", "--cached", "--binary"]), main_staged);
-    assert_merge_commit(&checkout, &expected_parents);
-    assert_eq!(metadata(repo.path()), main_before);
+    for use_reftable in [false, true] {
+        let repo = fixture("~ true\n");
+        if use_reftable {
+            repo.git(&["refs", "migrate", "--ref-format=reftable"]);
+        }
+        let linked = tempfile::tempdir().unwrap();
+        let checkout = linked.path().join("checkout");
+        repo.git(&[
+            "worktree",
+            "add",
+            "-b",
+            "merging",
+            checkout.to_str().unwrap(),
+            "main",
+        ]);
+        let expected_parents = parents(&checkout);
+        repo.git(&["merge", "--no-commit", "feature"]);
+        git(&checkout, &["merge", "--no-commit", "feature"]);
+        std::fs::write(
+            git_dir(repo.path()).join("MERGE_MSG"),
+            "main worktree message\n",
+        )
+        .unwrap();
+        repo.git(&["update-ref", "AUTO_MERGE", "HEAD^{tree}"]);
+        let main_ref = repo.git(&["rev-parse", "AUTO_MERGE"]);
+        let linked_ref = git(&checkout, &["rev-parse", "AUTO_MERGE"]);
+        let main_before = metadata(repo.path());
+        let main_staged = repo.git(&["diff", "--cached", "--binary"]);
+        let before = metadata(&checkout);
+        let output = run_hook(&checkout);
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(metadata(&checkout), before);
+        assert_eq!(metadata(repo.path()), main_before);
+        assert_eq!(repo.git(&["diff", "--cached", "--binary"]), main_staged);
+        assert_eq!(repo.git(&["rev-parse", "AUTO_MERGE"]), main_ref);
+        assert_eq!(git(&checkout, &["rev-parse", "AUTO_MERGE"]), linked_ref);
+        assert_merge_commit(&checkout, &expected_parents);
+        assert_eq!(metadata(repo.path()), main_before);
+    }
 }
 
 #[test]
@@ -194,40 +121,6 @@ fn fix_hook_preserves_merge_autostash_until_merge_commit() {
 }
 
 #[cfg(unix)]
-fn run_with_git_failure(root: &Path, operation: &str) -> Output {
-    use std::os::unix::fs::PermissionsExt;
-    let wrappers = tempfile::tempdir().unwrap();
-    let wrapper = wrappers.path().join("git");
-    std::fs::copy(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/hooks/fixtures/git"),
-        &wrapper,
-    )
-    .unwrap();
-    std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o700)).unwrap();
-    let real_git = Command::new("sh")
-        .args(["-c", "command -v git"])
-        .output()
-        .unwrap();
-    assert!(real_git.status.success());
-    let path = std::env::join_paths(
-        std::iter::once(wrappers.path().to_path_buf())
-            .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
-    )
-    .unwrap();
-    Command::new(TestRepo::bin_path())
-        .args(["hook", "run", "pre-commit", "--format", "json"])
-        .env("PATH", path)
-        .env(
-            "REAL_GIT",
-            String::from_utf8(real_git.stdout).unwrap().trim(),
-        )
-        .env("FAIL_GIT_OPERATION", operation)
-        .current_dir(root)
-        .output()
-        .unwrap()
-}
-
-#[cfg(unix)]
 #[test]
 fn setup_failure_restores_merge_metadata_and_keeps_recoverable_content() {
     for operation in ["stash-push", "stash-apply"] {
@@ -253,4 +146,37 @@ fn setup_failure_restores_merge_metadata_and_keeps_recoverable_content() {
             assert_eq!(repo.git(&["show", "refs/stash^3:local.txt"]), "untracked");
         }
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn restoration_failure_reports_the_recovery_directory_and_original_bytes() {
+    let repo = fixture("~ touch hook-ran\n");
+    repo.git(&["merge", "--no-commit", "feature"]);
+    let original = metadata(repo.path())["MERGE_HEAD"].clone();
+    let output = run_with_git_failure(repo.path(), "stash-apply-merge-collision");
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let message = document["diagnostics"][0]["message"].as_str().unwrap();
+    let recovery = std::fs::read_dir(git_dir(repo.path()))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("git-std-merge-state-")
+        })
+        .expect("retained recovery directory");
+    assert!(message.contains("refusing to replace"), "{message}");
+    assert!(message.contains(recovery.to_str().unwrap()), "{message}");
+    assert_eq!(
+        std::fs::read(recovery.join("MERGE_HEAD")).unwrap(),
+        original
+    );
+    assert_eq!(
+        std::fs::read(git_dir(repo.path()).join("MERGE_HEAD")).unwrap(),
+        b"unexpected\n"
+    );
+    assert!(!repo.path().join("hook-ran").exists());
 }
