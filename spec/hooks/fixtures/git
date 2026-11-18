@@ -7,6 +7,14 @@ case "${FAIL_GIT_OPERATION:-}" in
             exit 88
         fi
         ;;
+    capture-merge-ref-race|restore-merge-ref-race)
+        if [[ "${1:-}" == "update-ref" && "${2:-}" == "--no-deref" ]]; then
+            if [[ "$FAIL_GIT_OPERATION" == "capture-merge-ref-race" && "${3:-}" == "-d" && "${4:-}" == "AUTO_MERGE" ]] || \
+               [[ "$FAIL_GIT_OPERATION" == "restore-merge-ref-race" && "${3:-}" == "AUTO_MERGE" ]]; then
+                "$REAL_GIT" update-ref AUTO_MERGE 'HEAD^{tree}'
+            fi
+        fi
+        ;;
     stash-apply-ref-collision)
         if [[ "${1:-}" == "stash" && "${2:-}" == "apply" ]]; then
             "$REAL_GIT" update-ref MERGE_AUTOSTASH HEAD

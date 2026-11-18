@@ -132,3 +132,53 @@ fn reftable_failed_apply_removes_generated_ref_when_original_was_absent() {
     assert_eq!(absent.code(), Some(1));
     assert!(metadata(repo.path()).contains_key("MERGE_HEAD"));
 }
+
+#[cfg(unix)]
+#[test]
+fn reftable_failed_apply_restores_the_existing_auto_merge_ref() {
+    let repo = fixture("~ true\n");
+    repo.git(&["refs", "migrate", "--ref-format=reftable"]);
+    repo.git(&["merge", "--no-commit", "feature"]);
+    let original = repo.git(&["rev-parse", "AUTO_MERGE"]);
+    assert_ne!(original, repo.git(&["rev-parse", "HEAD^{tree}"]));
+    let output = run_with_git_failure(repo.path(), "stash-apply-generate-auto");
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert_eq!(repo.git(&["rev-parse", "AUTO_MERGE"]), original);
+}
+
+#[cfg(unix)]
+#[test]
+fn reftable_capture_and_restore_refuse_updates_racing_with_observation() {
+    for operation in ["capture-merge-ref-race", "restore-merge-ref-race"] {
+        let repo = fixture("~ true\n");
+        repo.git(&["refs", "migrate", "--ref-format=reftable"]);
+        repo.git(&["merge", "--no-commit", "feature"]);
+        let original = repo.git(&["rev-parse", "AUTO_MERGE"]);
+        let concurrent = repo.git(&["rev-parse", "HEAD^{tree}"]);
+        assert_ne!(original, concurrent);
+        let output = run_with_git_failure(repo.path(), operation);
+        assert_eq!(output.status.code(), Some(2), "{operation}: {output:?}");
+        assert_eq!(repo.git(&["rev-parse", "AUTO_MERGE"]), concurrent);
+        let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        let message = document["diagnostics"][0]["message"].as_str().unwrap();
+        assert!(
+            message.contains("failed to update merge reference AUTO_MERGE"),
+            "{message}"
+        );
+        let recovery = std::fs::read_dir(git_dir(repo.path()))
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| {
+                path.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("git-std-merge-refs-")
+            })
+            .expect("retained reference recovery directory");
+        assert!(message.contains(recovery.to_str().unwrap()), "{message}");
+        assert_eq!(
+            std::fs::read_to_string(recovery.join("AUTO_MERGE")).unwrap(),
+            format!("{original}\n")
+        );
+    }
+}
