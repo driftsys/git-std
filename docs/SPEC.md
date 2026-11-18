@@ -874,6 +874,27 @@ with the commit message file path.
 | `!`      | Fail fast | Abort immediately             |
 | `?`      | Advisory  | Report as warning, never fail |
 
+Fix-mode pre-commit commands (`~`) preserve active merge metadata around the
+internal stash push and apply operations. This includes both merge parents and
+`MERGE_AUTOSTASH`; an internal reset must not consume the user's merge autostash.
+Metadata belongs to the current worktree, including when `.git` is a file.
+Successful and failed hooks retain the merge state while preserving the existing
+staged-only formatting behavior.
+
+Before each stash operation, existing merge-state files are moved into a private
+`git-std-merge-state-*` directory inside the current worktree's Git directory.
+Reftable repositories preserve `AUTO_MERGE` and `MERGE_AUTOSTASH` through Git's
+reference commands, with original OIDs saved in `git-std-merge-refs-*` beside the
+file recovery directory. Both forms are restored before user commands run.
+Reference updates compare the observed OID before changing it. If restoration
+fails, the hook
+reports an operational error and the recovery directory path; remaining original
+metadata stays there for recovery. A killed process can also leave that directory.
+Inspect it and the current merge state before manually restoring files; do not
+start another merge or delete the recovery directory until recovery is complete.
+For a reference recovery record, restore the saved OID with `git update-ref` in
+the affected worktree; copying it into `.git` does not restore a reftable ref.
+
 **Default mode per hook:**
 
 | Hook         | Default   | Rationale                       |

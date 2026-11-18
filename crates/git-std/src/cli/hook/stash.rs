@@ -129,6 +129,10 @@ fn stash_top() -> Result<Option<String>, String> {
 /// `--include-untracked` ensures formatter-generated new files are captured
 /// in the stash backup so they can be detected by the post-run diff check.
 pub(super) fn stash_push() -> Result<Option<String>, String> {
+    super::merge_state::preserve(stash_push_inner)
+}
+
+fn stash_push_inner() -> Result<Option<String>, String> {
     let head = Command::new("git")
         .args(["rev-parse", "--verify", "--quiet", "HEAD"])
         .output()
@@ -244,14 +248,19 @@ pub(super) fn restage_renames(rename_targets: &[String]) -> Result<(), String> {
 ///
 /// Applies the exact commit this hook created, never the positional
 /// `stash@{0}`, so a stash left on the shared worktree stash stack by
-/// another worktree is never applied (#511). Returns `true` on success,
-/// `false` on failure (e.g. merge conflicts).
-pub(super) fn stash_apply(stash_sha: &str) -> bool {
-    Command::new("git")
-        .args(["stash", "apply", "--quiet", stash_sha])
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+/// another worktree is never applied (#511). Restores merge metadata on failure.
+pub(super) fn stash_apply(stash_sha: &str) -> Result<(), String> {
+    super::merge_state::preserve(|| {
+        let status = Command::new("git")
+            .args(["stash", "apply", "--quiet", stash_sha])
+            .status()
+            .map_err(|error| format!("failed to apply fix-mode stash: {error}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err("stash apply failed — working tree has conflicting unstaged changes".to_owned())
+        }
+    })
 }
 
 /// Drop the hook's own stash entry, identified by `stash_sha`.
