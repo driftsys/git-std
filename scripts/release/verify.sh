@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 2 || $# -gt 3 ]]; then
-    echo "usage: verify.sh <archive> <version> [--hosted]" >&2
+if [[ $# -ne 2 && $# -ne 3 && $# -ne 5 ]]; then
+    echo "usage: verify.sh <archive> <version> [--hosted [--source-ref <ref>]]" >&2
     exit 2
 fi
 
@@ -12,6 +12,15 @@ mode="${3:-}"
 [[ -z "$mode" || "$mode" == "--hosted" ]] || { echo "error: unknown mode: $mode" >&2; exit 2; }
 
 fail() { echo "error: $1" >&2; exit 1; }
+source_ref="refs/tags/$version"
+if [[ $# -eq 5 ]]; then
+    [[ "$mode" == "--hosted" && "$4" == "--source-ref" ]] \
+        || fail "--source-ref requires hosted verification"
+    source_ref="$5"
+    [[ "$source_ref" == "refs/tags/$version" || "$source_ref" == refs/heads/?* ]] \
+        || fail "source ref must match the release tag or name an explicit branch"
+fi
+
 digest_file() {
     if command -v sha256sum >/dev/null 2>&1; then
         sha256sum "$1" | cut -d' ' -f1
@@ -72,13 +81,14 @@ if [[ "$mode" == "--hosted" ]]; then
     command -v gh >/dev/null || fail "gh is required for hosted verification"
     cosign verify-blob \
         --bundle "$signature" \
-        --certificate-identity-regexp '^https://github.com/driftsys/git-std/.github/workflows/release.yml@refs/' \
+        --certificate-identity "https://github.com/driftsys/git-std/.github/workflows/release.yml@$source_ref" \
         --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
         "$archive"
     gh attestation verify "$archive" \
         --repo driftsys/git-std \
         --bundle "$provenance" \
-        --signer-workflow driftsys/git-std/.github/workflows/release.yml
+        --signer-workflow driftsys/git-std/.github/workflows/release.yml \
+        --source-ref "$source_ref"
 fi
 
 echo "verified $archive_name ($version, sha256:$actual_digest)"

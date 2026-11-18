@@ -54,6 +54,15 @@ jobs:
         env:
           CARGO_BIN_EXE_git-std: ${{ github.workspace }}/target/debug/git-std
 
+  windows-tool-resolution:
+    name: Windows tool resolution
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --locked -p git-std --bin git-std tool_resolution
+
   commit-lint:
     name: Conventional commits
     # Dependabot uses the conventional `deps` scope, which is intentionally
@@ -176,7 +185,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [fmt, dprint, clippy, test, commit-lint, install-test, changes, install-smoke]
+    needs: [fmt, dprint, clippy, test, windows-tool-resolution, commit-lint, install-test, changes, install-smoke]
     runs-on: ubuntu-latest
     steps:
       - name: Check results

@@ -126,35 +126,57 @@ mod tests {
 
     #[test]
     fn windows_resolver_finds_an_executable_with_a_path_ext_suffix() {
+        for suffix in [".exe", ".CMD"] {
+            let directory = tempfile::tempdir().expect("tool directory");
+            let executable = directory.path().join(format!("cargo{suffix}"));
+            write_executable(&executable);
+            let path = std::env::join_paths([directory.path()]).expect("PATH");
+            let resolved = resolve_in(
+                "cargo",
+                &path,
+                Some(OsStr::new(".EXE;.CMD")),
+                OsStr::new(".exe"),
+                true,
+            );
+            assert_eq!(resolved, canonical_path(&executable));
+        }
+    }
+
+    #[test]
+    fn windows_resolver_prefers_native_executable_to_command_script() {
         let directory = tempfile::tempdir().expect("tool directory");
-        let executable = directory.path().join("cargo.EXE");
-        std::fs::write(&executable, b"fixture").expect("fake executable");
+        let executable = directory.path().join("cargo.exe");
+        write_executable(&executable);
+        write_executable(&directory.path().join("cargo.CMD"));
+        let path = std::env::join_paths([directory.path()]).expect("PATH");
+        assert_eq!(
+            resolve_in(
+                "cargo",
+                &path,
+                Some(OsStr::new(".CMD;.EXE")),
+                OsStr::new(".exe"),
+                true,
+            ),
+            canonical_path(&executable)
+        );
+    }
+
+    fn canonical_path(path: &Path) -> Option<String> {
+        Some(
+            std::fs::canonicalize(path)
+                .expect("canonical executable")
+                .to_string_lossy()
+                .into_owned(),
+        )
+    }
+
+    fn write_executable(path: &Path) {
+        std::fs::write(path, b"fixture").expect("fake executable");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-
-            let mut permissions = executable.metadata().expect("metadata").permissions();
-            permissions.set_mode(0o700);
-            std::fs::set_permissions(&executable, permissions).expect("executable permissions");
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+                .expect("executable permissions");
         }
-        let path = std::env::join_paths([directory.path()]).expect("PATH");
-
-        let resolved = resolve_in(
-            "cargo",
-            &path,
-            Some(OsStr::new(".EXE;.CMD")),
-            OsStr::new(""),
-            true,
-        );
-
-        assert_eq!(
-            resolved,
-            Some(
-                std::fs::canonicalize(executable)
-                    .expect("canonical executable")
-                    .to_string_lossy()
-                    .into_owned()
-            )
-        );
     }
 }
