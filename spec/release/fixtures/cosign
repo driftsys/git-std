@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+printf '%s\n' cosign >> "$VERIFIER_LOG"
 
 [[ $# -eq 8 ]]
 [[ "$1" == "verify-blob" ]]
@@ -10,5 +11,4 @@ set -euo pipefail
 [[ "$6" == "--certificate-oidc-issuer" ]]
 [[ "$7" == "https://token.actions.githubusercontent.com" ]]
 [[ "$8" == "$EXPECTED_ARCHIVE" ]]
-printf '%s\n' cosign >> "$VERIFIER_LOG"
 jq -e --arg ref "${EXPECTED_REF:-refs/tags/v1.2.3}" '.testVerification == "valid" and .testRef == $ref' "$3" >/dev/null

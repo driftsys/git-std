@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+printf '%s\n' gh >> "$VERIFIER_LOG"
 
 [[ $# -eq 11 ]]
 [[ "$1" == "attestation" ]]
@@ -13,5 +14,4 @@ set -euo pipefail
 [[ "$9" == "driftsys/git-std/.github/workflows/release.yml" ]]
 [[ "${10}" == "--source-ref" ]]
 [[ "${11}" == "${EXPECTED_REF:-refs/tags/v1.2.3}" ]]
-printf '%s\n' gh >> "$VERIFIER_LOG"
 jq -e --arg ref "${EXPECTED_REF:-refs/tags/v1.2.3}" '.testVerification == "valid" and .testRef == $ref' "$7" >/dev/null

@@ -22,33 +22,38 @@ subprocess invocation, policy, and comparison of plans with observed results.
 
 The following acceptance targets passed against the downloaded native binary:
 
-| Target                           | Tests | Evidence                                                                            |
-| -------------------------------- | ----- | ----------------------------------------------------------------------------------- |
-| `spec/tests/bump_clean_state.rs` | 8     | Staged, unstaged, untracked and submodule admission; read-only dirty preview        |
-| `spec/tests/contracts.rs`        | 10    | JSON metadata, errors, exit classes, version and doctor output                      |
-| `spec/tests/folio_contract.rs`   | 17    | Polyglot canonical version, mismatches, guarded apply, effects and hook limits      |
-| `spec/tests/folio_fidelity.rs`   | 8     | Exact Cargo rewrites, conditional changelog, index and release-path fidelity        |
-| `spec/tests/folio_inputs.rs`     | 3     | Complete normalized inputs, changed tool/config inputs, independent option identity |
-| `spec/tests/registry.rs`         | 10    | Effective conventions, rule/code consistency and JSON/SARIF behavior                |
+| Target                           | Tests | Evidence                                                                                            |
+| -------------------------------- | ----- | --------------------------------------------------------------------------------------------------- |
+| `spec/tests/bump_clean_state.rs` | 8     | Staged, unstaged, untracked and submodule admission; read-only dirty preview                        |
+| `spec/tests/contracts.rs`        | 10    | JSON metadata, errors, exit classes, version and doctor output                                      |
+| `spec/tests/folio_contract.rs`   | 17    | Polyglot canonical version, mismatches, guarded apply, effects and hook limits                      |
+| `spec/tests/folio_fidelity.rs`   | 8     | Exact Cargo rewrites, conditional changelog, index and release-path fidelity                        |
+| `spec/tests/folio_inputs.rs`     | 3     | Complete normalized inputs, changed tool/config inputs, independent option identity                 |
+| `spec/tests/registry.rs`         | 10    | Effective conventions, rule/code consistency and JSON/SARIF behavior                                |
+| `spec/tests/folio_push.rs`       | 1     | Guarded apply result compared with actual branch and annotated-tag OIDs in a disposable bare remote |
+
+The push fixture uses a disposable local bare remote. It verifies unchanged-plan
+admission, dry-run nonmutation, the selected remote, and exact remote branch/tag
+OIDs after guarded apply. Network and concurrent remote changes remain conditional.
 
 The five tests in `crates/git-std/tests/schema_contracts.rs` also passed. They
 validate the versioned schemas and examples, real success/failure documents, and
 rejection of malformed bump inputs and effects. Static schema rejection tests
 exercise repository schemas; they are not tests of binary parsing.
 
-| Issue criterion                                      | Satisfying release and evidence                                                                                        |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| #554: command inventory, schemas and examples        | v0.12.1; [CLI contracts](CLI-CONTRACTS.md) and `schemas/v1/cli/`                                                       |
-| #554: compatibility, codes, stdout and exits         | v0.12.1; contracts and registry targets; compatibility policy in CLI contracts                                         |
-| #554: single canonical polyglot version              | v0.12.1; folio_contract validates one version, tag, changelog and inherited Cargo parity, with explicit mismatch facts |
-| #554: unchanged-input plan/apply fidelity            | v0.12.1; folio_contract and folio_fidelity compare file hashes and observed commit/tag/push effects                    |
-| #554: config, hooks, tools, time and external inputs | v0.12.1; folio_inputs and hook skip/divergence cases; conditional and opaque limits are explicit                       |
-| #554: changed/skipped/failure cases                  | v0.12.1; all six acceptance targets above and schema rejection controls                                                |
-| #555: registry facts and resolved convention         | v0.12.1; registry tests distinguish static rules from project settings                                                 |
-| #555: version/schema compatibility                   | v0.12.1, schema 1.0.0; registry schema and CLI compatibility policy                                                    |
-| #555: JSON/SARIF codes and exits                     | v0.12.1; registry and contracts tests, including reversed/ordinary empty ranges                                        |
-| #555: common rule definitions                        | v0.12.1; `standard-commit` rules feed lint and registry; emitted codes are checked against descriptors and registry    |
-| #555: parseable success/failure stdout               | v0.12.1; registry, contracts and real schema success/failure tests                                                     |
+| Issue criterion                                      | Satisfying release and evidence                                                                                                                                       |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #554: command inventory, schemas and examples        | v0.12.1; [CLI contracts](CLI-CONTRACTS.md) and `schemas/v1/cli/`                                                                                                      |
+| #554: compatibility, codes, stdout and exits         | v0.12.1; contracts and registry targets; compatibility policy in CLI contracts                                                                                        |
+| #554: single canonical polyglot version              | v0.12.1; folio_contract validates one version, tag, changelog and inherited Cargo parity, with explicit mismatch facts                                                |
+| #554: unchanged-input plan/apply fidelity            | v0.12.1; folio_contract and folio_fidelity compare file hashes and local commit/tag effects; folio_push compares the planned remote, result and actual published refs |
+| #554: config, hooks, tools, time and external inputs | v0.12.1; folio_inputs and hook skip/divergence cases; conditional and opaque limits are explicit                                                                      |
+| #554: changed/skipped/failure cases                  | v0.12.1; the acceptance targets above and schema rejection controls                                                                                                   |
+| #555: registry facts and resolved convention         | v0.12.1; registry tests distinguish static rules from project settings                                                                                                |
+| #555: version/schema compatibility                   | v0.12.1, schema 1.0.0; registry schema and CLI compatibility policy                                                                                                   |
+| #555: JSON/SARIF codes and exits                     | v0.12.1; registry and contracts tests, including reversed/ordinary empty ranges                                                                                       |
+| #555: common rule definitions                        | v0.12.1; `standard-commit` rules feed lint and registry; emitted codes are checked against descriptors and registry                                                   |
+| #555: parseable success/failure stdout               | v0.12.1; registry, contracts and real schema success/failure tests                                                                                                    |
 
 Single-version fidelity requires `monorepo = false`. Arbitrary hooks remain
 opaque; lock tools and remote operations remain conditional. Stable-branch JSON

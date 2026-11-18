@@ -247,6 +247,18 @@ test_hosted_verify_allows_explicit_branch_qualification() {
 test_hosted_verify_rejects_a_different_explicit_tag() {
     create_bundle
     install_hosted_verifiers
-    assert_fails "EXPECTED_ARCHIVE='$archive' VERIFIER_LOG='$verifier_log' PATH='$fake_bin:$PATH' bash '$verify_script' '$archive' v1.2.3 --hosted --source-ref refs/tags/v9.9.9"
+    for bundle in "$archive.sigstore.json" "$archive.provenance.sigstore.json"; do
+        jq '.testRef = "refs/tags/v9.9.9"' "$bundle" > "$bundle.tmp"
+        mv "$bundle.tmp" "$bundle"
+    done
+    assert_fails "EXPECTED_REF=refs/tags/v9.9.9 EXPECTED_ARCHIVE='$archive' VERIFIER_LOG='$verifier_log' PATH='$fake_bin:$PATH' bash '$verify_script' '$archive' v1.2.3 --hosted --source-ref refs/tags/v9.9.9"
     assert "test ! -f '$verifier_log'"
+}
+
+
+test_hosted_verify_accepts_the_explicit_matching_release_tag() {
+    create_bundle
+    install_hosted_verifiers
+    assert "EXPECTED_ARCHIVE='$archive' VERIFIER_LOG='$verifier_log' PATH='$fake_bin:$PATH' bash '$verify_script' '$archive' v1.2.3 --hosted --source-ref refs/tags/v1.2.3"
+    assert_equals $'cosign\ngh' "$(cat "$verifier_log")"
 }

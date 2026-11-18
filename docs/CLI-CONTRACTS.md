@@ -110,7 +110,7 @@ rejects `--format json` instead of silently claiming incomplete fidelity.
 ## Released-version evidence
 
 The published `v0.12.1` Apple Silicon binary was qualified on 2026-11-18 against
-56 acceptance tests covering clean-state admission, plan/apply fidelity, bound
+57 acceptance tests covering clean-state admission, plan/apply fidelity, bound
 inputs, JSON failures, registry consistency, and SARIF. Five schema tests also
 passed, including real success/failure documents and malformed-input rejection.
 The executable reports `tool_version = "0.12.1"`; the CLI schema remains `1.0.0`.
