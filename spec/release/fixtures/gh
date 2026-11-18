@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+printf '%s\n' gh >> "$VERIFIER_LOG"
 
-[[ $# -eq 9 ]]
+[[ $# -eq 11 ]]
 [[ "$1" == "attestation" ]]
 [[ "$2" == "verify" ]]
 [[ "$3" == "$EXPECTED_ARCHIVE" ]]
@@ -11,5 +12,6 @@ set -euo pipefail
 [[ "$7" == "$EXPECTED_ARCHIVE.provenance.sigstore.json" ]]
 [[ "$8" == "--signer-workflow" ]]
 [[ "$9" == "driftsys/git-std/.github/workflows/release.yml" ]]
-printf '%s\n' gh >> "$VERIFIER_LOG"
-jq -e '.testVerification == "valid"' "$7" >/dev/null
+[[ "${10}" == "--source-ref" ]]
+[[ "${11}" == "${EXPECTED_REF:-refs/tags/v1.2.3}" ]]
+jq -e --arg ref "${EXPECTED_REF:-refs/tags/v1.2.3}" '.testVerification == "valid" and .testRef == $ref' "$7" >/dev/null

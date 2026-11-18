@@ -109,13 +109,15 @@ rejects `--format json` instead of silently claiming incomplete fidelity.
 
 ## Released-version evidence
 
-Release `v0.11.15` is evidence for the legacy command spellings and successful
-JSON fields only. The v1 metadata, registry, SARIF, mismatch facts, plan ID, and
-`--expect-plan` guard are absent from the published `v0.11.15` binary. Until the
-workspace version is bumped for the next release, branch builds and examples
-still report the source package version `0.11.15`; that field alone is not
-release evidence. Record the first release containing the contracts here after
-a real release is published and verified.
+The published `v0.12.1` Apple Silicon binary was qualified on 2026-11-18 against
+57 acceptance tests covering clean-state admission, plan/apply fidelity, bound
+inputs, JSON failures, registry consistency, and SARIF. Five schema tests also
+passed, including real success/failure documents and malformed-input rejection.
+The executable reports `tool_version = "0.12.1"`; the CLI schema remains `1.0.0`.
+
+See [Folio qualification](FOLIO-QUALIFICATION.md) for the criterion-to-test mapping,
+platform limits, release identifiers, and the separately verified asset set.
+`v0.11.15` remains a legacy JSON baseline; it does not provide these v1 contracts.
 
 ## Tag results
 

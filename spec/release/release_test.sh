@@ -65,7 +65,7 @@ validate_workflow_shape() {
           "scripts/release/verify.sh \\",
           "\"${{ steps.release-metadata.outputs.archive }}\" \\",
           "\"${{ steps.release-metadata.outputs.version }}\" \\",
-          "--hosted",
+          "--hosted --source-ref \"$GITHUB_REF\"",
         ]
         abort "hosted verification is not wired" unless hosted_lines == expected_hosted_lines
         upload_paths = steps.find { |step| step["name"] == "Upload artifacts" }.fetch("with").fetch("path").lines.map(&:strip).reject(&:empty?)
@@ -95,9 +95,9 @@ create_bundle() {
         --arg digest "$digest" \
         '{spdxVersion:"SPDX-2.3",name:("git-std-release-"+$version),packages:[{name:$name,versionInfo:$version,checksums:[{algorithm:"SHA256",checksumValue:$digest}]}]}' \
         > "$archive.spdx.json"
-    printf '{"mediaType":"application/vnd.dev.sigstore.bundle+json;version=0.3","testVerification":"valid"}\n' \
+    printf '{"mediaType":"application/vnd.dev.sigstore.bundle+json;version=0.3","testVerification":"valid","testRef":"refs/tags/v1.2.3"}\n' \
         > "$archive.sigstore.json"
-    printf '{"mediaType":"application/vnd.dev.sigstore.bundle+json;version=0.3","testVerification":"valid"}\n' \
+    printf '{"mediaType":"application/vnd.dev.sigstore.bundle+json;version=0.3","testVerification":"valid","testRef":"refs/tags/v1.2.3"}\n' \
         > "$archive.provenance.sigstore.json"
 }
 
@@ -219,4 +219,46 @@ test_just_test_exports_invoking_worktree_as_source_root() {
 
     assert "cd '$repo_root' && env -u CARGO_RUSTC_CURRENT_DIR OBSERVED='$observed' PATH='$fake_bin:$PATH' just test >/dev/null"
     assert_equals "$repo_root" "$(cat "$observed")"
+}
+
+
+test_hosted_verify_rejects_relabelled_release() {
+    create_bundle
+    install_hosted_verifiers
+    jq '.name = "git-std-release-v9.9.9" | .packages[0].versionInfo = "v9.9.9"' \
+        "$archive.spdx.json" > "$archive.spdx.tmp"
+    mv "$archive.spdx.tmp" "$archive.spdx.json"
+
+    assert_fails "EXPECTED_REF=refs/tags/v9.9.9 EXPECTED_ARCHIVE='$archive' VERIFIER_LOG='$verifier_log' PATH='$fake_bin:$PATH' bash '$verify_script' '$archive' v9.9.9 --hosted"
+    assert_equals "cosign" "$(cat "$verifier_log")"
+}
+
+test_hosted_verify_allows_explicit_branch_qualification() {
+    create_bundle
+    install_hosted_verifiers
+    for bundle in "$archive.sigstore.json" "$archive.provenance.sigstore.json"; do
+        jq '.testRef = "refs/heads/qualification"' "$bundle" > "$bundle.tmp"
+        mv "$bundle.tmp" "$bundle"
+    done
+    assert "EXPECTED_REF=refs/heads/qualification EXPECTED_ARCHIVE='$archive' VERIFIER_LOG='$verifier_log' PATH='$fake_bin:$PATH' bash '$verify_script' '$archive' v1.2.3 --hosted --source-ref refs/heads/qualification"
+    assert_equals $'cosign\ngh' "$(cat "$verifier_log")"
+}
+
+test_hosted_verify_rejects_a_different_explicit_tag() {
+    create_bundle
+    install_hosted_verifiers
+    for bundle in "$archive.sigstore.json" "$archive.provenance.sigstore.json"; do
+        jq '.testRef = "refs/tags/v9.9.9"' "$bundle" > "$bundle.tmp"
+        mv "$bundle.tmp" "$bundle"
+    done
+    assert_fails "EXPECTED_REF=refs/tags/v9.9.9 EXPECTED_ARCHIVE='$archive' VERIFIER_LOG='$verifier_log' PATH='$fake_bin:$PATH' bash '$verify_script' '$archive' v1.2.3 --hosted --source-ref refs/tags/v9.9.9"
+    assert "test ! -f '$verifier_log'"
+}
+
+
+test_hosted_verify_accepts_the_explicit_matching_release_tag() {
+    create_bundle
+    install_hosted_verifiers
+    assert "EXPECTED_ARCHIVE='$archive' VERIFIER_LOG='$verifier_log' PATH='$fake_bin:$PATH' bash '$verify_script' '$archive' v1.2.3 --hosted --source-ref refs/tags/v1.2.3"
+    assert_equals $'cosign\ngh' "$(cat "$verifier_log")"
 }
