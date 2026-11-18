@@ -1,6 +1,7 @@
 mod enable;
 mod failure;
 mod list;
+mod merge_state;
 mod output;
 mod run;
 mod setup;

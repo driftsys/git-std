@@ -95,13 +95,9 @@ pub(super) fn prepare(
         None
     };
     if let Some(ref stash_sha) = hook_stash
-        && !stash::stash_apply(stash_sha)
+        && let Err(message) = stash::stash_apply(stash_sha)
     {
-        let code = fail_after_rename_unstage(
-            format,
-            &staged_rename_targets,
-            "stash apply failed — working tree has conflicting unstaged changes",
-        );
+        let code = fail_after_rename_unstage(format, &staged_rename_targets, message);
         if format != OutputFormat::Json {
             ui::hint(&format!(
                 "your original changes are preserved in the stash ({stash_sha}) — resolve \
