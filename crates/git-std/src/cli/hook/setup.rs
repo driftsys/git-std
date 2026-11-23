@@ -62,6 +62,8 @@ pub(super) fn prepare(
     } else {
         Vec::new()
     };
+    let unstageable_rename_targets =
+        stash::without_colliding_renames(&staged_rename_targets, &staged_rename_sources);
     let mut staged_deletions = if use_stash_dance {
         report(format, stash::fetch_staged("D"))?
     } else {
@@ -72,7 +74,7 @@ pub(super) fn prepare(
             staged_deletions.push(source);
         }
     }
-    if use_stash_dance && !stash::unstage_renames(&staged_rename_targets) {
+    if use_stash_dance && !stash::unstage_renames(&unstageable_rename_targets) {
         let code = failure::emit(format, "failed to unstage renames before stash dance");
         if format != OutputFormat::Json {
             print_failure_hints(hook);

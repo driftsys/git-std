@@ -206,6 +206,27 @@ fn git_lines(args: &[&str], failure: &str) -> Result<Vec<String>, String> {
         .collect())
 }
 
+/// Drop rename targets that collide with a rename source from the list that
+/// gets unstaged.
+///
+/// A target collides when its lowercased path equals the lowercased path of
+/// any staged rename source (#604). This covers a case-only rename
+/// (`rules.md` to `RULES.md`) and a swap across several renames
+/// (`dir/a.txt` to `DIR/b.txt` with `dir/b.txt` to `DIR/a.txt`). On a
+/// case-insensitive filesystem the target and the source are the same file
+/// on disk, so unstaging the target makes it an untracked file that
+/// `git stash apply` cannot restore over the tracked source. Such targets
+/// stay in the index. The check compares names only, so it does not depend
+/// on `core.ignorecase`.
+pub(super) fn without_colliding_renames(targets: &[String], sources: &[String]) -> Vec<String> {
+    let lowered_sources: Vec<String> = sources.iter().map(|source| source.to_lowercase()).collect();
+    targets
+        .iter()
+        .filter(|target| !lowered_sources.contains(&target.to_lowercase()))
+        .cloned()
+        .collect()
+}
+
 /// Temporarily unstage renamed files by restoring only the new names from
 /// the HEAD. This prevents git stash from corrupting the rename.
 ///
@@ -323,5 +344,38 @@ pub(super) fn restage_files(files: &[String]) -> Result<(), String> {
             ))
         }
         Err(e) => Err(format!("git add failed after fix-mode formatting: {e}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::without_colliding_renames;
+
+    fn names(items: &[&str]) -> Vec<String> {
+        items.iter().map(|item| item.to_string()).collect()
+    }
+
+    #[test]
+    fn colliding_renames_are_not_unstaged() {
+        let targets = names(&["dir/RULES.md", "new.txt", "\u{c9}.md"]);
+        let sources = names(&["dir/rules.md", "old.txt", "\u{e9}.md"]);
+        assert_eq!(
+            without_colliding_renames(&targets, &sources),
+            names(&["new.txt"])
+        );
+    }
+
+    #[test]
+    fn swapped_renames_with_different_case_are_not_unstaged() {
+        let targets = names(&["DIR/b.txt", "DIR/a.txt"]);
+        let sources = names(&["dir/a.txt", "dir/b.txt"]);
+        assert!(without_colliding_renames(&targets, &sources).is_empty());
+    }
+
+    #[test]
+    fn unrelated_renames_are_kept() {
+        let targets = names(&["b.txt"]);
+        let sources = names(&["a.txt"]);
+        assert_eq!(without_colliding_renames(&targets, &sources), targets);
     }
 }
