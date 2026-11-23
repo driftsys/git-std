@@ -162,8 +162,10 @@ fn stash_push_inner() -> Result<Option<String>, String> {
 
 /// Get the new names of any files staged as renames.
 ///
-/// Returns the new file paths from renames. Used to temporarily unstage
-/// renames before the stash dance to prevent corruption (#387).
+/// Returns the new file paths from renames. Used to unstage renames before
+/// the stash dance to prevent corruption (#387), except for targets that
+/// collide with a rename source (see [`without_colliding_renames`]). Also
+/// used to re-stage every rename target after the dance.
 pub(super) fn fetch_staged_rename_targets() -> Result<Vec<String>, String> {
     git_lines(
         &["diff", "--cached", "--diff-filter=R", "--name-only"],
@@ -173,9 +175,10 @@ pub(super) fn fetch_staged_rename_targets() -> Result<Vec<String>, String> {
 
 /// Get the old names of files staged as renames.
 ///
-/// These paths become staged deletions while the rename targets are
-/// temporarily unstaged, so callers preserve them with the deletion inventory
-/// captured before mutating the index.
+/// These paths become staged deletions while the non-colliding rename
+/// targets are temporarily unstaged, so callers preserve them with the
+/// deletion inventory captured before mutating the index. They also identify
+/// colliding renames (see [`without_colliding_renames`]).
 pub(super) fn fetch_staged_rename_sources() -> Result<Vec<String>, String> {
     let lines = git_lines(
         &["diff", "--cached", "--diff-filter=R", "--name-status"],
@@ -211,13 +214,17 @@ fn git_lines(args: &[&str], failure: &str) -> Result<Vec<String>, String> {
 ///
 /// A target collides when its lowercased path equals the lowercased path of
 /// any staged rename source (#604). This covers a case-only rename
-/// (`rules.md` to `RULES.md`) and a swap across several renames
-/// (`dir/a.txt` to `DIR/b.txt` with `dir/b.txt` to `DIR/a.txt`). On a
+/// (`rules.md` to `RULES.md`, in either direction) and a swap across several
+/// renames (`dir/a.txt` to `DIR/b.txt` with `dir/b.txt` to `DIR/a.txt`). On a
 /// case-insensitive filesystem the target and the source are the same file
 /// on disk, so unstaging the target makes it an untracked file that
 /// `git stash apply` cannot restore over the tracked source. Such targets
-/// stay in the index. The check compares names only, so it does not depend
-/// on `core.ignorecase`.
+/// stay in the index.
+///
+/// The check compares names only. It uses neither the filesystem nor
+/// `core.ignorecase`. Only ASCII-safe paths are handled: Git quotes
+/// non-ASCII paths in this output, which this function does not decode
+/// (tracked in #606).
 pub(super) fn without_colliding_renames(targets: &[String], sources: &[String]) -> Vec<String> {
     let lowered_sources: Vec<String> = sources.iter().map(|source| source.to_lowercase()).collect();
     targets
@@ -225,6 +232,39 @@ pub(super) fn without_colliding_renames(targets: &[String], sources: &[String]) 
         .filter(|target| !lowered_sources.contains(&target.to_lowercase()))
         .cloned()
         .collect()
+}
+
+/// Select the rename sources that collide with a rename target.
+///
+/// Uses the same name-only rule as [`without_colliding_renames`], seen from
+/// the source side.
+pub(super) fn colliding_rename_sources(targets: &[String], sources: &[String]) -> Vec<String> {
+    let lowered_targets: Vec<String> = targets.iter().map(|target| target.to_lowercase()).collect();
+    sources
+        .iter()
+        .filter(|source| lowered_targets.contains(&source.to_lowercase()))
+        .cloned()
+        .collect()
+}
+
+/// Remove the work tree copies of colliding rename sources after the stash
+/// push.
+///
+/// `git stash push` resets the work tree to HEAD, so each source is back with
+/// its committed content. When `core.ignorecase` is not true, Git then treats
+/// the stashed target as an untracked file that would overwrite that copy,
+/// and `git stash apply` aborts (#604). The copy holds only committed content,
+/// so removing it loses nothing; the stash apply recreates the file under its
+/// new name. A copy that is already gone is not an error.
+pub(super) fn remove_work_tree_files(paths: &[String]) -> Result<(), String> {
+    for path in paths {
+        match std::fs::remove_file(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("failed to prepare stash apply for {path}: {error}")),
+        }
+    }
+    Ok(())
 }
 
 /// Temporarily unstage renamed files by restoring only the new names from
@@ -243,7 +283,10 @@ pub(super) fn unstage_renames(rename_targets: &[String]) -> bool {
     matches!(cmd.status(), Ok(s) if s.success())
 }
 
-/// Re-stage rename targets after they were temporarily removed from the index.
+/// Re-stage rename targets after the stash dance.
+///
+/// Targets that were temporarily unstaged are added back. Targets that stayed
+/// staged (colliding renames) are added again, which leaves them unchanged.
 ///
 /// Returns an error when Git cannot restore the original staged rename state.
 pub(super) fn restage_renames(rename_targets: &[String]) -> Result<(), String> {
@@ -349,7 +392,7 @@ pub(super) fn restage_files(files: &[String]) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::without_colliding_renames;
+    use super::{colliding_rename_sources, without_colliding_renames};
 
     fn names(items: &[&str]) -> Vec<String> {
         items.iter().map(|item| item.to_string()).collect()
@@ -370,6 +413,24 @@ mod tests {
         let targets = names(&["DIR/b.txt", "DIR/a.txt"]);
         let sources = names(&["dir/a.txt", "dir/b.txt"]);
         assert!(without_colliding_renames(&targets, &sources).is_empty());
+    }
+
+    #[test]
+    fn upper_to_lower_rename_is_not_unstaged() {
+        let targets = names(&["dir/rules.md"]);
+        let sources = names(&["dir/RULES.md"]);
+        assert!(without_colliding_renames(&targets, &sources).is_empty());
+        assert_eq!(colliding_rename_sources(&targets, &sources), sources);
+    }
+
+    #[test]
+    fn colliding_sources_cover_swaps_only() {
+        let targets = names(&["DIR/b.txt", "DIR/a.txt", "x.txt"]);
+        let sources = names(&["dir/a.txt", "dir/b.txt", "y.txt"]);
+        assert_eq!(
+            colliding_rename_sources(&targets, &sources),
+            names(&["dir/a.txt", "dir/b.txt"])
+        );
     }
 
     #[test]
