@@ -69,7 +69,30 @@ fn run_hook(path: &Path) {
         .success();
 }
 
-fn assert_clean_after_hook(path: &Path, before: &str) {
+/// Exact file names in `dir/`, read from the directory listing.
+///
+/// `Path::exists` is case-insensitive on some filesystems, so it cannot tell
+/// `rules.md` from `RULES.md`.
+fn on_disk_names(path: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(path.join("dir"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+/// `git status --porcelain` without the hook directory the tests create.
+/// Untracked files are included, so a leftover file under the old name shows.
+fn status_without_hooks_dir(path: &Path) -> Vec<String> {
+    git(path, &["status", "--porcelain"])
+        .lines()
+        .filter(|line| !line.ends_with(".githooks/"))
+        .map(String::from)
+        .collect()
+}
+
+fn assert_clean_after_hook(path: &Path, before: &str, expected_names: &[&str]) {
     assert_eq!(
         git(path, &["diff", "--cached", "--name-status"]),
         before,
@@ -81,6 +104,12 @@ fn assert_clean_after_hook(path: &Path, before: &str) {
         "no unstaged changes"
     );
     assert_eq!(git(path, &["stash", "list"]), "", "no leftover stash");
+    assert_eq!(on_disk_names(path), expected_names, "on-disk names");
+    let status = status_without_hooks_dir(path);
+    assert!(
+        status.iter().all(|line| line.starts_with("R ")),
+        "only staged renames expected, got: {status:?}"
+    );
 }
 
 fn stage_case_only_rename(path: &Path) {
@@ -124,7 +153,7 @@ fn case_only_rename_survives(ignore_case: IgnoreCase) {
     assert!(before.starts_with('R'), "expected staged rename: {before}");
 
     run_hook(path);
-    assert_clean_after_hook(path, &before);
+    assert_clean_after_hook(path, &before, &["RULES.md"]);
 }
 for_each_ignore_case!(
     case_only_rename_survives,
@@ -149,6 +178,11 @@ fn formatter_edit_is_restaged(ignore_case: IgnoreCase) {
     );
     assert_eq!(git(path, &["diff", "--name-only"]), "");
     assert_eq!(git(path, &["stash", "list"]), "");
+    assert_eq!(on_disk_names(path), ["RULES.md"], "on-disk names");
+    assert_eq!(
+        status_without_hooks_dir(path),
+        ["R  dir/rules.md -> dir/RULES.md"]
+    );
     let blob = git(path, &["show", ":dir/RULES.md"]);
     assert!(blob.ends_with("formatted"), "blob not formatted: {blob}");
 }
@@ -185,10 +219,8 @@ fn commit_through_installed_hook(ignore_case: IgnoreCase) {
     git(path, &["commit", "-m", "chore: rename"]);
 
     assert_eq!(git(path, &["stash", "list"]), "");
-    assert_eq!(
-        git(path, &["status", "--porcelain", "--untracked-files=no"]),
-        ""
-    );
+    assert_eq!(status_without_hooks_dir(path), Vec::<String>::new());
+    assert_eq!(on_disk_names(path), ["RULES.md"], "on-disk names");
     assert_eq!(
         git(path, &["ls-tree", "--name-only", "HEAD", "dir/"]),
         "dir/RULES.md"
@@ -217,7 +249,7 @@ fn swapping_renames_survive(ignore_case: IgnoreCase) {
     assert!(before.starts_with('R'), "expected staged renames: {before}");
 
     run_hook(path);
-    assert_clean_after_hook(path, &before);
+    assert_clean_after_hook(path, &before, &["A.txt", "B.txt"]);
 }
 for_each_ignore_case!(
     swapping_renames_survive,
@@ -238,7 +270,7 @@ fn upper_to_lower_rename_survives(ignore_case: IgnoreCase) {
     assert!(before.starts_with('R'), "expected staged rename: {before}");
 
     run_hook(path);
-    assert_clean_after_hook(path, &before);
+    assert_clean_after_hook(path, &before, &["rules.md"]);
 }
 for_each_ignore_case!(
     upper_to_lower_rename_survives,
@@ -263,7 +295,7 @@ fn mixed_renames_survive(ignore_case: IgnoreCase) {
     assert_eq!(before.lines().count(), 2, "expected two renames: {before}");
 
     run_hook(path);
-    assert_clean_after_hook(path, &before);
+    assert_clean_after_hook(path, &before, &["RULES.md", "new.txt"]);
 }
 for_each_ignore_case!(
     mixed_renames_survive,
@@ -330,5 +362,100 @@ fn ordinary_rename_target_is_unstaged_while_commands_run() {
     assert_eq!(
         git(dir.path(), &["diff", "--cached", "--name-status"]),
         "R100\tdir/old.txt\tdir/new.txt"
+    );
+}
+
+/// #604 — An unstaged edit on the case-renamed file keeps the new on-disk
+/// name and its content.
+///
+/// The hook stages the edit (known issue #607), so the staged blob holds it.
+/// The on-disk name must be `RULES.md` with no untracked file under the old
+/// name.
+fn unstaged_edit_keeps_new_name(ignore_case: IgnoreCase) {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path();
+    init_repo(path, ignore_case, &["dir/rules.md"], "~ true\n");
+    stage_case_only_rename(path);
+    std::fs::write(path.join("dir/RULES.md"), "dir/rules.md\nedit\n").unwrap();
+
+    run_hook(path);
+
+    assert_eq!(on_disk_names(path), ["RULES.md"], "on-disk names");
+    assert_eq!(
+        status_without_hooks_dir(path),
+        ["R  dir/rules.md -> dir/RULES.md"]
+    );
+    assert_eq!(git(path, &["stash", "list"]), "");
+    assert_eq!(
+        std::fs::read_to_string(path.join("dir/RULES.md")).unwrap(),
+        "dir/rules.md\nedit\n"
+    );
+    assert_eq!(git(path, &["show", ":dir/RULES.md"]), "dir/rules.md\nedit");
+}
+for_each_ignore_case!(
+    unstaged_edit_keeps_new_name,
+    unstaged_edit_default_ignorecase,
+    unstaged_edit_unset_ignorecase,
+    unstaged_edit_false_ignorecase
+);
+
+/// #604 — The hook removes the work tree copy of the rename source before it
+/// applies the stash, on any filesystem.
+///
+/// A case-sensitive filesystem has no collision, so the end state is the same
+/// with or without the removal. A `git` wrapper first in `PATH` records the
+/// content of `dir/` at the moment `git stash apply` starts.
+#[cfg(unix)]
+#[test]
+fn colliding_rename_source_is_removed_before_stash_apply() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let tools = tempfile::tempdir().unwrap();
+    let record = tools.path().join("listing.txt");
+    let real_git = String::from_utf8(
+        std::process::Command::new("sh")
+            .args(["-c", "command -v git"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    let wrapper = tools.path().join("git");
+    std::fs::write(
+        &wrapper,
+        format!(
+            "#!/bin/sh\nif [ \"$1\" = stash ] && [ \"$2\" = apply ]; then ls dir > {}; fi\nexec {} \"$@\"\n",
+            record.display(),
+            real_git.trim()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755)).unwrap();
+    init_repo(
+        dir.path(),
+        IgnoreCase::Default,
+        &["dir/rules.md"],
+        "~ true\n",
+    );
+    stage_case_only_rename(dir.path());
+
+    let path_env = format!(
+        "{}:{}",
+        tools.path().display(),
+        std::env::var("PATH").unwrap()
+    );
+    Command::cargo_bin("git-std")
+        .unwrap()
+        .args(["--color", "never", "hook", "run", "pre-commit"])
+        .env("PATH", path_env)
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let seen = std::fs::read_to_string(&record).expect("stash apply was not recorded");
+    assert!(
+        !seen.lines().any(|name| name == "rules.md"),
+        "source copy must be gone when the stash is applied, saw:\n{seen}"
     );
 }

@@ -267,6 +267,63 @@ pub(super) fn remove_work_tree_files(paths: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// Select the rename targets that collide with a rename source.
+///
+/// Uses the same name-only rule as [`without_colliding_renames`], so these
+/// are the targets that stay staged through the stash dance.
+pub(super) fn colliding_rename_targets(targets: &[String], sources: &[String]) -> Vec<String> {
+    let lowered_sources: Vec<String> = sources.iter().map(|source| source.to_lowercase()).collect();
+    targets
+        .iter()
+        .filter(|target| lowered_sources.contains(&target.to_lowercase()))
+        .cloned()
+        .collect()
+}
+
+/// Give each colliding rename target its exact on-disk name after the stash
+/// apply.
+///
+/// When the work tree holds an unstaged edit of the target, the stash
+/// records the old name as a modified tracked file too, because the old name
+/// resolves to the same file on a case-insensitive filesystem. The apply
+/// then writes both names to one file and the old name wins. The directory
+/// listing shows the exact name, so this renames the entry only when it
+/// matches the target ignoring case, differs from the target, and the target
+/// name itself is not listed. On a case-sensitive filesystem no such entry
+/// exists and nothing changes.
+pub(super) fn restore_target_names(targets: &[String]) -> Result<(), String> {
+    for target in targets {
+        let target_path = std::path::Path::new(target);
+        let (Some(parent), Some(name)) = (target_path.parent(), target_path.file_name()) else {
+            continue;
+        };
+        let parent = if parent.as_os_str().is_empty() {
+            std::path::Path::new(".")
+        } else {
+            parent
+        };
+        let Ok(entries) = std::fs::read_dir(parent) else {
+            continue;
+        };
+        let listed: Vec<std::ffi::OsString> = entries
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name())
+            .collect();
+        if listed.iter().any(|entry| entry.as_os_str() == name) {
+            continue;
+        }
+        let lowered = name.to_string_lossy().to_lowercase();
+        if let Some(old) = listed
+            .iter()
+            .find(|entry| entry.to_string_lossy().to_lowercase() == lowered)
+        {
+            std::fs::rename(parent.join(old), target_path)
+                .map_err(|error| format!("failed to restore the name of {target}: {error}"))?;
+        }
+    }
+    Ok(())
+}
+
 /// Temporarily unstage renamed files by restoring only the new names from
 /// the HEAD. This prevents git stash from corrupting the rename.
 ///
@@ -286,7 +343,8 @@ pub(super) fn unstage_renames(rename_targets: &[String]) -> bool {
 /// Re-stage rename targets after the stash dance.
 ///
 /// Targets that were temporarily unstaged are added back. Targets that stayed
-/// staged (colliding renames) are added again, which leaves them unchanged.
+/// staged (colliding renames) are added again; an unstaged edit of such a
+/// target is staged too (#607).
 ///
 /// Returns an error when Git cannot restore the original staged rename state.
 pub(super) fn restage_renames(rename_targets: &[String]) -> Result<(), String> {
@@ -392,7 +450,51 @@ pub(super) fn restage_files(files: &[String]) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{colliding_rename_sources, without_colliding_renames};
+    use super::{
+        colliding_rename_sources, remove_work_tree_files, restore_target_names,
+        without_colliding_renames,
+    };
+
+    fn listing(dir: &std::path::Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn remove_work_tree_files_removes_files_and_ignores_missing_ones() {
+        let dir = tempfile::tempdir().unwrap();
+        let present = dir.path().join("present.txt");
+        let missing = dir.path().join("missing.txt");
+        std::fs::write(&present, "x").unwrap();
+        let paths = vec![
+            missing.to_string_lossy().into_owned(),
+            present.to_string_lossy().into_owned(),
+        ];
+        assert_eq!(remove_work_tree_files(&paths), Ok(()));
+        assert!(listing(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn restore_target_names_renames_an_entry_that_differs_only_by_case() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("rules.md"), "x").unwrap();
+        let target = dir.path().join("RULES.md").to_string_lossy().into_owned();
+        assert_eq!(restore_target_names(&[target]), Ok(()));
+        assert_eq!(listing(dir.path()), ["RULES.md"]);
+    }
+
+    #[test]
+    fn restore_target_names_keeps_a_correctly_named_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("RULES.md"), "x").unwrap();
+        let target = dir.path().join("RULES.md").to_string_lossy().into_owned();
+        assert_eq!(restore_target_names(&[target]), Ok(()));
+        assert_eq!(listing(dir.path()), ["RULES.md"]);
+    }
 
     fn names(items: &[&str]) -> Vec<String> {
         items.iter().map(|item| item.to_string()).collect()
