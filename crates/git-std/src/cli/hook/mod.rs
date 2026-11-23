@@ -1,3 +1,4 @@
+mod case_collision;
 mod enable;
 mod failure;
 mod list;
