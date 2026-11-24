@@ -374,8 +374,10 @@ pub fn run(hook: &str, args: &[String], format: OutputFormat) -> i32 {
             }
         }
 
-        // Re-stage renamed files after the stash dance completes.
-        // They were unstaged before to prevent stash corruption (#387).
+        // Re-stage renamed files after the stash dance completes. Targets
+        // that were unstaged to prevent stash corruption (#387) are added
+        // back. Targets that stayed staged (#604) are added again, which
+        // also stages any unstaged edit of them (#607).
         if let Err(message) = stash::restage_renames(&staged_rename_targets) {
             let code = failure::emit(format, message);
             if format != OutputFormat::Json {

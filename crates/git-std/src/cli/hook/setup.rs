@@ -4,7 +4,7 @@ use crate::app::OutputFormat;
 use crate::ui;
 
 use super::output::print_failure_hints;
-use super::{failure, stash};
+use super::{case_collision, failure, stash};
 
 pub(super) struct HookRunSetup {
     pub(super) staged_files: Vec<String>,
@@ -62,6 +62,12 @@ pub(super) fn prepare(
     } else {
         Vec::new()
     };
+    let unstageable_rename_targets =
+        case_collision::without_colliding_renames(&staged_rename_targets, &staged_rename_sources);
+    let colliding_rename_targets =
+        case_collision::colliding_rename_targets(&staged_rename_targets, &staged_rename_sources);
+    let colliding_rename_sources =
+        case_collision::colliding_rename_sources(&staged_rename_targets, &staged_rename_sources);
     let mut staged_deletions = if use_stash_dance {
         report(format, stash::fetch_staged("D"))?
     } else {
@@ -72,7 +78,7 @@ pub(super) fn prepare(
             staged_deletions.push(source);
         }
     }
-    if use_stash_dance && !stash::unstage_renames(&staged_rename_targets) {
+    if use_stash_dance && !stash::unstage_renames(&unstageable_rename_targets) {
         let code = failure::emit(format, "failed to unstage renames before stash dance");
         if format != OutputFormat::Json {
             print_failure_hints(hook);
@@ -95,7 +101,9 @@ pub(super) fn prepare(
         None
     };
     if let Some(ref stash_sha) = hook_stash
-        && let Err(message) = stash::stash_apply(stash_sha)
+        && let Err(message) = case_collision::remove_work_tree_files(&colliding_rename_sources)
+            .and_then(|()| stash::stash_apply(stash_sha))
+            .and_then(|()| case_collision::restore_target_names(&colliding_rename_targets))
     {
         let code = fail_after_rename_unstage(format, &staged_rename_targets, message);
         if format != OutputFormat::Json {

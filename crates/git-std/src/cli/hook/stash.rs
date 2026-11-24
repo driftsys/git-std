@@ -162,8 +162,10 @@ fn stash_push_inner() -> Result<Option<String>, String> {
 
 /// Get the new names of any files staged as renames.
 ///
-/// Returns the new file paths from renames. Used to temporarily unstage
-/// renames before the stash dance to prevent corruption (#387).
+/// Returns the new file paths from renames. Used to unstage renames before
+/// the stash dance to prevent corruption (#387), except for targets that
+/// collide with a rename source (see [`super::case_collision::without_colliding_renames`]). Also
+/// used to re-stage every rename target after the dance.
 pub(super) fn fetch_staged_rename_targets() -> Result<Vec<String>, String> {
     git_lines(
         &["diff", "--cached", "--diff-filter=R", "--name-only"],
@@ -173,9 +175,10 @@ pub(super) fn fetch_staged_rename_targets() -> Result<Vec<String>, String> {
 
 /// Get the old names of files staged as renames.
 ///
-/// These paths become staged deletions while the rename targets are
-/// temporarily unstaged, so callers preserve them with the deletion inventory
-/// captured before mutating the index.
+/// These paths become staged deletions while the non-colliding rename
+/// targets are temporarily unstaged, so callers preserve them with the
+/// deletion inventory captured before mutating the index. They also identify
+/// colliding renames (see [`super::case_collision::without_colliding_renames`]).
 pub(super) fn fetch_staged_rename_sources() -> Result<Vec<String>, String> {
     let lines = git_lines(
         &["diff", "--cached", "--diff-filter=R", "--name-status"],
@@ -222,7 +225,11 @@ pub(super) fn unstage_renames(rename_targets: &[String]) -> bool {
     matches!(cmd.status(), Ok(s) if s.success())
 }
 
-/// Re-stage rename targets after they were temporarily removed from the index.
+/// Re-stage rename targets after the stash dance.
+///
+/// Targets that were temporarily unstaged are added back. Targets that stayed
+/// staged (colliding renames) are added again; an unstaged edit of such a
+/// target is staged too (#607).
 ///
 /// Returns an error when Git cannot restore the original staged rename state.
 pub(super) fn restage_renames(rename_targets: &[String]) -> Result<(), String> {
