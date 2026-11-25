@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: dprint/check@v2.3
+      - uses: dprint/check@v2.5
 
   clippy:
     name: Clippy
