@@ -9,8 +9,11 @@ use std::path::Path;
 
 use assert_cmd::Command;
 
+/// Run Git with every path argument read as a literal name, so that a name
+/// such as `a*.txt` is one file and not a pattern.
 fn git(dir: &Path, args: &[&str]) -> String {
     let output = std::process::Command::new("git")
+        .env("GIT_LITERAL_PATHSPECS", "1")
         .current_dir(dir)
         .args(args)
         .output()
@@ -119,11 +122,14 @@ fn unstaged(path: &Path) -> String {
             "ls-files",
             "--others",
             "--exclude-standard",
-            "--",
-            ":!.githooks",
         ],
     );
-    format!("{changes}{untracked}")
+    // The hook file is untracked in every scenario.
+    let untracked: Vec<&str> = untracked
+        .lines()
+        .filter(|name| *name != ".githooks/pre-commit.hooks")
+        .collect();
+    format!("{changes}{}", untracked.join("\n"))
 }
 
 /// Names and content of every file in the work tree root, read from the

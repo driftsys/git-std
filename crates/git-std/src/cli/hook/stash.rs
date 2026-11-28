@@ -216,8 +216,9 @@ pub(super) fn fetch_staged_rename_sources() -> Result<Vec<String>, String> {
         .filter(|field| !field.is_empty())
         .map(|field| String::from_utf8_lossy(field).into_owned())
         .collect();
-    Ok(fields
-        .chunks_exact(3)
+    let (records, _) = fields.as_chunks::<3>();
+    Ok(records
+        .iter()
         .filter(|record| record[0].starts_with('R'))
         .map(|record| record[1].clone())
         .collect())
