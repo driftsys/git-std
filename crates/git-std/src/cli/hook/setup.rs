@@ -41,6 +41,18 @@ pub(super) fn prepare(
         ui::warning("~ prefix is only supported in pre-commit — treating as !");
     }
 
+    if use_stash_dance && let Err(message) = stash::ensure_utf8_staged_paths() {
+        let code = failure::emit(format, message);
+        if format != OutputFormat::Json {
+            ui::hint(
+                "rename the file, or remove the ~ prefix from commands in \
+                 .githooks/pre-commit.hooks",
+            );
+            print_failure_hints(hook);
+        }
+        return Err(code);
+    }
+
     if use_stash_dance && report(format, stash::has_staged_submodules())? {
         let code = failure::emit(format, "fix mode (~) does not support submodule entries");
         if format != OutputFormat::Json {

@@ -916,8 +916,8 @@ old case, the user stages them under the new case, for example with `git mv`
 or with `git rm --cached` and `git add` for each file, and reviews
 `git diff --cached`. Staging a file also stages its unstaged edits. The hook
 does not generate these index commands. The user can also skip the hook with
-`GIT_STD_SKIP_HOOKS=1`. Paths with non-ASCII characters are not detected yet
-(#606).
+`GIT_STD_SKIP_HOOKS=1`. Fix mode does not support file names that are not
+valid UTF-8: the hook stops with an error before it changes anything.
 
 **Default mode per hook:**
 
