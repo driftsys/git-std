@@ -118,11 +118,98 @@ pub(super) fn restore_target_names(targets: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// A staged path whose directory has another case on disk (#609).
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct DirectoryMismatch {
+    /// The staged path.
+    pub(super) path: String,
+    /// The directory as the index spells it, relative to the work tree root.
+    pub(super) index_directory: String,
+    /// The same directory as the work tree lists it.
+    pub(super) disk_directory: String,
+}
+
+/// Check whether `core.ignorecase` is true in the current repository.
+///
+/// With it set, Git folds the directory case of an added path onto the case
+/// already in the index, so the mismatch of #609 does not arise.
+pub(super) fn ignore_case_is_true() -> bool {
+    std::process::Command::new("git")
+        .args(["config", "--type=bool", "--get", "core.ignorecase"])
+        .output()
+        .is_ok_and(|output| String::from_utf8_lossy(&output.stdout).trim() == "true")
+}
+
+/// Select the staged paths with a directory that is an alias of the directory
+/// on disk (#609).
+///
+/// `git mv dir/a.txt DIR/c.txt` records `DIR/c.txt` in the index while a
+/// case-insensitive filesystem keeps the file in `dir/`. Git then lists the
+/// work tree file as untracked, and `git stash apply` fails when the stash
+/// holds the same file under two names. The hook cannot repair that state, so
+/// it reports these paths before it changes anything.
+///
+/// `paths` are relative to `root`, the top level of the work tree. A
+/// directory is an alias when its parent lists no entry with the exact name
+/// but the path with the index case still resolves to a directory. The check
+/// reads the listing, because `Path::exists` ignores case on some
+/// filesystems. On a case-sensitive filesystem the path does not resolve, so
+/// nothing is reported there.
+///
+/// Git quotes non-ASCII paths in the lists this function receives, and the
+/// function does not decode them. Such paths are not detected yet (#606).
+pub(super) fn directory_mismatches(
+    root: &std::path::Path,
+    paths: &[String],
+) -> Vec<DirectoryMismatch> {
+    paths
+        .iter()
+        .filter_map(|path| directory_mismatch(root, path))
+        .collect()
+}
+
+fn directory_mismatch(root: &std::path::Path, path: &str) -> Option<DirectoryMismatch> {
+    let directories = std::path::Path::new(path).parent()?;
+    let mut current = root.to_path_buf();
+    let mut index_directory = std::path::PathBuf::new();
+    let mut disk_directory = std::path::PathBuf::new();
+    for component in directories.components() {
+        let std::path::Component::Normal(name) = component else {
+            continue;
+        };
+        let listed: Vec<std::ffi::OsString> = std::fs::read_dir(&current)
+            .ok()?
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name())
+            .collect();
+        current.push(name);
+        index_directory.push(name);
+        if listed.iter().any(|entry| entry.as_os_str() == name) {
+            disk_directory.push(name);
+            continue;
+        }
+        let lowered = name.to_string_lossy().to_lowercase();
+        let on_disk = listed
+            .iter()
+            .find(|entry| entry.to_string_lossy().to_lowercase() == lowered)?;
+        if !std::fs::metadata(&current).ok()?.is_dir() {
+            return None;
+        }
+        disk_directory.push(on_disk);
+        return Some(DirectoryMismatch {
+            path: path.to_string(),
+            index_directory: index_directory.to_string_lossy().into_owned(),
+            disk_directory: disk_directory.to_string_lossy().into_owned(),
+        });
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        colliding_rename_sources, remove_work_tree_files, restore_target_names,
-        without_colliding_renames,
+        DirectoryMismatch, colliding_rename_sources, directory_mismatches, remove_work_tree_files,
+        restore_target_names, without_colliding_renames,
     };
 
     fn listing(dir: &std::path::Path) -> Vec<String> {
@@ -168,6 +255,55 @@ mod tests {
 
     fn names(items: &[&str]) -> Vec<String> {
         items.iter().map(|item| item.to_string()).collect()
+    }
+
+    /// Whether `LOWER` names the directory `lower` on this filesystem.
+    fn is_case_insensitive(root: &std::path::Path) -> bool {
+        root.join("LOWER").is_dir()
+    }
+
+    #[test]
+    fn directory_mismatch_names_the_index_and_disk_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("lower/inner")).unwrap();
+        let found = directory_mismatches(
+            dir.path(),
+            &names(&["LOWER/file.txt", "lower/INNER/file.txt"]),
+        );
+        if is_case_insensitive(dir.path()) {
+            assert_eq!(
+                found,
+                [
+                    DirectoryMismatch {
+                        path: "LOWER/file.txt".to_string(),
+                        index_directory: "LOWER".to_string(),
+                        disk_directory: "lower".to_string(),
+                    },
+                    DirectoryMismatch {
+                        path: "lower/INNER/file.txt".to_string(),
+                        index_directory: "lower/INNER".to_string(),
+                        disk_directory: "lower/inner".to_string(),
+                    },
+                ]
+            );
+        } else {
+            assert!(found.is_empty(), "a distinct directory is no alias");
+        }
+    }
+
+    #[test]
+    fn exact_missing_and_top_level_paths_are_no_mismatch() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("lower/inner")).unwrap();
+        let paths = names(&["lower/inner/file.txt", "missing/file.txt", "file.txt"]);
+        assert!(directory_mismatches(dir.path(), &paths).is_empty());
+    }
+
+    #[test]
+    fn a_file_with_the_name_of_the_directory_is_no_mismatch() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("lower"), "x").unwrap();
+        assert!(directory_mismatches(dir.path(), &names(&["LOWER/file.txt"])).is_empty());
     }
 
     #[test]

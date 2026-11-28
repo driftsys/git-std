@@ -895,6 +895,30 @@ start another merge or delete the recovery directory until recovery is complete.
 For a reference recovery record, restore the saved OID with `git update-ref` in
 the affected worktree; copying it into `.git` does not restore a reftable ref.
 
+A fix-mode pre-commit hook stops before it unstages or stashes anything when a
+staged rename target has a directory whose case differs from the directory on
+disk. This happens on a case-insensitive filesystem when `core.ignorecase` is
+not true and `git mv dir/a.txt DIR/b.txt` renames into an existing `dir/`. The
+hook exits with code 2, names the staged paths, and leaves the index, the work
+tree, and the stash list unchanged. The message prints a command that gives the
+directory on disk the case of the index through a temporary name. The hook
+chooses a name that did not exist when it printed the hint, and appends a
+counter (`-2`, `-3`) when `dir.git-std-tmp` is taken. `git mv` does
+not help, because the index already holds the new case.
+
+```sh
+mv -- 'dir' 'dir.git-std-tmp' && mv -- 'dir.git-std-tmp' 'DIR'
+```
+
+That command changes only the directory name on disk. When `git status` still
+lists files under the old name, because the index holds some of them under the
+old case, the user stages them under the new case, for example with `git mv`
+or with `git rm --cached` and `git add` for each file, and reviews
+`git diff --cached`. Staging a file also stages its unstaged edits. The hook
+does not generate these index commands. The user can also skip the hook with
+`GIT_STD_SKIP_HOOKS=1`. Paths with non-ASCII characters are not detected yet
+(#606).
+
 **Default mode per hook:**
 
 | Hook         | Default   | Rationale                       |

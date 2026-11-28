@@ -62,6 +62,20 @@ pub(super) fn prepare(
     } else {
         Vec::new()
     };
+    if use_stash_dance && !case_collision::ignore_case_is_true() {
+        let root = crate::git::workdir(&std::env::current_dir().unwrap_or_default())
+            .unwrap_or_else(|_| std::path::PathBuf::from("."));
+        let mismatches = case_collision::directory_mismatches(&root, &staged_rename_targets);
+        if let Some(first) = mismatches.first() {
+            return Err(report_directory_mismatches(
+                format,
+                hook,
+                &root,
+                &mismatches,
+                first,
+            ));
+        }
+    }
     let unstageable_rename_targets =
         case_collision::without_colliding_renames(&staged_rename_targets, &staged_rename_sources);
     let colliding_rename_targets =
@@ -144,4 +158,157 @@ fn fail_after_rename_unstage(
         }
     };
     failure::emit(format, message)
+}
+
+/// Quote a path for a POSIX shell.
+fn shell_quote(path: &str) -> String {
+    format!("'{}'", path.replace('\'', "'\\''"))
+}
+
+/// Build the shell command that gives a directory on disk the case of the
+/// index, through a temporary name.
+///
+/// The temporary name is the first of `<disk>.git-std-tmp`,
+/// `<disk>.git-std-tmp-2`, and so on that does not exist under `root`. A
+/// dangling symlink counts as existing, because `mv` would move the directory
+/// into the link target or fail.
+fn move_directory_command(root: &std::path::Path, disk: &str, index: &str) -> String {
+    let mut temporary = format!("{disk}.git-std-tmp");
+    let mut counter = 1;
+    while root.join(&temporary).symlink_metadata().is_ok() {
+        counter += 1;
+        temporary = format!("{disk}.git-std-tmp-{counter}");
+    }
+    let temporary = shell_quote(&temporary);
+    format!(
+        "mv -- {disk} {temporary} && mv -- {temporary} {index}",
+        disk = shell_quote(disk),
+        index = shell_quote(index)
+    )
+}
+
+/// Stop before the hook changes anything: the stash cannot hold a staged
+/// rename whose directory has another case on disk (#609).
+fn report_directory_mismatches(
+    format: OutputFormat,
+    hook: &str,
+    root: &std::path::Path,
+    mismatches: &[case_collision::DirectoryMismatch],
+    first: &case_collision::DirectoryMismatch,
+) -> i32 {
+    let paths: Vec<&str> = mismatches
+        .iter()
+        .map(|mismatch| mismatch.path.as_str())
+        .collect();
+    let code = failure::emit(
+        format,
+        format!(
+            "fix mode (~) cannot stash a staged rename into a directory whose case differs on \
+             disk: {}",
+            paths.join(", ")
+        ),
+    );
+    if format != OutputFormat::Json {
+        ui::hint(&format!(
+            "the index has `{}` and the work tree has `{}` — they are one directory on this \
+             filesystem",
+            first.index_directory, first.disk_directory
+        ));
+        ui::hint(&format!(
+            "to give the directory on disk the case of the index: {}",
+            move_directory_command(root, &first.disk_directory, &first.index_directory)
+        ));
+        ui::hint(&format!(
+            "if `git status` still lists files under `{old}`, stage them under `{new}` (for \
+             example with `git mv`, or `git rm --cached` and `git add` for each file), then \
+             review `git diff --cached`",
+            old = first.disk_directory,
+            new = first.index_directory
+        ));
+        print_failure_hints(hook);
+    }
+    code
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{move_directory_command, shell_quote};
+
+    #[test]
+    fn shell_quote_keeps_a_single_quote_inside_the_word() {
+        assert_eq!(shell_quote("it's"), "'it'\\''s'");
+    }
+
+    fn run(root: &std::path::Path, command: &str) {
+        let status = std::process::Command::new("sh")
+            .current_dir(root)
+            .args(["-c", command])
+            .status()
+            .unwrap();
+        assert!(status.success(), "{command}");
+    }
+
+    fn listing(root: &std::path::Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(root)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn move_directory_command_renames_a_directory_with_a_space_and_a_quote() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join("my dir's")).unwrap();
+        std::fs::write(root.path().join("my dir's/file.txt"), "x").unwrap();
+        let command = move_directory_command(root.path(), "my dir's", "MY DIR's");
+        assert_eq!(
+            command,
+            "mv -- 'my dir'\\''s' 'my dir'\\''s.git-std-tmp' && \
+             mv -- 'my dir'\\''s.git-std-tmp' 'MY DIR'\\''s'"
+        );
+        run(root.path(), &command);
+        assert_eq!(listing(root.path()), ["MY DIR's"]);
+    }
+
+    #[test]
+    fn move_directory_command_handles_a_leading_dash() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join("-dir")).unwrap();
+        run(
+            root.path(),
+            &move_directory_command(root.path(), "-dir", "-DIR"),
+        );
+        assert_eq!(listing(root.path()), ["-DIR"]);
+    }
+
+    #[test]
+    fn move_directory_command_handles_a_nested_path() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("a/dir")).unwrap();
+        run(
+            root.path(),
+            &move_directory_command(root.path(), "a/dir", "a/DIR"),
+        );
+        assert_eq!(listing(&root.path().join("a")), ["DIR"]);
+    }
+
+    #[test]
+    fn move_directory_command_skips_temporary_names_that_exist() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join("dir")).unwrap();
+        std::fs::create_dir(root.path().join("dir.git-std-tmp")).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink("missing", root.path().join("dir.git-std-tmp-2")).unwrap();
+        let command = move_directory_command(root.path(), "dir", "DIR");
+        #[cfg(unix)]
+        assert!(command.contains("'dir.git-std-tmp-3'"), "{command}");
+        run(root.path(), &command);
+        let names = listing(root.path());
+        assert!(names.contains(&"DIR".to_string()), "{names:?}");
+        assert!(names.contains(&"dir.git-std-tmp".to_string()), "{names:?}");
+        let existing = root.path().join("dir.git-std-tmp");
+        assert!(existing.read_dir().unwrap().next().is_none());
+    }
 }
