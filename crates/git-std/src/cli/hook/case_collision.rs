@@ -16,9 +16,8 @@
 /// stay in the index.
 ///
 /// The check compares names only. It uses neither the filesystem nor
-/// `core.ignorecase`. Only ASCII-safe paths are handled: Git quotes
-/// non-ASCII paths in this output, which this function does not decode
-/// (tracked in #606).
+/// `core.ignorecase`. The callers read raw names with `-z`, so a non-ASCII
+/// name arrives as written and is compared as written (#606).
 pub(super) fn without_colliding_renames(targets: &[String], sources: &[String]) -> Vec<String> {
     let lowered_sources: Vec<String> = sources.iter().map(|source| source.to_lowercase()).collect();
     targets
@@ -156,8 +155,8 @@ pub(super) fn ignore_case_is_true() -> bool {
 /// filesystems. On a case-sensitive filesystem the path does not resolve, so
 /// nothing is reported there.
 ///
-/// Git quotes non-ASCII paths in the lists this function receives, and the
-/// function does not decode them. Such paths are not detected yet (#606).
+/// The callers read raw names with `-z`, so a path with non-ASCII characters
+/// is detected like any other (#606).
 pub(super) fn directory_mismatches(
     root: &std::path::Path,
     paths: &[String],

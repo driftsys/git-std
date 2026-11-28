@@ -4,24 +4,26 @@ use crate::ui;
 
 /// Fetch all tracked files for glob filtering in non-pre-commit hooks.
 ///
-/// Returns file paths from `git ls-files`. Only called when at least one
+/// Returns raw file paths from `git ls-files -z`. Only called when at least one
 /// command has a glob pattern and the hook is not `pre-commit` (pre-commit
 /// reuses the already-fetched staged files instead).
 pub(super) fn fetch_tracked_files() -> Result<Vec<String>, String> {
-    git_lines(&["ls-files"], "failed to inspect tracked files")
+    git_paths(&["ls-files", "-z"], "failed to inspect tracked files")
 }
 
 /// Fetch staged file paths matching the given `--diff-filter`.
 ///
-/// Returns file paths from `git diff --cached --name-only --diff-filter=<filter>`
-/// relative to the working tree root, or an error when Git cannot inspect the
-/// index.
+/// Returns raw file paths from
+/// `git diff --cached --name-only -z --diff-filter=<filter>` relative to the
+/// working tree root, or an error when Git cannot inspect the index. The `-z`
+/// option stops Git from quoting names with non-ASCII characters (#606).
 pub(super) fn fetch_staged(filter: &str) -> Result<Vec<String>, String> {
-    git_lines(
+    git_paths(
         &[
             "diff",
             "--cached",
             "--name-only",
+            "-z",
             &format!("--diff-filter={filter}"),
         ],
         "failed to inspect staged files",
@@ -49,7 +51,7 @@ pub(super) fn restage_deletions(files: &[String]) -> Result<(), String> {
     if files.is_empty() {
         return Ok(());
     }
-    let mut cmd = Command::new("git");
+    let mut cmd = literal_git();
     cmd.args(["update-index", "--force-remove", "--"]);
     for f in files {
         cmd.arg(f);
@@ -70,25 +72,48 @@ pub(super) fn restage_deletions(files: &[String]) -> Result<(), String> {
 
 /// Fetch the list of unstaged (working-tree-modified) file paths.
 ///
-/// Returns file paths that differ between index and working tree.
+/// Returns raw file paths that differ between index and working tree.
 pub(super) fn fetch_unstaged_files() -> Result<Vec<String>, String> {
-    git_lines(&["diff", "--name-only"], "failed to inspect unstaged files")
+    git_paths(
+        &["diff", "--name-only", "-z"],
+        "failed to inspect unstaged files",
+    )
 }
 
 /// Check whether any staged entries are submodules (mode `160000`).
 ///
-/// Parses `git diff --cached --diff-filter=ACMR --raw` and looks for the
-/// submodule file mode. Returns `true` if at least one submodule entry is
-/// staged.
+/// Parses `git diff --cached --diff-filter=ACMR --raw -z` and looks for the
+/// submodule file mode in the new mode field of each record. Reading only
+/// that field keeps a path that contains the text `160000` from matching.
+/// Returns `true` if at least one submodule entry is staged.
 pub(super) fn has_staged_submodules() -> Result<bool, String> {
-    let output = Command::new("git")
-        .args(["diff", "--cached", "--diff-filter=ACMR", "--raw"])
-        .output();
-    let output = output.map_err(|error| format!("failed to inspect staged submodules: {error}"))?;
-    if !output.status.success() {
-        return Err("failed to inspect staged submodules".to_string());
+    let output = git_output(
+        &["diff", "--cached", "--diff-filter=ACMR", "--raw", "-z"],
+        "failed to inspect staged submodules",
+    )?;
+    let mut fields = output
+        .split(|byte| *byte == 0)
+        .filter(|field| !field.is_empty());
+    while let Some(record) = fields.next() {
+        // A record is `:<old mode> <new mode> <old id> <new id> <status>`,
+        // followed by one path, or two paths for a rename or a copy.
+        let record = String::from_utf8_lossy(record);
+        let mut parts = record.trim_start_matches(':').split(' ');
+        let new_mode = parts.nth(1);
+        let status = parts.nth(2).unwrap_or("");
+        if new_mode == Some("160000") {
+            return Ok(true);
+        }
+        let path_count = if status.starts_with('R') || status.starts_with('C') {
+            2
+        } else {
+            1
+        };
+        for _ in 0..path_count {
+            fields.next();
+        }
     }
-    Ok(String::from_utf8_lossy(&output.stdout).contains(" 160000 "))
+    Ok(false)
 }
 
 /// Read the commit SHA at the top of the shared stash stack, or `None`
@@ -162,13 +187,13 @@ fn stash_push_inner() -> Result<Option<String>, String> {
 
 /// Get the new names of any files staged as renames.
 ///
-/// Returns the new file paths from renames. Used to unstage renames before
+/// Returns the raw new file paths from renames. Used to unstage renames before
 /// the stash dance to prevent corruption (#387), except for targets that
 /// collide with a rename source (see [`super::case_collision::without_colliding_renames`]). Also
 /// used to re-stage every rename target after the dance.
 pub(super) fn fetch_staged_rename_targets() -> Result<Vec<String>, String> {
-    git_lines(
-        &["diff", "--cached", "--diff-filter=R", "--name-only"],
+    git_paths(
+        &["diff", "--cached", "--diff-filter=R", "--name-only", "-z"],
         "failed to inspect staged renames",
     )
 }
@@ -180,22 +205,66 @@ pub(super) fn fetch_staged_rename_targets() -> Result<Vec<String>, String> {
 /// deletion inventory captured before mutating the index. They also identify
 /// colliding renames (see [`super::case_collision::without_colliding_renames`]).
 pub(super) fn fetch_staged_rename_sources() -> Result<Vec<String>, String> {
-    let lines = git_lines(
-        &["diff", "--cached", "--diff-filter=R", "--name-status"],
+    let output = git_output(
+        &["diff", "--cached", "--diff-filter=R", "--name-status", "-z"],
         "failed to inspect staged renames",
     )?;
-    Ok(lines
+    // With `-z` every record is `R<score>`, the source, and the target, each
+    // ended by a NUL byte. The filter keeps only renames.
+    let fields: Vec<String> = output
+        .split(|byte| *byte == 0)
+        .filter(|field| !field.is_empty())
+        .map(|field| String::from_utf8_lossy(field).into_owned())
+        .collect();
+    let (records, _) = fields.as_chunks::<3>();
+    Ok(records
         .iter()
-        .filter_map(|line| {
-            let mut fields = line.split('\t');
-            let status = fields.next()?;
-            let source = fields.next()?;
-            status.starts_with('R').then(|| source.to_string())
-        })
+        .filter(|record| record[0].starts_with('R'))
+        .map(|record| record[1].clone())
         .collect())
 }
 
-fn git_lines(args: &[&str], failure: &str) -> Result<Vec<String>, String> {
+/// A Git command that reads every path argument as a literal name.
+///
+/// The environment variable has the effect of `--literal-pathspecs` and keeps
+/// the subcommand as the first argument.
+///
+/// A staged name such as `a*.txt` or `[ab].txt` is a pathspec pattern for
+/// Git by default, and would match unrelated files (#606).
+fn literal_git() -> Command {
+    let mut command = Command::new("git");
+    command.env("GIT_LITERAL_PATHSPECS", "1");
+    command
+}
+
+/// Stop before any change when a staged path is not valid UTF-8.
+///
+/// Fix mode keeps staged paths as `String` and gives them back to Git. A
+/// name that is not valid UTF-8 would come back under another name, so the
+/// staged change would be restored wrongly. Such names are not supported.
+pub(super) fn ensure_utf8_staged_paths() -> Result<(), String> {
+    let output = git_output(
+        &["diff", "--cached", "--name-only", "--no-renames", "-z"],
+        "failed to inspect staged files",
+    )?;
+    match first_non_utf8_path(&output) {
+        Some(path) => Err(format!(
+            "fix mode (~) does not support file names that are not valid UTF-8: {path}"
+        )),
+        None => Ok(()),
+    }
+}
+
+/// Return the first NUL-separated record of `output` that is not valid UTF-8,
+/// with each invalid byte shown as a replacement character.
+fn first_non_utf8_path(output: &[u8]) -> Option<String> {
+    output
+        .split(|byte| *byte == 0)
+        .find(|record| std::str::from_utf8(record).is_err())
+        .map(|record| String::from_utf8_lossy(record).into_owned())
+}
+
+fn git_output(args: &[&str], failure: &str) -> Result<Vec<u8>, String> {
     let output = Command::new("git")
         .args(args)
         .output()
@@ -203,9 +272,16 @@ fn git_lines(args: &[&str], failure: &str) -> Result<Vec<String>, String> {
     if !output.status.success() {
         return Err(failure.to_string());
     }
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(String::from)
+    Ok(output.stdout)
+}
+
+/// Run Git with `-z` output and split it into raw paths. The caller passes
+/// `-z`, so Git does not quote a name (#606).
+fn git_paths(args: &[&str], failure: &str) -> Result<Vec<String>, String> {
+    Ok(git_output(args, failure)?
+        .split(|byte| *byte == 0)
+        .filter(|field| !field.is_empty())
+        .map(|field| String::from_utf8_lossy(field).into_owned())
         .collect())
 }
 
@@ -217,7 +293,7 @@ pub(super) fn unstage_renames(rename_targets: &[String]) -> bool {
     if rename_targets.is_empty() {
         return true;
     }
-    let mut cmd = Command::new("git");
+    let mut cmd = literal_git();
     cmd.args(["restore", "--staged", "--"]);
     for f in rename_targets {
         cmd.arg(f);
@@ -236,7 +312,7 @@ pub(super) fn restage_renames(rename_targets: &[String]) -> Result<(), String> {
     if rename_targets.is_empty() {
         return Ok(());
     }
-    let mut command = Command::new("git");
+    let mut command = literal_git();
     command.args(["add", "--"]);
     for target in rename_targets {
         command.arg(target);
@@ -316,7 +392,7 @@ pub(super) fn restage_files(files: &[String]) -> Result<(), String> {
     if existing.is_empty() {
         return Ok(());
     }
-    let mut cmd = Command::new("git");
+    let mut cmd = literal_git();
     cmd.arg("add").arg("--");
     for f in &existing {
         cmd.arg(f);
@@ -330,5 +406,27 @@ pub(super) fn restage_files(files: &[String]) -> Result<(), String> {
             ))
         }
         Err(e) => Err(format!("git add failed after fix-mode formatting: {e}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::first_non_utf8_path;
+
+    #[test]
+    fn valid_utf8_records_are_accepted() {
+        assert_eq!(first_non_utf8_path(b""), None);
+        assert_eq!(
+            first_non_utf8_path("caf\u{e9}.txt\0a b.txt\0".as_bytes()),
+            None
+        );
+    }
+
+    #[test]
+    fn the_first_invalid_record_is_reported() {
+        assert_eq!(
+            first_non_utf8_path(b"ok.txt\0bad\xff.txt\0worse\xfe.txt\0"),
+            Some("bad\u{fffd}.txt".to_string())
+        );
     }
 }
